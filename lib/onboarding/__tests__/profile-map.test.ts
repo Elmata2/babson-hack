@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import { sanitizeProfile } from '../../../components/map/use-profile'
 import { serializeProfile, withoutProfile } from '../flow'
-import { mapProfileFrom, mergeMapProfile, monthlyKwh, sponsorFromBill } from '../profile-map'
+import { sponsorFromBill } from '../../utility'
+import { mapProfileFrom, mergeMapProfile, monthlyKwh } from '../profile-map'
 
 const electric = { units: '7,200', utility: 'national_grid' as const }
 

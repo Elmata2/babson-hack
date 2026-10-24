@@ -28,16 +28,19 @@ Program and rebate numbers stay in `mass-save-rules.md`. Machine-readable copy:
 | --- | --- | --- |
 | Eversource Basic Service, residential, supply only | **17.3¢/kWh**, Aug 1 2026 → Jan 2027 | Boston.com, 2026-07-29 |
 | National Grid Basic Service, residential, supply only | **16.074¢/kWh**, Aug 1 2026 → Jan 2027 | Boston.com, 2026-07-29 |
-| Unitil Basic Service | no number; link to Unitil's rate sheet | Unitil, Basic Service update Aug 2026 – Jan 2027 (PDF) |
+| Unitil Basic Service, residential (R-1), fixed price, supply only | **18.921¢/kWh** ($0.18921), Aug 1 2026 → Jan 31 2027. Residential customers are placed on it automatically and may switch once to the monthly price (11.931¢ Sep 2026 to 31.010¢ Jan 2027). Includes the 0.991¢ Basic Service Costs Adder | Unitil residential rate sheet, "Effective: August 1, 2026", document date 2026-08-01, read 2026-10-24. Not a DPU order; Unitil's own pamphlet labels the same figure "Proposed August 2026" |
 | Competitive supply overpayment | residential customers paid **$738.7M** more than Basic Service, Jul 2024 – Jun 2025 | MA Attorney General, 2026 Competitive Supply Report |
 | Market split, Mar 2026 | **51%** aggregation · **26.6%** Basic Service · **~22%** competitive | MA AG, *The Energy Advocate*, summer 2026 |
 | All-in residential average (context only) | 30.49¢/kWh, Jul 2026 | EIA (see `mass-save-rules.md` §2) |
+
+Print a ¢/kWh Basic Service rate exactly as stored (`formatCents`), never rounded to one decimal on one surface and exact on another.
 
 Basic Service rates are **supply-only**. Never compare them to the all-in 30.49¢.
 
 URLs:
 - Boston.com: https://boston.com/news/local-news/2026/07/29/electric-utility-rates-are-going-up-aug-1-will-your-bill-actually-increase
-- Unitil: https://unitil.com/sites/default/files/2026-07/2026%20FGE%20Basic%20Service%20Update-Aug26-Jan27-0928.pdf
+- Unitil rate sheet: https://unitil.com/sites/default/files/2024-01/MA-Residential-Electric-Rates.pdf
+- Unitil pamphlet: https://unitil.com/sites/default/files/2026-07/2026%20FGE%20Basic%20Service%20Update-Aug26-Jan27-0928.pdf
 - AG report: https://www.mass.gov/doc/2026-competitive-supply-report/download
 - AG newsletter: https://www.mass.gov/doc/era-newsletter-the-energy-advocate-summer-2026/download
 - Municipal aggregation: https://www.mass.gov/info-details/municipal-aggregation
@@ -48,8 +51,8 @@ URLs:
 `monthlyDifferenceUsd = (supplierRateCents − basicServiceCents) × monthlyKwh / 100`
 
 Inputs come from the user's profile. Show the formula with the numbers substituted.
-Positive means "you pay $X/month more than Basic Service". Only for Eversource and
-National Grid, where a Basic Service number exists.
+Positive means "you pay $X/month more than Basic Service". Only where a Basic Service number
+exists: Eversource, National Grid and Unitil.
 
 ## 5. Do not claim
 

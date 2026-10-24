@@ -28,7 +28,8 @@ import { loadProviders, outreachPlan } from '@/lib/switch/providers'
 import { contactUtilityFor, contactsBlock, isCapeLightTown } from '@/lib/verdict/contacts'
 import { recommend } from '@/lib/verdict/recommendation'
 import { verdictPath } from '@/lib/verdict/share-query'
-import { SPONSOR_NAME } from '@/lib/utility'
+import { SPONSOR_NAME, sponsorFromBill } from '@/lib/utility'
+import { refusalRunningCost } from '@/lib/verdict/running-cost'
 import { enhancedOffer } from '@/lib/verdict/enhanced-offer'
 import { isVerdictQueryComplete, resolveVerdictInputs } from '@/lib/verdict/inputs'
 import { entryFor, provenanceFor, type FigureId, type ProvenanceEntry } from '@/lib/verdict/provenance'
@@ -196,9 +197,12 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
           asOf: formatDateShort(prices.elec.period) ?? prices.elec.period,
         }
 
-  const sponsorLabel = utility.sponsors.length
-    ? utility.sponsors.map((sponsor) => SPONSOR_NAME[sponsor]).join(' · ')
-    : 'your sponsor'
+  const billedSponsor = sponsorFromBill(billUtility)
+  const sponsorLabel = billedSponsor
+    ? SPONSOR_NAME[billedSponsor]
+    : utility.sponsors.length
+      ? utility.sponsors.map((sponsor) => SPONSOR_NAME[sponsor]).join(' · ')
+      : 'your sponsor'
 
   const provenanceContext = {
     fuelSource,
@@ -238,6 +242,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
 
   const entries = result ? provenanceFor(result, provenanceContext) : []
   const headline = result ? verdictHeadline(result) : null
+  const runningCost = result && noMassSave ? refusalRunningCost(result, billRate, billSaysMunicipal) : null
   const extraReasons =
     headline && notes ? notes.reasons.slice(0, Math.max(0, MIN_REASONS - headline.parts.why.length)) : []
   const townName = displayTown(townRaw)
@@ -303,12 +308,18 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 Mass Save rebates do not apply at this address.
               </h1>
               <p className="mt-3 max-w-[62ch] text-small text-ink">
-                {utility.reason ??
-                  'This town is served by a municipal light plant, so the Mass Save electric rebate is not available.'}
+                {billSaysMunicipal
+                  ? 'Your bill comes from a municipal light plant. Municipal light plant customers are not served by Mass Save electric rebates. The town’s own program may still offer something, so ask your light plant directly.'
+                  : (utility.reason ??
+                    'This town is served by a municipal light plant, so the Mass Save electric rebate is not available.')}
               </p>
+              {runningCost ? (
+                <p className="mt-3 max-w-[62ch] text-small text-ink tabular-nums">
+                  <Parts entries={entries} parts={runningCost} />
+                </p>
+              ) : null}
               <p className="mt-3 max-w-[62ch] text-small text-ink-muted">
-                We will show what the same heat would cost to run, because that part is true anywhere. We will not
-                print a rebate, a net cost or a payback you cannot receive.
+                We will not print a rebate, a net cost or a payback you cannot receive.
               </p>
             </section>
           ) : headline === null ? null : (
@@ -483,7 +494,11 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                       {utility.found
                         ? utility.sponsors.map((sponsor) => SPONSOR_NAME[sponsor]).join(' · ')
                         : 'Not one of the 351 municipalities.'}
-                      {seasonal.applied ? ' · seasonal heat-pump rate applied' : ''}
+                      {seasonal.applied
+                        ? ' · seasonal heat-pump rate applied'
+                        : isCapeLightTown(utility.sponsors)
+                          ? ' · Cape Light Compact towns: we don’t apply a seasonal heat pump rate, because none is published for them'
+                          : ''}
                     </p>
                   )}
 

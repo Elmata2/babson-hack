@@ -86,6 +86,45 @@ describe('verdict headline', () => {
     }
   })
 
+  it('warns in the why-lines when the loan payment exceeds the monthly saving', () => {
+    for (const base of [oilNow, propane]) {
+      const negative = withFields(base, { cashFlowPositive: false, monthlyLoan: 298, monthlySavings: 255 })
+      const h = verdictHeadline(negative)
+      expect(h.why).toContain(
+        'On the 0% HEAT Loan the payment ($298/mo) is more than you’d save ($255/mo) until it’s repaid (assuming the 84-month term).',
+      )
+      expect(h.why.length).toBeGreaterThanOrEqual(2)
+      expect(h.why.length).toBeLessThanOrEqual(3)
+      const line = h.parts.why.find((parts) => text(parts).includes('HEAT Loan'))!
+      expect(line.filter((p) => typeof p !== 'string')).toEqual([
+        { id: 'monthlyLoan', text: '$298/mo' },
+        { id: 'monthlySavings', text: '$255/mo' },
+      ])
+      expect(inventedNumbers(h.why.join(' '), negative)).toEqual([])
+    }
+  })
+
+  it('says what is paid up front when the net cost is above the loan cap', () => {
+    const capped = withFields(propane, {
+      cashFlowPositive: false,
+      monthlyLoan: 298,
+      monthlySavings: 255,
+      netCost: 30_000,
+      loanAmount: 25_000,
+    })
+    const line = verdictHeadline(capped).why.find((why) => why.includes('HEAT Loan'))!
+    expect(line).toContain('(assuming the 84-month term). The loan covers the first $25,000; the other $5,000 is paid up front.')
+    const uncapped = verdictHeadline(withFields(capped, { netCost: 20_000, loanAmount: 20_000 })).why.find((why) =>
+      why.includes('HEAT Loan'),
+    )!
+    expect(uncapped).not.toContain('paid up front')
+  })
+
+  it('leaves the why-lines alone when cash flow is positive', () => {
+    const positive = withFields(oilNow, { cashFlowPositive: true })
+    expect(verdictHeadline(positive).why.join(' ')).not.toContain('HEAT Loan')
+  })
+
   it('keeps two to three reasons, each figure tied to a provenance id', () => {
     for (const result of [oilNow, propane, gas, slow]) {
       const h = verdictHeadline(result)

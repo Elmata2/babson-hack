@@ -1,7 +1,8 @@
 import type { SponsorKey } from '../elec-label'
 import type { Income } from '../intake/params'
-import type { BillApplied, BillUtility } from '../parse/contract'
+import type { BillApplied } from '../parse/contract'
 import type { BillFuel } from '../parse/types'
+import { sponsorFromBill } from '../utility'
 
 export interface MapProfileFields {
   town: string
@@ -12,22 +13,6 @@ export interface MapProfileFields {
   supply: 'basic' | 'competitive' | null
   supplierRateCents: number | null
   incomeEligible: Income
-}
-
-const SPONSOR_OF: Record<BillUtility, SponsorKey | null> = {
-  eversource: 'eversource',
-  national_grid: 'nationalgrid',
-  unitil: 'unitil',
-  municipal: 'municipal',
-  liberty: 'other',
-  berkshire_gas: 'other',
-  other: 'other',
-  oil_dealer: null,
-  propane_dealer: null,
-}
-
-export function sponsorFromBill(utility: BillUtility | null): SponsorKey | null {
-  return utility === null ? null : SPONSOR_OF[utility]
 }
 
 /** Monthly kWh from an electric bill's annualised kWh, or null when the bill gave none. */

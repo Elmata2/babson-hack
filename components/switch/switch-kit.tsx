@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import { formatCents } from '@/lib/supply'
 import { fuelPhoneScript, installerPhoneScript, supplyKitScript } from '@/lib/switch/requests'
 import type { SharedFacts } from '@/lib/switch/types'
 
@@ -116,7 +117,7 @@ export function SwitchKit({ kind, facts, town, supply, contact }: SwitchKitProps
           <div className="grid gap-2 border-t border-rule pt-3 text-small">
             {supply.basicCents !== null ? (
               <p className="text-ink-muted">
-                Basic Service, supply only: <span className="tabular-nums text-ink">{supply.basicCents.toFixed(1)}¢/kWh</span>
+                Basic Service, supply only: <span className="tabular-nums text-ink">{formatCents(supply.basicCents)}¢/kWh</span>
                 {supply.basicSource ? ` · ${supply.basicSource}` : ''}. Never compare it with an all-in ¢/kWh.
               </p>
             ) : (

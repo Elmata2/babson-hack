@@ -29,7 +29,7 @@ import type {
   SwitchChoice,
   SwitchProvider,
 } from '@/lib/switch/types'
-import { monthlyDifferenceUsd } from '@/lib/supply'
+import { formatCents, monthlyDifferenceUsd } from '@/lib/supply'
 import { CallBoard } from './call-board'
 import { SwitchKit } from './switch-kit'
 
@@ -681,7 +681,7 @@ function SupplyPanel({
           <dd className="mt-1 text-small text-ink-muted">
             {basicCents === null
               ? 'No supply-only rate is published for this sponsor, so none is printed.'
-              : `${basicCents.toFixed(1)}¢/kWh supply only, ${model.supply.basic?.period ?? ''}. The utility buys it for you; it resets every six months.`}
+              : `${formatCents(basicCents)}¢/kWh supply only, ${model.supply.basic?.period ?? ''}. The utility buys it for you; it resets every six months.`}
           </dd>
         </div>
         <div className="rounded-card border border-rule bg-paper-sunk/40 p-3">

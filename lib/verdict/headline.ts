@@ -7,6 +7,7 @@
  */
 
 import type { VerdictResult } from '../calc/types'
+import { HEAT_LOAN_APR, HEAT_LOAN_MAX_USD, HEAT_LOAN_MONTHS } from '../calc/constants'
 import { cents, one, usd } from './format'
 import type { FigureId } from './provenance'
 
@@ -92,6 +93,19 @@ export function verdictHeadline(result: VerdictResult): VerdictHeadline {
       ]
     : ['No rebate applies here, so the net cost is ', fig('netCost', usd(result.netCost)), '.']
 
+  const negativeCashFlow: Part[] = result.cashFlowPositive
+    ? []
+    : [
+        `On the ${HEAT_LOAN_APR === 0 ? '0% ' : ''}HEAT Loan the payment (`,
+        fig('monthlyLoan', `${usd(result.monthlyLoan)}/mo`),
+        ') is more than you’d save (',
+        fig('monthlySavings', `${usd(result.monthlySavings)}/mo`),
+        `) until it’s repaid (assuming the ${HEAT_LOAN_MONTHS}-month term).`,
+        ...(result.netCost > result.loanAmount
+          ? [` The loan covers the first ${usd(HEAT_LOAN_MAX_USD)}; the other ${usd(result.netCost - result.loanAmount)} is paid up front.`]
+          : []),
+      ]
+
   let why: Part[][]
   if (kind === 'save_before_deadline') {
     why = [
@@ -105,7 +119,7 @@ export function verdictHeadline(result: VerdictResult): VerdictHeadline {
         '.',
       ],
       runningCost,
-      netCost,
+      negativeCashFlow.length ? negativeCashFlow : netCost,
     ]
   } else if (kind === 'save_switch') {
     why = [
@@ -113,9 +127,11 @@ export function verdictHeadline(result: VerdictResult): VerdictHeadline {
       netCost,
       result.netCost <= 0
         ? ['The rebate covers the whole install, so it pays for itself immediately.']
-        : payback === null
-          ? []
-          : ['That pays back in ', years(payback), '.'],
+        : negativeCashFlow.length
+          ? negativeCashFlow
+          : payback === null
+            ? []
+            : ['That pays back in ', years(payback), '.'],
     ]
   } else if (kind === 'save_but_wait') {
     why = [

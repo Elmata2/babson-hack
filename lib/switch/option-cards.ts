@@ -17,6 +17,7 @@ export interface OptionInput {
   market: { price: number | null; period: string | null }
   basic: { centsPerKwh: number | null; source: string; sourceDate: string } | null
   noMassSave: boolean
+  town: string
   plan: { mode: 'off' | 'allowlist' | 'live' }
   /** Providers the agent could actually reach in this mode: email-capable and non-test in live, test lines in allowlist. */
   reachable: { fuel: number; installer: number }

@@ -14,7 +14,16 @@ export interface BasicServiceRate {
   period: string
   source: string
   sourceDate: string
+  /** Date this repo read the source, when it differs from the document's own date. */
+  readOn?: string
+  /** Absent for the Boston.com figures; `effective` when read from the utility's own rate sheet. */
+  status?: 'effective'
   url: string
+}
+
+/** A ¢/kWh figure exactly as stored, without trailing zeros: 17.3, 16.074, 18.921. */
+export function formatCents(cents: number): string {
+  return String(Number(cents.toFixed(3)))
 }
 
 type BasicKey = 'eversource' | 'nationalgrid' | 'unitil'

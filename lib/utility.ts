@@ -20,6 +20,7 @@
 
 import utilitiesJson from '../data/generated/utilities.json'
 import type { SponsorKey } from './elec-label'
+import type { BillUtility } from './parse/contract'
 import { SPONSOR_LABEL, townKey } from './elec-label'
 
 export type { SponsorKey }
@@ -250,14 +251,41 @@ export function resolveUtility(town: string): UtilityResolution {
   }
 }
 
+const SPONSOR_OF: Record<BillUtility, SponsorKey | null> = {
+  eversource: 'eversource',
+  national_grid: 'nationalgrid',
+  unitil: 'unitil',
+  municipal: 'municipal',
+  liberty: 'other',
+  berkshire_gas: 'other',
+  other: 'other',
+  oil_dealer: null,
+  propane_dealer: null,
+}
+
+/** The sponsor a bill's sender maps to, or null when the sender sells no electricity. */
+export function sponsorFromBill(billUtility: BillUtility | null): SponsorKey | null {
+  return billUtility === null ? null : SPONSOR_OF[billUtility]
+}
+
 /**
  * The seasonal heat pump rate for a town, from the customer's own all-in rate.
- * Input: $/kWh standard residential rate + town.
+ * Input: $/kWh standard residential rate + town + the sponsor the bill names, if any.
  * Guarantee: returns the standard rate unchanged when no single adjustment applies,
- * and reports whether it was applied — the UI must be able to say which.
+ * and reports whether it was applied. The billed sponsor settles only a town whose
+ * own sponsors disagree and include it; a settled town (Cape Light Compact included)
+ * keeps its rule, and a bill naming a sponsor the town does not list settles nothing.
  */
-export function seasonalHeatPumpRate(standardRate: number, town: string): { rate: number; applied: boolean; rule: number | null } {
-  const { seasonalRateRule } = resolveUtility(town)
-  if (seasonalRateRule === null) return { rate: standardRate, applied: false, rule: null }
-  return { rate: standardRate + seasonalRateRule, applied: true, rule: seasonalRateRule }
+export function seasonalHeatPumpRate(
+  standardRate: number,
+  town: string,
+  billSponsor: SponsorKey | null = null,
+): { rate: number; applied: boolean; rule: number | null } {
+  const resolution = resolveUtility(town)
+  const rule =
+    resolution.eligibleForMassSave === null && billSponsor !== null && resolution.sponsors.includes(billSponsor)
+      ? SEASONAL_RATE_ADJUSTMENT[billSponsor]
+      : resolution.seasonalRateRule
+  if (rule === null) return { rate: standardRate, applied: false, rule: null }
+  return { rate: standardRate + rule, applied: true, rule }
 }

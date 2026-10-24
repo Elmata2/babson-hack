@@ -29,6 +29,7 @@ function observedFlags(run: ScenarioRun): ScenarioFlag[] {
   const basic = model.supply.basic?.centsPerKwh ?? null
   const supplyCents = (electricTotals(scenario.electric).supply / electricTotals(scenario.electric).kWh) * 100
   if (basic !== null && supplyCents > basic + 0.5) flags.push('competitive_above_basic')
+  if (result && !result.cashFlowPositive && run.headline?.why.some((line) => line.includes('HEAT Loan the payment'))) flags.push('negative_cash_flow')
   if (model.noMassSave) flags.push('refusal_not_verdict')
   if (model.asksUtility) flags.push('asks_utility')
   if (inputs.utility.mixed && !model.asksUtility) flags.push('bill_settles_mixed_town')
@@ -96,6 +97,14 @@ describe.each(SCENARIOS.map((scenario) => [scenario.id, scenario] as const))('%s
 
   it('shows exactly the special conditions the scenario declares', () => {
     expect(observedFlags(run)).toEqual([...scenario.expected.flags].sort())
+  })
+})
+
+describe('Unitil supply comparison', () => {
+  it('has a Basic Service baseline for the Unitil town', async () => {
+    const run = await runScenario(SCENARIOS.find((scenario) => scenario.id === 'unitil-oil')!)
+    expect(run.model.supply.basic?.centsPerKwh).toBe(18.921)
+    expect(run.model.supply.basic?.sourceDate).toBe('2026-08-01')
   })
 })
 

@@ -78,13 +78,14 @@ export type ScenarioFlag =
   | 'asks_utility'
   | 'bill_settles_mixed_town'
   | 'no_seasonal_rate'
+  | 'negative_cash_flow'
 
 export interface Expected {
   verdict: Verdict
   headlineCase: HeadlineCase
   /** Source of a RegExp the one-sentence headline must match. */
   headlinePattern: string
-  recommendation: 'stay' | 'quotes'
+  recommendation: 'stay' | 'quotes' | 'light_plant'
   choices: SwitchChoice[]
   noMassSave: boolean
   tier: Tier
@@ -245,7 +246,7 @@ export const SCENARIOS: readonly Scenario[] = [
       choices: ALL_FOUR,
       noMassSave: false,
       tier: 'whole',
-      flags: [],
+      flags: ['negative_cash_flow'],
     },
   },
   {
@@ -362,7 +363,7 @@ export const SCENARIOS: readonly Scenario[] = [
       verdict: 'SWITCH_BEFORE_DEC31',
       headlineCase: 'save_before_deadline',
       headlinePattern: SAVE_SWITCH,
-      recommendation: 'stay',
+      recommendation: 'light_plant',
       choices: NO_SUPPLY,
       noMassSave: true,
       tier: 'whole',
@@ -389,7 +390,7 @@ export const SCENARIOS: readonly Scenario[] = [
       choices: ALL_FOUR,
       noMassSave: false,
       tier: 'whole',
-      flags: ['bill_settles_mixed_town', 'no_seasonal_rate'],
+      flags: ['bill_settles_mixed_town'],
     },
   },
   {
@@ -417,7 +418,7 @@ export const SCENARIOS: readonly Scenario[] = [
       verdict: 'SWITCH_BEFORE_DEC31',
       headlineCase: 'save_before_deadline',
       headlinePattern: SAVE_SWITCH,
-      recommendation: 'stay',
+      recommendation: 'light_plant',
       choices: NO_SUPPLY,
       noMassSave: true,
       tier: 'whole',
@@ -477,7 +478,7 @@ export const SCENARIOS: readonly Scenario[] = [
       choices: ALL_FOUR,
       noMassSave: false,
       tier: 'whole',
-      flags: ['loan_cap_exceeded'],
+      flags: ['loan_cap_exceeded', 'negative_cash_flow'],
     },
   },
   {

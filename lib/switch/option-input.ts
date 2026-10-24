@@ -30,6 +30,7 @@ export function buildOptionInput(
         }
       : null,
     noMassSave: model.noMassSave,
+    town: model.town,
     plan,
     reachable: {
       fuel: providers.filter((provider) => reachableBy(provider, 'fuel', plan.mode)).length,

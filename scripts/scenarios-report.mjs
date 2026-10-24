@@ -15,7 +15,8 @@
  * `--screens` also saves a full-page screenshot per scenario with headless Chrome into
  * `docs/scenarios/screens/`. Needs Node 22.18+ (loads the .ts matrix directly).
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -25,6 +26,8 @@ import { chrome, chromeAvailable } from './demo-bills/chrome.mjs'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DOCS = join(ROOT, 'docs/scenarios')
 const SCREENS = join(DOCS, 'screens')
+const STAGING = mkdtempSync(join(tmpdir(), 'scenarios-report-'))
+const STAGED_SCREENS = join(STAGING, 'screens')
 const port = process.argv.slice(2).find((arg) => /^\d+$/.test(arg)) ?? '3000'
 const BASE = `http://localhost:${port}`
 const WITH_SCREENS = process.argv.includes('--screens')
@@ -52,7 +55,7 @@ const first = (html, pattern) => {
 
 /** The section that follows a heading matching `title`, up to the next h2, as plain text. */
 function sectionAfter(html, title) {
-  const heading = new RegExp(`<h[23][^>]*>[^<]*${title}[^<]*</h[23]>`, 'i').exec(html)
+  const heading = new RegExp(`<h[123][^>]*>[^<]*${title}[^<]*</h[123]>`, 'i').exec(html)
   if (!heading) return null
   const rest = html.slice(heading.index + heading[0].length)
   const next = /<h2[\s>]/.exec(rest)
@@ -76,6 +79,7 @@ function readPage(rawHtml) {
     recommendation: first(html, /What to do next<\/h2>\s*<p[^>]*>([\s\S]*?)<\/p>/),
     money: sectionAfter(html, 'The money'),
     contacts: sectionAfter(html, 'contact'),
+    text: clean(html),
   }
 }
 
@@ -92,8 +96,33 @@ async function fetchPage(url) {
 }
 
 function screenshot(id, url) {
-  mkdirSync(SCREENS, { recursive: true })
-  chrome([`--window-size=1200,2800`, '--virtual-time-budget=6000', `--screenshot=${join(SCREENS, `${id}.png`)}`, url])
+  mkdirSync(STAGED_SCREENS, { recursive: true })
+  chrome([`--window-size=1200,2800`, '--virtual-time-budget=6000', `--screenshot=${join(STAGED_SCREENS, `${id}.png`)}`, url])
+}
+
+const RECOMMENDATION_PREFIX = {
+  stay: 'Our recommendation: stay with what you have.',
+  quotes: 'Our recommendation: get heat pump quotes now',
+}
+
+function failures(scenario, page) {
+  const found = []
+  const { expected } = scenario
+  const wanted =
+    expected.recommendation === 'light_plant'
+      ? `Mass Save rebates don’t apply in ${scenario.town}: your light plant sets its own programs.`
+      : RECOMMENDATION_PREFIX[expected.recommendation]
+  if (!page.recommendation?.startsWith(wanted)) found.push(`recommendation should start "${wanted}", page says "${page.recommendation}"`)
+  if (expected.noMassSave) {
+    if (!page.refusalBody || !/light plant/i.test(page.refusalBody)) found.push('refusal text does not name the municipal light plant')
+    if (/January 2027|prices and rebates reset/.test(page.recommendation ?? '')) found.push('light plant recommendation promises a January 2027 recheck')
+    if (page.text.includes('We will show what the same heat would cost to run')) found.push('refusal promises a running cost it does not show')
+    if (!/At (your light plant’s|the electricity) rate from your bill/.test(page.text)) found.push('refusal shows no running-cost comparison at the bill rate')
+  }
+  if (expected.flags.includes('negative_cash_flow') && !page.text.includes('HEAT Loan the payment')) {
+    found.push('negative cash flow is not stated in the headline reasons')
+  }
+  return found
 }
 
 const rows = []
@@ -104,11 +133,12 @@ for (const scenario of SCENARIOS) {
     const page = readPage(await fetchPage(url))
     const expected = expectedLabel(scenario)
     const sentenceOk = page.headline !== null && (scenario.expected.noMassSave || new RegExp(scenario.expected.headlinePattern).test(page.headline))
-    const ok = page.shown === expected && sentenceOk
+    const problems = failures(scenario, page)
+    const ok = page.shown === expected && sentenceOk && problems.length === 0
     if (WITH_SCREENS && chromeAvailable()) screenshot(scenario.id, url)
-    rows.push({ scenario, query, page, expected, ok, error: null })
+    rows.push({ scenario, query, page, expected, ok, problems, error: null })
   } catch (error) {
-    rows.push({ scenario, query, page: null, expected: expectedLabel(scenario), ok: false, error: String(error.message ?? error) })
+    rows.push({ scenario, query, page: null, expected: expectedLabel(scenario), ok: false, problems: [], error: String(error.message ?? error) })
   }
   console.log(`${rows.at(-1).ok ? 'ok  ' : 'DIFF'} ${scenario.id}`)
 }
@@ -156,6 +186,7 @@ for (const row of rows) {
   }
   out.push(`- Shown: **${page.shown ?? 'no dial'}**${page.action ? `, action "${page.action}"` : ''}${page.tone ? `, tone \`${page.tone}\`` : ''}. Match: ${row.ok ? 'ok' : '**DIFF**'}.`)
   out.push(`- Headline: ${page.headline ?? 'none'}`)
+  for (const problem of row.problems) out.push(`- **Check failed:** ${problem}`)
   if (page.refusalBody) out.push(`- Refusal text: ${page.refusalBody}`)
   out.push(`- What to do next: ${page.recommendation ?? 'not found on the page'}`)
   out.push(`- Contacts: ${page.contacts ?? 'no contacts block on the page'}`)
@@ -165,6 +196,15 @@ for (const row of rows) {
 }
 
 mkdirSync(DOCS, { recursive: true })
-writeFileSync(join(DOCS, 'README.md'), `${out.join('\n')}\n`)
-console.log(`wrote docs/scenarios/README.md (${rows.length - diffs.length}/${rows.length} match)`)
-process.exitCode = diffs.length ? 1 : 0
+const staged = join(STAGING, 'README.md')
+writeFileSync(staged, `${out.join('\n')}\n`)
+if (diffs.length) {
+  console.error(`not overwriting docs/scenarios/README.md; the failed report is at ${staged}`)
+  for (const row of diffs) for (const problem of row.problems) console.error(`  ${row.scenario.id}: ${problem}`)
+  process.exitCode = 1
+} else {
+  if (existsSync(STAGED_SCREENS)) cpSync(STAGED_SCREENS, SCREENS, { recursive: true })
+  copyFileSync(staged, join(DOCS, 'README.md'))
+  rmSync(STAGING, { recursive: true, force: true })
+  console.log(`wrote docs/scenarios/README.md (${rows.length}/${rows.length} match)`)
+}

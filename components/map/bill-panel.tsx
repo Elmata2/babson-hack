@@ -12,7 +12,7 @@ import fuelSnapshot from '@/data/snapshots/fuel-2026-10-19.json'
 import hp2026 from '@/data/rules/heat-pump-2026.json'
 import type { SponsorKey } from '@/lib/elec-label'
 import { SPONSOR_NAME, UTILITY_META, resolveUtility } from '@/lib/utility'
-import { SUPPLY_LINKS, basicServiceRate, daysUntil, monthlyDifferenceUsd } from '@/lib/supply'
+import { SUPPLY_LINKS, basicServiceRate, daysUntil, formatCents, monthlyDifferenceUsd } from '@/lib/supply'
 import { MASS_SAVE_READ, massSaveGate, rateSponsorFor } from '@/lib/mass-save'
 import type { BillPanelProps, HeatingFuel, Profile, SupplyChoice } from './types'
 
@@ -179,7 +179,7 @@ function SupplySection(props: {
   const basicLine =
     basic && basicCents !== null ? (
       <P>
-        {sponsorName} Basic Service: <b className="num font-medium">{basicCents}¢/kWh</b>, {basic.period}. Supply only; it resets every 6 months.{' '}
+        {sponsorName} Basic Service: <b className="num font-medium">{formatCents(basicCents)}¢/kWh</b>, {basic.period}. Supply only; it resets every 6 months.{' '}
         <Src href={basic.url}>{`${basic.source} · ${basic.sourceDate}`}</Src>
       </P>
     ) : noNumberFor ? (

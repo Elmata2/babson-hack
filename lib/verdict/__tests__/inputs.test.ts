@@ -77,6 +77,49 @@ describe('resolveVerdictInputs', () => {
     expect(buildSwitchModel(params, prices).result).toEqual(computeVerdict(resolveVerdictInputs(params, prices).heating!, upgrade!))
   })
 
+  describe('seasonal heat pump rate in a mixed-utility town', () => {
+    const westport = { ...queryOf(DEMO_PRESETS[0].href), town: 'Westport', er: '0.305' }
+
+    it('applies the billed sponsor adjustment when the bill settles the town', () => {
+      const eversource = resolveVerdictInputs({ ...westport, ut: 'eversource' }, prices)
+      expect(eversource.seasonal).toEqual({ rate: 0.305 - 0.07, applied: true, rule: -0.07 })
+      expect(eversource.upgrade?.heatPumpRate).toBeCloseTo(0.235, 9)
+      const grid = resolveVerdictInputs({ ...westport, ut: 'national_grid' }, prices)
+      expect(grid.seasonal).toEqual({ rate: 0.305 - 0.04, applied: true, rule: -0.04 })
+      const unitil = resolveVerdictInputs({ ...westport, ut: 'unitil' }, prices)
+      expect(unitil.seasonal).toEqual({ rate: 0.305, applied: false, rule: null })
+    })
+
+    it('settles Unitil only in a town Unitil serves', () => {
+      const fitchburgBill = resolveVerdictInputs({ ...westport, town: 'Fitchburg', ut: 'unitil' }, prices)
+      expect(fitchburgBill.seasonal.rule).toBe(-0.07)
+    })
+
+    it('applies nothing for an unmatched town, whatever the bill names', () => {
+      const nowhere = resolveVerdictInputs({ ...westport, town: 'Atlantis', ut: 'eversource' }, prices)
+      expect(nowhere.seasonal).toEqual({ rate: 0.305, applied: false, rule: null })
+    })
+
+    it('saves as much as the same house in a town with one sponsor', () => {
+      const mixed = resolveVerdictInputs({ ...westport, ut: 'eversource' }, prices)
+      const single = resolveVerdictInputs({ ...westport, town: 'Framingham', ut: 'eversource' }, prices)
+      expect(computeVerdict(mixed.heating!, mixed.upgrade!)?.newAnnualCostHeatPumpRate).toBeCloseTo(
+        computeVerdict(single.heating!, single.upgrade!)!.newAnnualCostHeatPumpRate,
+        6,
+      )
+    })
+
+    it('applies nothing while the sponsor is unsettled or a light plant bills', () => {
+      expect(resolveVerdictInputs({ ...westport, ut: undefined }, prices).seasonal.applied).toBe(false)
+      expect(resolveVerdictInputs({ ...westport, ut: 'municipal' }, prices).seasonal.applied).toBe(false)
+    })
+
+    it('keeps Cape Light Compact towns without an adjustment even when the bill names Eversource', () => {
+      const truro = resolveVerdictInputs({ ...westport, town: 'Truro', ut: 'eversource' }, prices)
+      expect(truro.seasonal).toEqual({ rate: 0.305, applied: false, rule: null })
+    })
+  })
+
   it('returns no heating or upgrade for an incomplete query', () => {
     const { units: _units, ...params } = queryOf(DEMO_PRESETS[0].href)
     const inputs = resolveVerdictInputs(params, prices)

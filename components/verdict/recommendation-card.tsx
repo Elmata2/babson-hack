@@ -28,20 +28,22 @@ export function RecommendationCard({
       <h2 className="text-eyebrow uppercase text-ink-muted">What to do next</h2>
       <p className="mt-3 max-w-[56ch] text-title font-medium">{recommendation.headline}</p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
-        {recommendation.kind === 'stay' ? (
-          <ReminderButton label={recommendation.reminderLabel} className={PRIMARY} />
-        ) : (
-          <>
-            <Link href={withDemo(recommendation.agentHref, demo)} className={PRIMARY}>
-              {recommendation.agentLabel}
-            </Link>
-            <Link href={withDemo(recommendation.kitHref, demo)} className={LINK}>
-              Do it myself with the switch kit
-            </Link>
-          </>
-        )}
-      </div>
+      {recommendation.kind === 'light_plant' ? null : (
+        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+          {recommendation.kind === 'stay' ? (
+            <ReminderButton label={recommendation.reminderLabel} className={PRIMARY} />
+          ) : (
+            <>
+              <Link href={withDemo(recommendation.agentHref, demo)} className={PRIMARY}>
+                {recommendation.agentLabel}
+              </Link>
+              <Link href={withDemo(recommendation.kitHref, demo)} className={LINK}>
+                Do it myself with the switch kit
+              </Link>
+            </>
+          )}
+        </div>
+      )}
 
       {recommendation.kind === 'quotes' ? (
         <p className="mt-3 max-w-[64ch] text-micro text-ink-muted">{recommendation.agentNote}</p>

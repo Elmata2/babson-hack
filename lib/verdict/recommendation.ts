@@ -24,6 +24,10 @@ export type Recommendation =
       reminderLabel: string
     })
   | (Common & {
+      kind: 'light_plant'
+      headline: string
+    })
+  | (Common & {
       kind: 'quotes'
       headline: string
       agentLabel: string
@@ -80,9 +84,18 @@ function othersFor(input: RecommendationInput, recommended: SwitchChoice): Commo
 
 export function recommend(input: RecommendationInput): Recommendation {
   const { result } = input.option
-  const stay = input.option.noMassSave || result.verdict === 'DO_NOT_SWITCH_YET'
 
-  if (stay) {
+  if (input.option.noMassSave) {
+    const { town } = input.option
+    return {
+      kind: 'light_plant',
+      headline: `Mass Save rebates don’t apply${town ? ` in ${town}` : ' here'}: your light plant sets its own programs. Ask your light plant what it offers for heat pumps. The number is on your electric bill.`,
+      secondary: secondaryFor(input),
+      others: othersFor(input, 'STAY'),
+    }
+  }
+
+  if (result.verdict === 'DO_NOT_SWITCH_YET') {
     return {
       kind: 'stay',
       headline: `Our recommendation: stay with what you have. Check again in ${RECHECK_LABEL}, when prices and rebates reset.`,

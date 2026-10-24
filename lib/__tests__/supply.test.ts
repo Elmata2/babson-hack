@@ -2,7 +2,7 @@
 
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { basicServiceRate, daysUntil, monthlyDifferenceUsd } from '../supply'
+import { basicServiceRate, daysUntil, formatCents, monthlyDifferenceUsd } from '../supply'
 
 const TODAY = new Date(2026, 9, 24, 15, 30)
 
@@ -45,13 +45,29 @@ describe('monthlyDifferenceUsd', () => {
   })
 })
 
+describe('formatCents', () => {
+  it('prints the stored figure, not a one-decimal rounding', () => {
+    expect(formatCents(17.3)).toBe('17.3')
+    expect(formatCents(16.074)).toBe('16.074')
+    expect(formatCents(18.921)).toBe('18.921')
+    expect(formatCents(13)).toBe('13')
+  })
+})
+
 describe('basicServiceRate', () => {
   it('reads Eversource and National Grid', () => {
     expect(basicServiceRate('eversource')?.centsPerKwh).toBe(17.3)
     expect(basicServiceRate('nationalgrid')?.centsPerKwh).toBe(16.074)
   })
-  it('has no number for Unitil, and no record for others', () => {
-    expect(basicServiceRate('unitil')?.centsPerKwh).toBeNull()
+  it('reads the Unitil residential fixed Basic Service price', () => {
+    const unitil = basicServiceRate('unitil')
+    expect(unitil?.centsPerKwh).toBe(18.921)
+    expect(unitil?.sourceDate).toBe('2026-08-01')
+    expect(unitil?.readOn).toBe('2026-10-24')
+    expect(unitil?.status).toBe('effective')
+    expect(unitil?.url).toContain('unitil.com')
+  })
+  it('has no record for a light plant or Cape Light Compact', () => {
     expect(basicServiceRate('municipal')).toBeNull()
     expect(basicServiceRate('cape_light')).toBeNull()
   })

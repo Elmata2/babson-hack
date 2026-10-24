@@ -17,7 +17,7 @@
 
 import { HEAT_LOAN_MONTHS } from '../calc/constants'
 import type { Fuel, VerdictResult } from '../calc/types'
-import type { BasicServiceRate } from '../supply'
+import { formatCents, type BasicServiceRate } from '../supply'
 
 export type BestCaseOutcome = 'switch' | 'stay' | 'check' | 'available' | 'none'
 
@@ -108,7 +108,7 @@ function supplyRow(input: BestCaseInput): BestCaseRow {
     id: 'supply',
     label: 'Electricity supply',
     outcome: 'check',
-    headline: `Basic Service is ${input.basicService.centsPerKwh.toFixed(1)}¢/kWh (supply only)`,
+    headline: `Basic Service is ${formatCents(input.basicService.centsPerKwh)}¢/kWh (supply only)`,
     detail:
       'We do not have your own supply line, so we cannot say whether that is what you pay. Read your bill: if it names the utility as supplier you are on Basic Service; if it names a company, compare that rate — and the contract end — before you move.',
     source,

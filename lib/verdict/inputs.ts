@@ -12,7 +12,7 @@ import {
 } from '../intake/params'
 import type { BillUtility } from '../parse/contract'
 import type { Prices } from '../prices'
-import { resolveUtility, seasonalHeatPumpRate, type UtilityResolution } from '../utility'
+import { resolveUtility, seasonalHeatPumpRate, sponsorFromBill, type UtilityResolution } from '../utility'
 
 
 export type Raw = Record<string, string | string[] | undefined>
@@ -85,7 +85,8 @@ export function resolveVerdictInputs(params: Raw, prices: Prices): VerdictInputs
   const sqft = number(params.sqft)
   const billRate = plausibleElectricRate(first(params.er))
   const standardRate = billRate ?? prices.elec.usdPerUnit
-  const seasonal = seasonalHeatPumpRate(standardRate, town)
+  const billUtility = parseBillUtility(first(params.ut))
+  const seasonal = seasonalHeatPumpRate(standardRate, town, sponsorFromBill(billUtility))
   const quote = plausibleInstallCost(first(params.ic))
   const { income } = questionsFor(tier, first(params.inc))
 
@@ -102,7 +103,7 @@ export function resolveVerdictInputs(params: Raw, prices: Prices): VerdictInputs
     sqft,
     quote,
     income,
-    billUtility: parseBillUtility(first(params.ut)),
+    billUtility,
     billRate,
     standardRate,
     seasonal,

@@ -20,11 +20,13 @@
       "url": "https://boston.com/news/local-news/2026/07/29/electric-utility-rates-are-going-up-aug-1-will-your-bill-actually-increase"
     },
     "unitil": {
-      "centsPerKwh": null,
+      "centsPerKwh": 18.921,
       "period": "Aug 2026 – Jan 2027",
-      "source": "Unitil Basic Service update (PDF)",
-      "sourceDate": "2026-07",
-      "url": "https://unitil.com/sites/default/files/2026-07/2026%20FGE%20Basic%20Service%20Update-Aug26-Jan27-0928.pdf"
+      "source": "Unitil residential rate sheet (R-1 fixed Basic Service, effective Aug 1 2026; includes the $0.00991/kWh adjuster)",
+      "sourceDate": "2026-08-01",
+      "readOn": "2026-10-24",
+      "status": "effective",
+      "url": "https://unitil.com/sites/default/files/2024-01/MA-Residential-Electric-Rates.pdf"
     }
   },
   "competitiveOverpayment": {

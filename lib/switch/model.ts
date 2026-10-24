@@ -14,22 +14,14 @@
 import { computeVerdict, refusalFor } from '../calc'
 import type { Fuel, VerdictResult } from '../calc/types'
 import { queryString } from '../intake/params'
-import type { BillUtility } from '../parse/contract'
 import type { PricePoint, Prices } from '../prices'
 import { basicServiceRate, SUPPLY_LINKS, type BasicServiceRate } from '../supply'
-import { SPONSOR_NAME, type SponsorKey } from '../utility'
+import { SPONSOR_NAME, sponsorFromBill, type SponsorKey } from '../utility'
 import { resolveVerdictInputs, type Raw } from '../verdict/inputs'
 import { bestCase, type BestCaseRow } from './best-case'
 import { choicesFor, supplyChoiceAvailable } from './choices'
 import type { SwitchChoice } from './types'
 
-
-const BILL_TO_SPONSOR: Partial<Record<BillUtility, SponsorKey>> = {
-  eversource: 'eversource',
-  national_grid: 'nationalgrid',
-  unitil: 'unitil',
-  municipal: 'municipal',
-}
 
 export interface SwitchSupply {
   /** Sponsor whose Basic Service number applies, when one sponsor owns the town. */
@@ -93,11 +85,7 @@ export function buildSwitchModel(params: Raw, prices: Prices): SwitchModel {
   const asksUtility = !billSaysMunicipal && !billSaysInvestorOwned && utility.eligibleForMassSave === null
 
   const sponsor: SponsorKey | null =
-    billUtility !== null && BILL_TO_SPONSOR[billUtility]
-      ? (BILL_TO_SPONSOR[billUtility] as SponsorKey)
-      : utility.sponsors.length === 1
-        ? utility.sponsors[0]
-        : null
+    sponsorFromBill(billUtility) ?? (utility.sponsors.length === 1 ? utility.sponsors[0] : null)
   const basic = sponsor ? basicServiceRate(sponsor) : null
 
   const supply: SwitchSupply = {

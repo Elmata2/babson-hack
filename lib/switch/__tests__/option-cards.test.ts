@@ -22,6 +22,7 @@ const base = (over: Partial<OptionInput> = {}): OptionInput => ({
   market: { price: 4.1, period: '2026-10-19' },
   basic: { centsPerKwh: 13.8, source: 'Eversource', sourceDate: '2026-08-01' },
   noMassSave: false,
+  town: 'Framingham',
   plan: { mode: 'off' },
   reachable: { fuel: 3, installer: 3 },
   ...over,

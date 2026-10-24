@@ -18,6 +18,7 @@ function option(result: OptionInput['result'], over: Partial<OptionInput> = {}):
     market: { price: null, period: null },
     basic: null,
     noMassSave: false,
+    town: 'Framingham',
     plan: { mode: 'off' },
     reachable: { fuel: 0, installer: 0 },
     ...over,
@@ -64,8 +65,21 @@ describe('recommend', () => {
     expect(rec.others.map((o) => o.label)).toEqual(['Get heat pump quotes'])
   })
 
-  it('treats a municipal light plant as stay even when the engine says switch', () => {
-    expect(recommend({ option: option(now, { noMassSave: true }), choices: ALL, query: '' }).kind).toBe('stay')
+  it('sends a light plant town to its own programs, never to a January 2027 recheck', () => {
+    for (const result of [now, hold, deadline]) {
+      const rec = recommend({
+        option: option(result, { noMassSave: true, town: 'Wellesley' }),
+        choices: ['STAY', 'SHOP_FUEL', 'SWITCH_HEAT_PUMP'],
+        query: 'town=Wellesley',
+      })
+      expect(rec.kind).toBe('light_plant')
+      expect(rec.headline).toBe(
+        'Mass Save rebates don’t apply in Wellesley: your light plant sets its own programs. Ask your light plant what it offers for heat pumps. The number is on your electric bill.',
+      )
+      expect(rec.headline).not.toMatch(/January 2027|reset/)
+      expect('reminderLabel' in rec).toBe(false)
+      expect(rec.others.map((o) => o.choice)).not.toContain('STAY')
+    }
   })
 
   it('adds one fuel line only when the household pays above the state average', () => {
