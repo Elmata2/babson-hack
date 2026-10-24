@@ -124,8 +124,9 @@ Confirm. This fix builds those pieces on the anonymous `/start` path so
 
 ## 6. Not verified (do not hardcode)
 
-- Live bill read with an API credential: the available Anthropic OAuth token has
-  no API quota. The route and response handling are covered by fixture tests.
+- Real household bill read: one synthetic gas statement passed through the live
+  OpenRouter reader, including total ÷ therms and Worcester County annualisation.
+  A photographed household statement still needs a manual check.
 - Phone-width browser walkthrough: no browser automation surface was available
   in this continuation. Production compilation passed with webpack; Turbopack
   could not resolve the worktree's symlinked `node_modules` outside its root.

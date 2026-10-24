@@ -69,6 +69,17 @@ describe('a clean annual bill', () => {
 })
 
 describe('a monthly bill', () => {
+  it('accepts plural therms from a live vision response', () => {
+    const result = readBill(
+      bill({ fuel: 'gas', unit: 'therms', quantity: 100, total_charge: 220, price_per_unit: null, billing_period: 'month' }),
+      NOW,
+    )
+    if (!result.ok) throw new Error('expected a bill')
+    expect(result.bill.units.value).toBe(1_200)
+    expect(result.bill.price.value).toBe(2.2)
+    expect(result.bill.flags.map((flag) => flag.code)).not.toContain('unit_mismatch')
+  })
+
   it('annualises × 12 and says so, with capped confidence', () => {
     const result = readBill(
       bill({ fuel: 'gas', unit: 'therm', quantity: 100, price_per_unit: 1.62, billing_period: 'month' }),

@@ -137,6 +137,29 @@ function asFuel(value: unknown): BillFuel | null {
     : null
 }
 
+function asUnit(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const unit = value.trim()
+  switch (unit.toLowerCase()) {
+    case 'gal':
+    case 'gallon':
+    case 'gallons':
+      return 'gal'
+    case 'therm':
+    case 'therms':
+      return 'therm'
+    case 'ccf':
+    case 'ccfs':
+      return 'CCF'
+    case 'kwh':
+    case 'kilowatt-hour':
+    case 'kilowatt-hours':
+      return 'kWh'
+    default:
+      return unit
+  }
+}
+
 function asPeriod(value: unknown): BillPeriod {
   return typeof value === 'string' && (PERIODS as readonly string[]).includes(value)
     ? (value as BillPeriod)
@@ -263,7 +286,7 @@ export function readBill(json: unknown, now = Date.now(), options: ReadBillOptio
   const flags: BillFlag[] = []
   const scores: number[] = []
   const modelFuel = asFuel(record.fuel)
-  let unit = typeof record.unit === 'string' ? record.unit : null
+  let unit = asUnit(record.unit)
   const modelScore = MODEL_CONFIDENCE[String(record.confidence)] ?? 0.5
   const rawPeriod = asPeriod(record.billing_period)
   const documentDate = asDocumentDate(record.document_date, now)
