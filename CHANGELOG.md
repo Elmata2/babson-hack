@@ -12,6 +12,52 @@ because that is when the hackathon clock runs.
 
 ## 2026-10-24
 
+### Fixed
+
+- **The confirm button could never mint consent.** `POST /api/consent` required
+  `x-operator-key`, a key that is deliberately never in the browser bundle, so the
+  verdict → consent → call promise failed with 401 the moment an agent was
+  configured. Consent is the household's own act, so the gate now asks *where the
+  request came from* instead of who holds a secret (`lib/security/same-origin.ts`):
+  a same-origin tab is accepted, another origin is refused with 403 even if it has
+  the operator key, and a client that sends no origin evidence (curl, a server)
+  still has to present `OPERATOR_KEY`. Tests cover all three.
+
+- **The dial switch had two names and the documented one did nothing.**
+  `.env.example` publishes `PROVIDER_OUTREACH_ENABLED`, but `callPlan()` read only
+  the legacy `PROVIDER_CALLS_ENABLED`, so a deployment that followed the example
+  stayed in allowlist mode and refused real businesses. Both are now read, the
+  documented one first, and the refusal text names the documented one.
+
+- **The ElevenLabs agent had never been deployable.** `scripts/agents/sync.mjs`
+  sent a nested `data_collection` and a `platform_settings.tools` key the current
+  API rejects (422), so `--create` could not have worked. It now flattens the
+  reviewed file into the `AnalysisProperty` map the API accepts — the same field
+  names `lib/calls/parse.ts` reads back — and declares `end_call` and
+  `voicemail_detection` as built-in tools where they belong. The platform's own
+  message is printed on refusal instead of a bare status.
+
+### Added
+
+- **The switch kit is a numbered plan, and it knows which path it is on.**
+  `lib/switch/kit-steps.ts` writes two plans: with a dialable agent, the steps are
+  what the agent does (consent → dial within business hours → the four installer
+  questions → transcript with evidence → compare and book); with no agent, the
+  steps are what the household does, in order, including what a "no" to each of the
+  four questions actually means. `SwitchKit` renders whichever is true, so the
+  screen cannot promise a call this deployment cannot place.
+
+- **The dashboard says what the voice path is missing.** `lib/calls/readiness.ts`
+  turns the three platform values into booleans on the server; `/dashboard` shows a
+  "quote path" card with the plan and the exact unset variable names. No key, id or
+  endpoint reaches the client.
+
+- **`npm run voice:check` replaces believing it works.** It asks the platform the
+  five questions the call route cares about — key accepted, credits left, agent
+  exists, number imported, outreach switched on — and prints a pass/fail line with
+  the fix for each failure. `npm run voice:call -- --dial +1…` places one real call
+  and reads the transcript and extraction back.
+
 ### Added
 
 - **The money cards explain themselves.** Rebate, net cost and payback each carry one

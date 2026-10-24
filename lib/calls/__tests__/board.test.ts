@@ -213,7 +213,7 @@ describe('the call plan', () => {
     expect(agentReady(plan.agent)).toBe(false)
   })
 
-  it('dials only team lines unless PROVIDER_CALLS_ENABLED is true', () => {
+  it('dials only team lines unless the outreach switch is on', () => {
     const env = {
       ELEVENLABS_API_KEY: 'k',
       ELEVENLABS_AGENT_ID: 'a',
@@ -224,9 +224,27 @@ describe('the call plan', () => {
     expect(dialable(line, guarded).ok).toBe(true)
     expect(dialable(real, guarded)).toMatchObject({ ok: false })
 
-    const live = callPlan([line, real], { ...env, PROVIDER_CALLS_ENABLED: 'true' } as unknown as NodeJS.ProcessEnv)
+    const live = callPlan([line, real], { ...env, PROVIDER_OUTREACH_ENABLED: 'true' } as unknown as NodeJS.ProcessEnv)
     expect(live.mode).toBe('live')
     expect(dialable(real, live).ok).toBe(true)
+  })
+
+  it('honours the legacy dial-only flag, so an older deployment keeps calling', () => {
+    const env = {
+      ELEVENLABS_API_KEY: 'k',
+      ELEVENLABS_AGENT_ID: 'a',
+      ELEVENLABS_PHONE_NUMBER_ID: 'p',
+      PROVIDER_CALLS_ENABLED: 'true',
+    } as unknown as NodeJS.ProcessEnv
+    expect(callPlan([line, real], env).mode).toBe('live')
+  })
+
+  it('names the missing variables instead of saying "no agent"', () => {
+    const plan = callPlan([line], { ELEVENLABS_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv)
+    expect(plan.mode).toBe('off')
+    expect(plan.reason).toContain('ELEVENLABS_AGENT_ID')
+    expect(plan.reason).toContain('ELEVENLABS_PHONE_NUMBER_ID')
+    expect(plan.reason).not.toContain('ELEVENLABS_API_KEY,')
   })
 
   it('refuses a row with no phone, and a number that is not E.164', () => {

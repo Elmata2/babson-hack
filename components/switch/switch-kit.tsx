@@ -3,16 +3,23 @@
 import { useState } from 'react'
 
 import { formatCents } from '@/lib/supply'
+import { kitPlan } from '@/lib/switch/kit-steps'
 import { fuelPhoneScript, installerPhoneScript, supplyKitScript } from '@/lib/switch/requests'
 import type { SharedFacts } from '@/lib/switch/types'
 
 /**
  * @built F-148 the switch kit — R20.8, the manual path that always works
+ * @built F-166 the numbered plan, written for whichever path this deployment can take
  *
  * Everything here is text the household can use without this app: who to contact,
  * the exact sentence, what to have ready, and the label that stops a phone number
  * being mistaken for a contract. Phone numbers are only shown when a sourced
  * provider row carries one; this build does not invent a dealer or installer line.
+ *
+ * `mode` is the dial plan, not a display preference: with an agent configured the
+ * steps describe what the agent does; without one they describe the calls the
+ * household makes themselves. The plan comes from `lib/switch/kit-steps.ts`, so the
+ * screen cannot promise a call this deployment cannot place.
  */
 
 export interface SwitchKitSupply {
@@ -23,16 +30,27 @@ export interface SwitchKitSupply {
   energySwitchUrl: string
 }
 
+export interface SwitchKitContact {
+  name: string
+  phone: string | null
+  source: string
+  asOf: string
+}
+
 export interface SwitchKitProps {
   kind: 'fuel' | 'supply' | 'installer'
   facts: SharedFacts | null
   town: string
   supply: SwitchKitSupply
   /** A sourced provider line, when the deployment has one. */
-  contact: { name: string; phone: string | null; source: string; asOf: string } | null
+  contact: SwitchKitContact | null
+  /** The dial plan from `lib/calls/plan.ts`. Absent means off: no agent can call. */
+  mode?: 'off' | 'allowlist' | 'live' | 'demo'
+  /** Every row this deployment may contact, so the plan can print the numbers it has. */
+  providers?: readonly SwitchKitContact[]
 }
 
-export function SwitchKit({ kind, facts, town, supply, contact }: SwitchKitProps) {
+export function SwitchKit({ kind, facts, town, supply, contact, mode = 'off', providers = [] }: SwitchKitProps) {
   const script =
     kind === 'supply'
       ? supplyKitScript(town)
@@ -44,14 +62,44 @@ export function SwitchKit({ kind, facts, town, supply, contact }: SwitchKitProps
           ? fuelPhoneScript(facts)
           : null
 
+  const rows = contact ? [contact, ...providers.filter((provider) => provider.name !== contact.name)] : providers
+  const plan = kitPlan({
+    kind,
+    town,
+    facts,
+    mode,
+    providers: rows.map((row) => ({ name: row.name, phone: row.phone, allowlist: row.source.toLowerCase().includes('allowlist') })),
+  })
+
   return (
     <section className="rounded-card border border-rule bg-paper-sunk/50 p-5">
-      <p className="text-eyebrow uppercase text-ink-muted">The switch kit</p>
-      <h3 className="mt-2 text-title font-medium">
-        {kind === 'supply' ? 'Check supply before you move' : kind === 'installer' ? 'Get the visit booked' : 'Get a real price'}
-      </h3>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-eyebrow uppercase text-ink-muted">The switch kit</p>
+        <p className="text-micro text-ink-faint">
+          {plan.path === 'agent' ? 'The agent can place these calls' : 'You place these calls'}
+        </p>
+      </div>
+      <h3 className="mt-2 text-title font-medium">{plan.heading}</h3>
+      <p className="mt-2 max-w-[62ch] text-small text-ink-muted">{plan.lede}</p>
 
-      <div className="mt-4 grid gap-4">
+      <ol className="mt-4 grid gap-2.5">
+        {plan.steps.map((step, index) => (
+          <li key={step.title} className="flex items-start gap-2.5">
+            <span
+              aria-hidden
+              className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-rule-strong text-micro tabular-nums text-ink-muted"
+            >
+              {index + 1}
+            </span>
+            <span className="text-small">
+              <span className="font-medium text-ink">{step.title}</span>
+              <span className="mt-0.5 block text-ink-muted">{step.copy}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="mt-5 grid gap-4 border-t border-rule pt-4">
         <div>
           <p className="text-small font-medium">Who to contact</p>
           {contact ? (
@@ -134,12 +182,9 @@ export function SwitchKit({ kind, facts, town, supply, contact }: SwitchKitProps
         ) : null}
 
         <p className="border-t border-rule pt-3 text-micro text-ink-muted">
-          {kind === 'supply'
-            ? 'Published, not a quote. Confirm the rate and terms in writing before you agree.'
-            : 'Phone quote, not a contract. Confirm the price when you order.'}{' '}
-          This build placed no call for you. Ranking cannot be bought: no referral fees, no paid placement, no lead
-          sales. And if a provider offers to call you back, tell them the homeowner will contact them — this build never
-          hands over your name, phone or email.
+          {plan.closing} Ranking cannot be bought: no referral fees, no paid placement, no lead sales. And if a provider
+          offers to call you back, tell them the homeowner will contact them — this build never hands over your name,
+          phone or email.
         </p>
       </div>
     </section>

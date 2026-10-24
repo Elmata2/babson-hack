@@ -18,6 +18,8 @@ import { join } from 'node:path'
 
 const ROOT = join(process.cwd(), 'agents')
 const API = 'https://api.elevenlabs.io/v1/convai'
+/** The only scalar types `AnalysisProperty` can extract. A nested object is a 422. */
+const ANALYSIS_TYPES = ['boolean', 'string', 'integer', 'number']
 
 function read(relative) {
   return readFileSync(join(ROOT, relative), 'utf8')
@@ -44,6 +46,13 @@ if (Array.isArray(caller.server_tools) && caller.server_tools.length > 0) {
   problems.push('the quote caller must have no server tools (ADR-011)')
 }
 if (!collection.fuel || !collection.installer) problems.push('data collection is missing a vertical')
+for (const vertical of ['fuel', 'installer']) {
+  for (const field of collection[vertical] ?? []) {
+    if (!ANALYSIS_TYPES.includes(field.type)) {
+      problems.push(`data collection field ${vertical}.${field.name} has type "${field.type}", which the platform cannot extract`)
+    }
+  }
+}
 
 if (problems.length > 0) {
   console.error('agent config is not deployable:')
@@ -51,8 +60,35 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
+/**
+ * The platform's `data_collection` is a flat map of `AnalysisProperty`
+ * (`{ type, description }`) and accepts only the four scalar types in
+ * `ANALYSIS_TYPES`. The reviewed file is grouped by vertical and nested, because
+ * that is how a person reads it, so the flattening happens here — and the field
+ * names stay exactly the ones `lib/calls/parse.ts` reads back out of a finished
+ * conversation. A name that appears in both verticals (`needs_callback`) is
+ * written once.
+ */
+function flattenCollection(grouped) {
+  const flat = {}
+  for (const vertical of ['fuel', 'installer']) {
+    for (const field of grouped[vertical] ?? []) {
+      if (flat[field.name]) continue
+      flat[field.name] = { type: field.type, description: field.description }
+    }
+  }
+  return flat
+}
+
+const dataCollection = flattenCollection(collection)
+
 // The payload the platform accepts: one agent, the vertical prompt chosen per call
 // through the `vertical` dynamic variable, and the post-call extraction schema.
+//
+// Built-in tools are named in `conversation_config.agent.prompt.built_in_tools`;
+// `platform_settings` has no `tools` key in the current API and a 422 is the only
+// thing an unknown key earns. Voicemail detection carries no message on purpose:
+// the call ends rather than leaving one (R19.4).
 const payload = {
   name: caller.name,
   conversation_config: {
@@ -61,14 +97,20 @@ const payload = {
       language: caller.language,
       prompt: {
         prompt: `${fuelPrompt}\n\n---\n\n${installerPrompt}`,
+        built_in_tools: {
+          end_call: { name: 'end_call', params: { system_tool_type: 'end_call' } },
+          voicemail_detection: {
+            name: 'voicemail_detection',
+            params: { system_tool_type: 'voicemail_detection', voicemail_message: null },
+          },
+        },
       },
     },
-    tts: { model_id: 'eleven_turbo_v2' },
+    tts: { model_id: 'eleven_flash_v2' },
     conversation: { max_duration_seconds: caller.max_duration_seconds },
   },
   platform_settings: {
-    data_collection: collection,
-    tools: caller.tools,
+    data_collection: dataCollection,
   },
 }
 
@@ -76,7 +118,7 @@ if (check) {
   console.log(`agent config ok — ${caller.name}`)
   console.log(`  first message: ${firstMessage.length} chars, disclosure intact`)
   console.log(`  verticals: ${Object.keys(caller.prompt_by_vertical).join(', ')}`)
-  console.log(`  extraction fields: ${collection.fuel.length} fuel, ${collection.installer.length} installer`)
+  console.log(`  extraction fields: ${Object.keys(dataCollection).length} flat (${collection.fuel.length} fuel, ${collection.installer.length} installer)`)
   console.log('  no network call was made (--check)')
   process.exit(0)
 }
@@ -100,7 +142,11 @@ const response = await fetch(url, {
 })
 
 if (!response.ok) {
+  // The platform's own message is the only useful thing here: a 422 without it
+  // sends the next person hunting through the payload by hand.
+  const detail = await response.text().catch(() => '')
   console.error(`the platform refused the update (${response.status}); the reviewed config is unchanged.`)
+  if (detail.trim() !== '') console.error(`  ${detail.trim().slice(0, 2_000)}`)
   process.exit(1)
 }
 

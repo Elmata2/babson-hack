@@ -105,6 +105,26 @@ describe('POST /api/consent operator gate', () => {
     expect((await POST(post(body(), { 'x-operator-key': 'correct-horse-battery' }))).status).toBe(200)
   })
 
+  it('mints for the household’s own tab without an operator key', async () => {
+    live()
+    vi.stubEnv('OPERATOR_KEY', 'correct-horse-battery')
+    const response = await POST(post(body(), { 'sec-fetch-site': 'same-origin' }))
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as { consentToken?: string; mode?: string }
+    expect(payload.mode).toBe('allowlist')
+    expect(typeof payload.consentToken).toBe('string')
+  })
+
+  it('refuses a page from another origin even when it carries the operator key', async () => {
+    live()
+    vi.stubEnv('OPERATOR_KEY', 'correct-horse-battery')
+    const response = await POST(
+      post(body(), { origin: 'https://evil.example', host: 'example.test', 'x-operator-key': 'correct-horse-battery' }),
+    )
+    expect(response.status).toBe(403)
+    expect(((await response.json()) as { code: string }).code).toBe('cross_origin')
+  })
+
   it('mints nothing in demo mode, query or body, and asks for no key', async () => {
     live()
     vi.stubEnv('OPERATOR_KEY', 'correct-horse-battery')

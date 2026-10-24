@@ -9,7 +9,7 @@
  */
 
 import { isDemoFlag, demoFromRequest } from '@/lib/demo'
-import { operatorGate, outreachMode } from '@/lib/security/operator'
+import { consentGate, outreachMode } from '@/lib/security/operator'
 import { consentSecretReady } from '@/lib/security/secret'
 import { validateOutreachRequest } from '@/lib/switch/consent'
 import { mintConsentToken } from '@/lib/switch/consent-token'
@@ -52,7 +52,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!consentSecretReady()) {
     return refuse(503, 'consent_secret_not_configured', 'Live outreach needs CONSENT_SECRET (32+ characters). Nothing was sent.')
   }
-  const gate = operatorGate(request.headers)
+  const gate = consentGate(request.headers)
   if (!gate.ok) return refuse(gate.status, gate.code, gate.message)
 
   const now = new Date()

@@ -44,15 +44,28 @@ export function agentReady(agent: CallAgent): boolean {
   return Boolean(agent.apiKey && agent.agentId && agent.phoneNumberId)
 }
 
-/** R19.8. `PROVIDER_CALLS_ENABLED=true` is the only way a real business is dialled. */
+/**
+ * R19.8. `PROVIDER_OUTREACH_ENABLED=true` is the only way a real business is dialled.
+ *
+ * The documented switch is `PROVIDER_OUTREACH_ENABLED` (design §onboarding-switch says
+ * it replaces the older dial-only flag), and `.env.example` publishes only that one. The
+ * legacy `PROVIDER_CALLS_ENABLED` is still read so an older deployment that set it does
+ * not silently stop dialling — but it is the alias, not the documentation.
+ */
+function outreachEnabled(env: NodeJS.ProcessEnv): boolean {
+  return env.PROVIDER_OUTREACH_ENABLED === 'true' || env.PROVIDER_CALLS_ENABLED === 'true'
+}
+
 export function callPlan(providers: readonly SwitchProvider[], env: NodeJS.ProcessEnv = process.env): CallPlan {
   const agent = agentFrom(env)
 
   if (!agentReady(agent)) {
+    const missing = (['apiKey', 'agentId', 'phoneNumberId'] as const)
+      .filter((key) => !agent[key])
+      .map((key) => ({ apiKey: 'ELEVENLABS_API_KEY', agentId: 'ELEVENLABS_AGENT_ID', phoneNumberId: 'ELEVENLABS_PHONE_NUMBER_ID' })[key])
     return {
       mode: 'off',
-      reason:
-        'Calling is off here: no ElevenLabs agent is configured on this deployment, so no number is dialled. The switch kit below has the exact question and the number to call yourself.',
+      reason: `Calling is off here: no ElevenLabs agent is configured on this deployment (${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not set), so no number is dialled. The switch kit below has the exact question and the number to call yourself.`,
       notice: null,
       agent,
     }
@@ -68,13 +81,13 @@ export function callPlan(providers: readonly SwitchProvider[], env: NodeJS.Proce
     }
   }
 
-  const realCalls = env.PROVIDER_CALLS_ENABLED === 'true'
+  const realCalls = outreachEnabled(env)
   if (!realCalls) {
     return {
       mode: 'allowlist',
       reason: null,
       notice:
-        'Team test lines only — no real business is dialled. PROVIDER_CALLS_ENABLED is not set on this deployment.',
+        'Team test lines only — no real business is dialled. PROVIDER_OUTREACH_ENABLED is not set on this deployment.',
       agent,
     }
   }
@@ -100,7 +113,7 @@ export function dialable(
   if (plan.mode === 'allowlist' && !provider.allowlist) {
     return {
       ok: false,
-      note: `${provider.name} is a real business. Calls to real businesses need PROVIDER_CALLS_ENABLED=true, which this deployment has not set.`,
+      note: `${provider.name} is a real business. Calls to real businesses need PROVIDER_OUTREACH_ENABLED=true, which this deployment has not set.`,
     }
   }
   return { ok: true }

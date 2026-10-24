@@ -771,6 +771,13 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
                 town={model.town}
                 supply={kitSupply}
                 contact={null}
+                mode={demoNow ? 'demo' : call.mode}
+                providers={kindProviders.map((provider) => ({
+                  name: provider.name,
+                  phone: provider.phone,
+                  source: provider.source,
+                  asOf: provider.asOf,
+                }))}
               />
 
               <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-4">

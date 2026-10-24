@@ -14,7 +14,9 @@ import {
   writeProfile,
 } from '@/lib/onboarding/flow'
 import { defaultInstallYear } from '@/lib/intake/params'
+import { readinessLine, type VoiceReadiness } from '@/lib/calls/readiness'
 import { readCompleted } from '@/lib/profile/completion'
+import { kitPlan } from '@/lib/switch/kit-steps'
 import {
   CONTACT_STATUS_LABEL,
   readStoredSwitch,
@@ -45,7 +47,7 @@ const TONE: Record<string, string> = {
   plain: 'border-rule bg-surface',
 }
 
-export function DashboardView({ demo = false }: { demo?: boolean }) {
+export function DashboardView({ demo = false, voice = null }: { demo?: boolean; voice?: VoiceReadiness | null }) {
   const profileRaw = useSyncExternalStore(subscribeProfile, profileSnapshot, serverProfileSnapshot)
   const switchRaw = useSyncExternalStore(subscribeSwitch, switchSnapshot, serverSwitchSnapshot)
   const profile = readStoredProfile(profileRaw)
@@ -151,6 +153,8 @@ export function DashboardView({ demo = false }: { demo?: boolean }) {
           ) : null}
         </div>
       </section>
+
+      {voice ? <QuotePath request={request} voice={voice} demo={demo} /> : null}
 
       {profile || request ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -397,6 +401,98 @@ export function DashboardView({ demo = false }: { demo?: boolean }) {
         Estimate only. Not a quote. A Home Energy Assessment determines eligibility and sizing.
       </p>
     </div>
+  )
+}
+
+function QuotePath({
+  request,
+  voice,
+  demo,
+}: {
+  request: StoredSwitch | null
+  voice: VoiceReadiness
+  demo: boolean
+}) {
+  // The plan is written for the choice the household actually made. With no request
+  // yet there is no call to describe, so the card only states the deployment's state.
+  const quoteChoice =
+    request?.choice === 'SHOP_FUEL' || request?.choice === 'SWITCH_HEAT_PUMP' ? request.choice : null
+  const plan = quoteChoice
+    ? kitPlan({
+        kind: quoteChoice === 'SHOP_FUEL' ? 'fuel' : 'installer',
+        town: request?.facts?.town ?? 'your town',
+        facts: request?.facts ?? null,
+        // `canDial` is the server's read of the same three values the call route
+        // checks, so the dashboard cannot offer a path the route would refuse.
+        mode: voice.canDial ? 'live' : 'off',
+        providers: [],
+      })
+    : null
+  const kitHref =
+    request && quoteChoice
+      ? withDemo(`/switch?${request.query}&choice=${quoteChoice}&mode=kit`, demo)
+      : withDemo('/onboarding', demo)
+
+  return (
+    <section
+      className={`rounded-card border p-5 ${voice.canDial ? 'border-switch-edge bg-switch-tint' : 'border-rule bg-surface'}`}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-eyebrow uppercase text-ink-muted">The quote path</p>
+        <p className="text-micro text-ink-faint">{plan ? (plan.path === 'agent' ? 'The agent calls' : 'You call') : null}</p>
+      </div>
+      <p className="mt-2 max-w-[66ch] text-small text-ink">{readinessLine(voice)}</p>
+
+      {voice.missing.length ? (
+        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-micro text-ink-muted">
+          Not set:
+          {voice.missing.map((name) => (
+            <code key={name} className="rounded border border-rule-strong bg-paper-sunk px-1.5 py-0.5 text-ink">
+              {name}
+            </code>
+          ))}
+        </p>
+      ) : null}
+
+      {plan ? (
+        <ol className="mt-4 grid gap-2">
+          {plan.steps.map((step, index) => (
+            <li key={step.title} className="flex items-start gap-2.5 text-small">
+              <span
+                aria-hidden
+                className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-rule-strong text-micro tabular-nums text-ink-muted"
+              >
+                {index + 1}
+              </span>
+              <span>
+                <span className="font-medium text-ink">{step.title}</span>
+                <span className="mt-0.5 block text-ink-muted">{step.copy}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-2 max-w-[62ch] text-small text-ink-muted">
+          Add a year of heating use and a price to get a verdict. Once one says switch, this card carries the numbered
+          plan for asking for the quote — with the agent, or yourself.
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-rule pt-3 text-micro">
+        <Link href={kitHref} className="rounded-pill border border-ink px-4 py-2 text-small font-medium text-ink hover:bg-ink hover:text-paper">
+          Open the switch kit
+        </Link>
+        {request?.quotes ? (
+          <span className="text-ink-muted">
+            {request.quotes.rows.length} {request.quotes.kind === 'fuel' ? 'dealer' : 'installer'} row
+            {request.quotes.rows.length === 1 ? '' : 's'} back
+            {request.quotes.best ? `, best: ${request.quotes.best.providerName}` : ''}.
+          </span>
+        ) : (
+          <span className="text-ink-faint">Nothing has been sent from this browser yet.</span>
+        )}
+      </div>
+    </section>
   )
 }
 

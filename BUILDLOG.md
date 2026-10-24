@@ -7,13 +7,13 @@
 
 **Built:** 128 / 128 features · ████████████████████████████ **100%**
 
-**Last event:** 2026-10-24T22:13:22.546Z (18:13 ET) · **commit:** `6dbb1e7`
+**Last event:** 2026-10-24T22:40:31.058Z (18:40 ET) · **commit:** `897d5f4`
 
 ## Now
 
-- `18:13` ✔ **F-151** Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/zip-check.ts`
-- `18:13` ✔ **F-150** `/dashboard` — current situation, switch stage timeline, deadlines, forget-this-tab · `lib/switch/dashboard.ts`
-- `18:13` ✔ **F-151** Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/__tests__/zip-check.test.ts`
+- `18:40` ✔ **F-168** prove the voice path, instead of believing it · `scripts/voice/check.mjs`
+- `18:40` ✔ **F-166** the numbered plan, written for whichever path this deployment can take · `components/switch/switch-kit.tsx`
+- `18:40` ✔ **F-167** the voice path's readiness is read on the server and passed down as · `app/dashboard/page.tsx`
 
 ## Next up
 
@@ -39,6 +39,12 @@ _Every feature in the spec is logged._
 
 ## Timeline
 
+- `18:40` ✔ **F-168** — prove the voice path, instead of believing it · `scripts/voice/check.mjs` · `897d5f4`
+- `18:40` ✔ **F-166** — the numbered plan, written for whichever path this deployment can take · `components/switch/switch-kit.tsx` · `897d5f4`
+- `18:40` ✔ **F-167** — the voice path's readiness is read on the server and passed down as · `app/dashboard/page.tsx` · `897d5f4`
+- `18:40` ✔ **F-167** — what a page may honestly say about the voice path, decided on the server · `lib/calls/readiness.ts` · `897d5f4`
+- `18:35` ✔ **F-166** — the switch kit's step-by-step plan — the manual path, and the agent path · `lib/switch/kit-steps.ts` · `897d5f4`
+- `18:35` ✔ **F-165** — where a request came from, decided from headers a browser cannot forge · `lib/security/same-origin.ts` · `897d5f4`
 - `18:13` ✔ **F-151** — Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/zip-check.ts` · `6dbb1e7`
 - `18:13` ✔ **F-150** — `/dashboard` — current situation, switch stage timeline, deadlines, forget-this-tab · `lib/switch/dashboard.ts` · `6dbb1e7`
 - `18:13` ✔ **F-151** — Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/__tests__/zip-check.test.ts` · `6dbb1e7`
