@@ -366,11 +366,11 @@ export function readBill(json: unknown, now = Date.now(), options: ReadBillOptio
       : null
   const heating =
     role === 'electricity' ? false : (gasHeatingByClass ?? options.heating ?? true)
-  const lowIncomeSignal =
-    rateClass === 'R-2' || rateClass === 'R-4' || record.discount_line_present === true
+  const lowIncomeSignal = rateClass === 'R-2' || rateClass === 'R-4'
   // `season` is a partial period unless the dates span nearly a year.
   const span = spanDays(periodStart, periodEnd) ?? days
-  const documentPeriod: BillPeriod = rawPeriod
+  const yearTrusted = rawPeriod !== 'year' || (span !== null && span >= FULL_YEAR_MIN_DAYS)
+  const documentPeriod: BillPeriod = yearTrusted ? rawPeriod : 'season'
   /** Only an annualisation of a partial period; null when nothing was annualised. */
   let annualisation: BillParse['annualisation'] = null
 
@@ -500,7 +500,9 @@ export function readBill(json: unknown, now = Date.now(), options: ReadBillOptio
           flags.push({
             field: 'period',
             code: 'partial_period',
-            message: 'This covers one season, not a full year, so the year below is worked out from it.',
+            message: yearTrusted
+              ? 'This covers one season, not a full year, so the year below is worked out from it.'
+              : 'The document says it covers a year, but its dates do not span one, so the year below is worked out from it.',
           })
         }
         if (estimate.method !== 'printed_history' && estimate.method !== 'degree_days') {
@@ -622,6 +624,7 @@ export function readBill(json: unknown, now = Date.now(), options: ReadBillOptio
     supplierName: asString(record.supplier_name),
     rateClassV3: rateClass,
     lowIncomeSignal,
+    discountLine: record.discount_line_present === true,
     readType: record.read_type === 'actual' || record.read_type === 'estimated' ? record.read_type : null,
     budgetBilling: record.budget_billing === true,
     baseloadAnnual: annualisation?.baseloadAnnual ?? null,

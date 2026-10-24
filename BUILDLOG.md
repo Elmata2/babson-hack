@@ -7,13 +7,13 @@
 
 **Built:** 128 / 128 features · ████████████████████████████ **100%**
 
-**Last event:** 2026-10-24T22:11:19.708Z (18:11 ET) · **commit:** `3668b31`
+**Last event:** 2026-10-24T22:13:22.546Z (18:13 ET) · **commit:** `6dbb1e7`
 
 ## Now
 
-- `18:11` ✔ **F-37** Cash-flow module — 0% loan vs monthly savings · `components/cash-flow.tsx`
-- `18:11` ✔ **F-37** Cash-flow module — 0% loan vs monthly savings · `lib/verdict/cash-flow.ts`
-- `18:11` ✔ **F-37** Cash-flow module — 0% loan vs monthly savings · `lib/verdict/__tests__/cash-flow.test.ts`
+- `18:13` ✔ **F-151** Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/zip-check.ts`
+- `18:13` ✔ **F-150** `/dashboard` — current situation, switch stage timeline, deadlines, forget-this-tab · `lib/switch/dashboard.ts`
+- `18:13` ✔ **F-151** Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/__tests__/zip-check.test.ts`
 
 ## Next up
 
@@ -39,14 +39,14 @@ _Every feature in the spec is logged._
 
 ## Timeline
 
-- `18:11` ✔ **F-37** — Cash-flow module — 0% loan vs monthly savings · `components/cash-flow.tsx` · `3668b31`
-- `18:11` ✔ **F-37** — Cash-flow module — 0% loan vs monthly savings · `lib/verdict/cash-flow.ts` · `3668b31`
-- `18:11` ✔ **F-37** — Cash-flow module — 0% loan vs monthly savings · `lib/verdict/__tests__/cash-flow.test.ts` · `3668b31`
-- `18:11` ✔ **F-151** — Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/zip-check.ts` · `3668b31`
-- `18:11` ✔ **F-150** — `/dashboard` — current situation, switch stage timeline, deadlines, forget-this-tab · `lib/switch/dashboard.ts` · `3668b31`
-- `18:11` ✔ **F-151** — Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/__tests__/zip-check.test.ts` · `3668b31`
-- `18:11` ✔ **F-150** — `/dashboard` — current situation, switch stage timeline, deadlines, forget-this-tab · `lib/switch/__tests__/dashboard.test.ts` · `3668b31`
-- `18:11` ✔ **F-128** — "Use this price" → recompute verdict; switch kit · `lib/calls/summary.ts` · `3668b31`
+- `18:13` ✔ **F-151** — Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/zip-check.ts` · `6dbb1e7`
+- `18:13` ✔ **F-150** — `/dashboard` — current situation, switch stage timeline, deadlines, forget-this-tab · `lib/switch/dashboard.ts` · `6dbb1e7`
+- `18:13` ✔ **F-151** — Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route · `lib/switch/__tests__/zip-check.test.ts` · `6dbb1e7`
+- `18:13` ✔ **F-150** — `/dashboard` — current situation, switch stage timeline, deadlines, forget-this-tab · `lib/switch/__tests__/dashboard.test.ts` · `6dbb1e7`
+- `18:13` ✔ **F-128** — "Use this price" → recompute verdict; switch kit · `lib/calls/summary.ts` · `6dbb1e7`
+- `18:08` ✔ **F-37** — Cash-flow module — 0% loan vs monthly savings · `components/cash-flow.tsx` · `d828e66`
+- `18:08` ✔ **F-37** — Cash-flow module — 0% loan vs monthly savings · `lib/verdict/cash-flow.ts` · `d828e66`
+- `18:08` ✔ **F-37** — Cash-flow module — 0% loan vs monthly savings · `lib/verdict/__tests__/cash-flow.test.ts` · `d828e66`
 - `17:59` ✔ **F-163** — Submission check rows for Kiro depth: several specs, steering front matter, v1 hooks, MCP, power, write-up with no open TODO, a public video link · `README.md` · `83ccc88`
 - `17:59` ✔ **F-162** — `docs/KIRO.md`, `docs/ACCESSIBILITY.md` and the README judge sections: who benefits, how it scales, how to try it · `README.md` · `83ccc88`
 - `17:59` ✔ **F-161** — `power/switchpoint-ma-heat-pump/`: an authored Kiro Power with keyword activation, MCP config and two steering guides · `README.md` · `83ccc88`

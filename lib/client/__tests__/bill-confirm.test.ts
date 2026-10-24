@@ -38,6 +38,7 @@ function bill(over: Partial<ParsedBill> = {}): ParsedBill {
     serviceZip: '02139',
     serviceTown: 'Cambridge',
     lowIncomeSignal: false,
+    discountLine: false,
     baseloadAnnual: null,
     ...over,
   } as ParsedBill

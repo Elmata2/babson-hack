@@ -22,6 +22,8 @@ function bill(overrides: Record<string, unknown> = {}): Record<string, unknown> 
     unit: 'gal',
     price_per_unit: 6.23,
     billing_period: 'year',
+    period_start: '2025-10-19',
+    period_end: '2026-10-18',
     document_date: '2026-10-19',
     confidence: 'high',
     ...overrides,
@@ -216,5 +218,33 @@ describe('reading the model envelope', () => {
   it('returns null rather than repairing broken JSON', () => {
     expect(readJsonBody('{"fuel":"oil",}')).toBeNull()
     expect(readJsonBody('I could not read this.')).toBeNull()
+  })
+})
+
+describe('a billing period labelled year', () => {
+  const undated = { period_start: null, period_end: null }
+  it('is trusted when the dates span at least 330 days', () => {
+    const result = readBill(bill(), NOW)
+    expect(result.ok && result.bill.documentPeriod).toBe('year')
+    expect(result.ok && result.bill.annualisation).toBeNull()
+  })
+
+  it('is not trusted without dates or a printed day count, and is flagged instead', () => {
+    const result = readBill(bill(undated), NOW)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.bill.documentPeriod).toBe('season')
+      expect(result.bill.annualisation?.value ?? null).not.toBe(800)
+    }
+  })
+
+  it('is not trusted when the dates span a quarter', () => {
+    const result = readBill(bill({ period_start: '2026-07-01', period_end: '2026-09-30' }), NOW)
+    expect(result.ok && result.bill.documentPeriod).toBe('season')
+  })
+
+  it('is trusted on a printed day count of a year', () => {
+    const result = readBill(bill({ ...undated, days: 365 }), NOW)
+    expect(result.ok && result.bill.documentPeriod).toBe('year')
   })
 })

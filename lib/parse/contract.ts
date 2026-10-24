@@ -59,8 +59,10 @@ export interface BillParseExtras {
   /** Supplier named in the supply section: Basic Service, a competitive supplier, or a town aggregation. */
   supplierName: string | null
   rateClassV3: RateClassV3 | null
-  /** True when a rate class R-2/R-4 or a discount line ("Assistance Rate Discount", "Discount 25%") is printed. */
+  /** True only when rate class R-2 or R-4 is printed. A discount line alone is `discountLine`. */
   lowIncomeSignal: boolean
+  /** The model reported a discount line ("Assistance Rate Discount", "Discount 25%"). Needs the household's confirmation. */
+  discountLine: boolean
   readType: 'actual' | 'estimated' | null
   budgetBilling: boolean
   /**
@@ -86,6 +88,7 @@ export interface BillApplied {
   methodConfidence: number | null
   utility: BillUtility | null
   lowIncomeSignal: boolean
+  discountLine: boolean
   serviceZip: string | null
   serviceTown: string | null
   /** Set only from an electric bill: the household's all-in $/kWh. */

@@ -22,6 +22,9 @@ import {
   serviceTownFrom,
   visibleSteps,
   canLeaveDetails,
+  detailsBlocker,
+  discountLineNeedsConfirm,
+  stepsFor,
   isProfileComplete,
   nextStep,
   normalizePhone,
@@ -198,6 +201,7 @@ describe('two bills', () => {
     methodConfidence: null,
     utility: null,
     lowIncomeSignal: false,
+    discountLine: false,
     serviceZip: null,
     serviceTown: null,
     electricRate: null,
@@ -268,5 +272,46 @@ describe('two bills', () => {
     expect(previousStep('review', false)).toBe('bill')
     expect(eyebrowFor('review', false)).toBe('Step 3 of 3')
     expect(eyebrowFor('review', true)).toBe('Step 4 of 4')
+  })
+})
+
+describe('number parsing', () => {
+  it('rejects hex and exponent notation', () => {
+    for (const raw of ['0x1F', '1e1', '1E3', '-5', '', '0', 'abc', '1.', '.5']) expect(positiveNumber(raw)).toBeNull()
+  })
+  it('keeps plain numbers with commas and spaces', () => {
+    expect(positiveNumber('1,200')).toBe(1200)
+    expect(positiveNumber(' 4.50 ')).toBe(4.5)
+  })
+})
+
+describe('the details blocker', () => {
+  const base = { fuel: 'oil', units: '800', price: '4.5', town: 'Worcester', towns: TOWNS }
+  it('names the town first, then the fuel, then the numbers', () => {
+    expect(detailsBlocker({ ...base, town: '' })).toBe('Add your town to continue.')
+    expect(detailsBlocker({ ...base, fuel: '' })).toContain('heat with')
+    expect(detailsBlocker({ ...base, units: '' })).toContain('yearly amount')
+    expect(detailsBlocker({ ...base, price: '' })).toContain('the price')
+    expect(detailsBlocker(base)).toBeNull()
+  })
+})
+
+describe('the stepper while on the details step', () => {
+  it('keeps the details step listed even when nothing more is needed', () => {
+    expect(stepsFor('details', false).map((entry) => entry.id)).toContain('details')
+    expect(eyebrowFor('details', false)).toBe('Step 3 of 4')
+    expect(stepsFor('bill', false).map((entry) => entry.id)).not.toContain('details')
+  })
+})
+
+describe('the discount line', () => {
+  const line = { lowIncomeSignal: false, discountLine: true }
+  it('asks for confirmation when only a discount line was reported', () => {
+    expect(discountLineNeedsConfirm([line])).toBe(true)
+    expect(lowIncomeDetected([line])).toBe(false)
+  })
+  it('does not ask when an R-2/R-4 class already says so, or when there is no line', () => {
+    expect(discountLineNeedsConfirm([line, { lowIncomeSignal: true, discountLine: true }])).toBe(false)
+    expect(discountLineNeedsConfirm([{ lowIncomeSignal: false, discountLine: false }, null])).toBe(false)
   })
 })

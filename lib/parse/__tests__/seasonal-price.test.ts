@@ -28,6 +28,8 @@ function annualBill(fuel: BillFuel, price: number): Record<string, unknown> {
     unit: UNIT_BY_FUEL[fuel],
     price_per_unit: price,
     billing_period: 'year',
+    period_start: '2025-10-19',
+    period_end: '2026-10-18',
     document_date: '2026-09-30',
     confidence: 'high',
   }

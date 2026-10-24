@@ -53,6 +53,12 @@ export function mapProfileFrom(input: {
   }
 }
 
+const TOWN_BOUND = ['utility', 'kwh', 'kwhIsExample', 'supply', 'supplierRateCents']
+
+function normalTown(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+}
+
 /**
  * Merge onto what storage holds. Null and absent fields never erase a stored value, and an
  * `unsure` income never replaces a stored yes or no. Other non-null values from fresh bills overwrite.
@@ -67,6 +73,8 @@ export function mergeMapProfile(existing: string | null, fields: MapProfileField
   } catch {
     base = {}
   }
+  const storedTown = normalTown(base.town)
+  if (storedTown !== '' && storedTown !== normalTown(fields.town)) for (const key of TOWN_BOUND) delete base[key]
   const storedIncome = base.incomeEligible === 'yes' || base.incomeEligible === 'no'
   const known = Object.fromEntries(
     Object.entries(fields).filter(
