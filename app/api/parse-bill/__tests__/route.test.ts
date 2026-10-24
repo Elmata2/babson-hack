@@ -69,6 +69,7 @@ describe('/api/parse-bill', () => {
   beforeEach(() => {
     vi.stubEnv('ANTHROPIC_API_KEY', API_KEY)
     vi.stubEnv('OPENROUTER_API_KEY', '')
+    vi.stubEnv('BABSON_GATEWAY_KEY', '')
   })
 
   afterEach(() => {
@@ -186,6 +187,7 @@ describe('/api/parse-bill with an OpenRouter key', () => {
     vi.stubEnv('ANTHROPIC_API_KEY', '')
     vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-v1-test-key')
     vi.stubEnv('OPENROUTER_MODEL', '')
+    vi.stubEnv('BABSON_GATEWAY_KEY', '')
   })
 
   afterEach(() => {
@@ -249,12 +251,103 @@ describe('/api/parse-bill with an OpenRouter key', () => {
 })
 
 /**
+ * @built F-79 the Babson gateway reader — the seminar key, used as the OCR workaround
+ *
+ * The gateway exposes exactly one model (`claude-sonnet-5`) behind an `x-api-key`
+ * header and an Anthropic-shaped `/v1/messages` endpoint. It is preferred over both
+ * other readers, accepts PDFs, and returns the same `{ ok, bill }` contract.
+ */
+describe('/api/parse-bill with the Babson gateway key', () => {
+  const GATEWAY = 'https://gateway.test'
+
+  beforeEach(() => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
+    vi.stubEnv('OPENROUTER_API_KEY', '')
+    vi.stubEnv('BABSON_GATEWAY_KEY', 'sk-test-babson-key')
+    vi.stubEnv('BABSON_GATEWAY_URL', GATEWAY)
+    vi.stubEnv('BABSON_GATEWAY_MODEL', '')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  it('reads a bill, names the reader, and sends x-api-key to /v1/messages', async () => {
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => anthropicEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    const body = await parse()
+    expect(body.reader).toBe('babson')
+    expect(body.bill.annualisation?.method).toBe('degree_days')
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe(`${GATEWAY}/v1/messages`)
+    const headers = init.headers as Record<string, string>
+    expect(headers['x-api-key']).toBe('sk-test-babson-key')
+    expect(headers.authorization).toBeUndefined()
+
+    const sent = JSON.parse(String(init.body)) as {
+      model: string
+      max_tokens: number
+      temperature?: number
+      messages: { content: { type: string; source?: { media_type: string } }[] }[]
+    }
+    expect(sent.model).toBe('claude-sonnet-5')
+    // Sonnet 5 rejects `temperature`; sending it would 400 every bill.
+    expect(sent.temperature).toBeUndefined()
+    expect(sent.messages[0].content.map((part) => part.type)).toEqual(['image', 'text'])
+    expect(sent.messages[0].content[0].source?.media_type).toBe('image/jpeg')
+  })
+
+  it('honours a full endpoint and a model override', async () => {
+    vi.stubEnv('BABSON_GATEWAY_URL', `${GATEWAY}/v1/messages/`)
+    vi.stubEnv('BABSON_GATEWAY_MODEL', 'claude-sonnet-5-preview')
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => anthropicEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    await parse()
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe(`${GATEWAY}/v1/messages`)
+    expect((JSON.parse(String(init.body)) as { model: string }).model).toBe('claude-sonnet-5-preview')
+  })
+
+  it('sends PDFs as document blocks the gateway can read', async () => {
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => anthropicEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    const body = await parse({}, 'application/pdf')
+    expect(body.ok).toBe(true)
+    const sent = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body)) as {
+      messages: { content: { type: string; source?: { media_type: string } }[] }[]
+    }
+    expect(sent.messages[0].content[0].type).toBe('document')
+    expect(sent.messages[0].content[0].source?.media_type).toBe('application/pdf')
+  })
+
+  it('wins over a console key and an OpenRouter key when all three are configured', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', API_KEY)
+    vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-v1-test-key')
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => anthropicEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    const body = await parse()
+    expect(body.reader).toBe('babson')
+    expect((fetchMock.mock.calls[0] as [string])[0]).toBe(`${GATEWAY}/v1/messages`)
+  })
+
+  it('maps a rejected gateway key to the credentials failure, not an outage', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
+    const response = await POST(billRequest())
+    expect(response.status).toBe(503)
+    expect(((await response.json()) as { code: string }).code).toBe('vision_credentials')
+  })
+})
+
+/**
  * @built F-108 several pages of one bill, one vision call; HEIC refused by name
  */
 describe('/api/parse-bill with several files', () => {
   beforeEach(() => {
     vi.stubEnv('ANTHROPIC_API_KEY', API_KEY)
     vi.stubEnv('OPENROUTER_API_KEY', '')
+    vi.stubEnv('BABSON_GATEWAY_KEY', '')
   })
 
   afterEach(() => {

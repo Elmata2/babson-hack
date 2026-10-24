@@ -18,6 +18,7 @@ No spinner between us and a demo that works.
 | **Open-Meteo archive** | county HDD65 from ERA5 | `archive-api.open-meteo.com` | none | build-time | committed JSON |
 | **MassGIS EJ2020** | equity overlay by block group | ArcGIS FeatureServer | none | build-time | baked into tract GeoJSON |
 | **ACS 5-yr B25040** | oil-heat share by tract | baked from Census API | optional | build-time | bundled static GeoJSON |
+| **Babson LiteLLM gateway** | bill OCR (`claude-sonnet-5`) | server route only | `BABSON_GATEWAY_KEY` | none | manual entry form |
 | **Anthropic API** | bill OCR + verdict prose | server route only | `ANTHROPIC_API_KEY` | none | manual entry form |
 
 ---

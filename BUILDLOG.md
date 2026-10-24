@@ -7,13 +7,13 @@
 
 **Built:** 49 / 89 features · ███████████████░░░░░░░░░░░░░ **55%**
 
-**Last event:** 2026-10-24T16:15:11.883Z (12:15 ET) · **commit:** `6ca96b2`
+**Last event:** 2026-10-24T16:32:33.482Z (12:32 ET) · **commit:** `e009353`
 
 ## Now
 
+- `12:32` 📄 **NOTE** bill OCR reads on the Babson gateway (claude-sonnet-5) with x-api-key, PDFs included; OpenRouter is the fallback
 - `12:15` ✔ **F-138** the demo bills, offered where the upload lives · `components/onboarding/sample-bills.ts`
 - `12:15` ✔ **F-138** synthetic sample bills load into the same reader as a photo · `components/onboarding/onboarding-wizard.tsx`
-- `12:15` ✔ **F-137** the four-step wizard — profile, bill, house, review · `components/onboarding/onboarding-wizard.tsx`
 
 ## Next up
 
@@ -40,6 +40,7 @@
 
 ## Timeline
 
+- `12:32` 📄 **NOTE** — bill OCR reads on the Babson gateway (claude-sonnet-5) with x-api-key, PDFs included; OpenRouter is the fallback · `e009353`
 - `12:15` ✔ **F-138** — the demo bills, offered where the upload lives · `components/onboarding/sample-bills.ts` · `767dcc9`
 - `12:15` ✔ **F-138** — synthetic sample bills load into the same reader as a photo · `components/onboarding/onboarding-wizard.tsx` · `767dcc9`
 - `12:15` ✔ **F-137** — the four-step wizard — profile, bill, house, review · `components/onboarding/onboarding-wizard.tsx` · `767dcc9`

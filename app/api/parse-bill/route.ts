@@ -1,7 +1,7 @@
 /**
  * @built F-26 /api/parse-bill — one vision call, in memory, nothing stored
  * @built F-77 route options — the household facts the photograph cannot carry
- * @built F-79 two readers — a console API key or an OpenRouter key, same contract
+ * @built F-79 three readers — the Babson gateway, a console API key, or OpenRouter, same contract
  * @built F-108 up to three pages/photos of one bill in one vision call; county + heating wiring
  *
  * The privacy rule from steering: the image is read in this request and discarded.
@@ -17,8 +17,13 @@
  *   countyFips (25001–25027)   shapes the heating year; defaults to Suffolk/Boston
  *
  * Readers, in order of preference:
+ *   babson      the Babson LiteLLM gateway (`claude-sonnet-5`), when a key is configured
  *   anthropic   a real console key (`sk-ant-api03-…`), if one is configured
  *   openrouter  any vision model by slug; the default is gemma-3-12b at ~$0.00003 a bill
+ *
+ * The gateway speaks the Anthropic Messages shape at `/v1/messages` but authenticates
+ * with `x-api-key` exactly like Anthropic, so both readers share one code path. It
+ * also accepts PDFs, which the OpenRouter reader cannot.
  *
  * `sk-ant-oat01-…` is a Claude Code OAuth token. It authenticates with a bearer
  * header and then answers every request with 429 rate_limit_error, because it has
@@ -55,15 +60,31 @@ const UPSTREAM_TIMEOUT_MS = 20_000
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const ANTHROPIC_VERSION = '2023-06-01'
 
+/** The seminar gateway. The URL is public; only the key is a secret. */
+const BABSON_DEFAULT_URL = 'https://ca-litellm-mint-eus2.orangeflower-5d81efa8.eastus2.azurecontainerapps.io'
+/** The one model the gateway exposes. */
+const BABSON_DEFAULT_MODEL = 'claude-sonnet-5'
+
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 /** Cheap, fast, and it read a 12-bar usage chart off a photographed bill on 2026-10-24. */
 const OPENROUTER_DEFAULT_MODEL = 'google/gemma-3-12b-it'
 
-type ProviderName = 'anthropic' | 'openrouter'
+type ProviderName = 'babson' | 'anthropic' | 'openrouter'
 
 interface Provider {
   name: ProviderName
   key: string
+  /** Anthropic-shaped endpoint. Unused by the OpenRouter reader. */
+  url: string
+  model: string
+}
+
+/** Accept the base URL or the full `/v1/messages` endpoint without doubling a path. */
+function anthropicEndpoint(base: string): string {
+  const trimmed = base.replace(/\/+$/, '')
+  if (/\/v1\/messages$/.test(trimmed)) return trimmed
+  if (/\/v1$/.test(trimmed)) return `${trimmed}/messages`
+  return `${trimmed}/v1/messages`
 }
 
 /** Either the model's text, or a ready-to-return failure. */
@@ -113,26 +134,55 @@ function isImage(mediaType: string): boolean {
 }
 
 /**
- * Which reader this deployment has. Documented rather than clever: a console key
- * wins, an OpenRouter key is the fallback, an OAuth token is refused with a reason
- * the operator can act on.
+ * Which reader this deployment has. Documented rather than clever: the seminar
+ * gateway wins, then a console key, then OpenRouter, and an OAuth token is refused
+ * with a reason the operator can act on.
  */
 function pickProvider(): { provider: Provider | null; reason: string } {
+  const babson = process.env.BABSON_GATEWAY_KEY?.trim() ?? ''
+  if (babson) {
+    return {
+      provider: {
+        name: 'babson',
+        key: babson,
+        url: anthropicEndpoint(process.env.BABSON_GATEWAY_URL?.trim() || BABSON_DEFAULT_URL),
+        model: process.env.BABSON_GATEWAY_MODEL?.trim() || BABSON_DEFAULT_MODEL,
+      },
+      reason: '',
+    }
+  }
+
   const anthropic = process.env.ANTHROPIC_API_KEY?.trim() ?? ''
   if (anthropic.startsWith('sk-ant-api')) {
-    return { provider: { name: 'anthropic', key: anthropic }, reason: '' }
+    return {
+      provider: {
+        name: 'anthropic',
+        key: anthropic,
+        url: ANTHROPIC_URL,
+        model: process.env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-4-5',
+      },
+      reason: '',
+    }
   }
 
   const openrouter = process.env.OPENROUTER_API_KEY?.trim() ?? ''
   if (openrouter) {
-    return { provider: { name: 'openrouter', key: openrouter }, reason: '' }
+    return {
+      provider: {
+        name: 'openrouter',
+        key: openrouter,
+        url: OPENROUTER_URL,
+        model: process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_DEFAULT_MODEL,
+      },
+      reason: '',
+    }
   }
 
   if (anthropic.startsWith('sk-ant-oat')) {
     return {
       provider: null,
       reason:
-        'The configured Anthropic credential is a Claude Code OAuth token, which has no API quota. Add a console API key (sk-ant-api03-…) or an OPENROUTER_API_KEY.',
+        'The configured Anthropic credential is a Claude Code OAuth token, which has no API quota. Add a console API key (sk-ant-api03-…), a BABSON_GATEWAY_KEY, or an OPENROUTER_API_KEY.',
     }
   }
   return {
@@ -168,8 +218,12 @@ function upstreamFailure(status: number): ReadOutcome {
   }
 }
 
+/**
+ * Both the Anthropic API and the Babson LiteLLM gateway speak this shape: a list of
+ * `image`/`document` blocks plus a text block, answered with `content[].text`. Only
+ * the URL and model differ, so one implementation serves both readers.
+ */
 async function readWithAnthropic(provider: Provider, parts: BillPart[]): Promise<ReadOutcome> {
-  const model = process.env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-4-5'
   if (parts.some((part) => !isImage(part.mediaType) && part.mediaType !== 'application/pdf')) {
     return { ok: false, status: 415, code: 'unsupported', message: 'Send a JPEG, PNG, WebP or PDF.' }
   }
@@ -180,7 +234,7 @@ async function readWithAnthropic(provider: Provider, parts: BillPart[]): Promise
       : { type: 'image', source: { type: 'base64', media_type: part.mediaType, data: part.data } },
   )
 
-  const upstream = await fetch(ANTHROPIC_URL, {
+  const upstream = await fetch(provider.url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -188,9 +242,11 @@ async function readWithAnthropic(provider: Provider, parts: BillPart[]): Promise
       'x-api-key': provider.key,
     },
     body: JSON.stringify({
-      model,
+      model: provider.model,
       max_tokens: 1_500,
-      temperature: 0,
+      // `claude-sonnet-5` rejects `temperature` outright: it is deprecated for the
+      // model, and a 400 would turn every bill into "reader unavailable".
+      ...(provider.name === 'babson' ? {} : { temperature: 0 }),
       messages: [{ role: 'user', content: [...blocks, { type: 'text', text: promptFor(parts) }] }],
     }),
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
@@ -217,8 +273,8 @@ async function readWithOpenRouter(provider: Provider, parts: BillPart[]): Promis
     }
   }
 
-  const model = process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_DEFAULT_MODEL
-  const upstream = await fetch(OPENROUTER_URL, {
+  const model = provider.model
+  const upstream = await fetch(provider.url, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${provider.key}`,
@@ -342,9 +398,9 @@ export async function POST(request: Request): Promise<Response> {
   let outcome: ReadOutcome
   try {
     outcome =
-      provider.name === 'anthropic'
-        ? await readWithAnthropic(provider, parts)
-        : await readWithOpenRouter(provider, parts)
+      provider.name === 'openrouter'
+        ? await readWithOpenRouter(provider, parts)
+        : await readWithAnthropic(provider, parts)
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'TimeoutError'
     return fail(

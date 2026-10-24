@@ -38,7 +38,7 @@ product, not an edge case.
 
 ```bash
 npm install
-cp .env.example .env.local     # optional: EIA_API_KEY, ANTHROPIC_API_KEY
+cp .env.example .env.local     # optional: EIA_API_KEY, BABSON_GATEWAY_KEY, ANTHROPIC_API_KEY
 npm run dev                    # http://localhost:3000
 npm run build                  # production build, the same one Vercel runs
 npm run check                  # tsc + eslint + vitest — the gate before every commit

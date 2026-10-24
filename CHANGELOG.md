@@ -117,6 +117,15 @@ because that is when the hackathon clock runs.
   URL.
 - `npm run check` restored to include ESLint after a concurrent edit dropped it.
   A gate that skips lint is not the gate F-05 describes.
+- **F-79** — bill OCR now prefers the Babson seminar LiteLLM gateway
+  (`claude-sonnet-5`) over the OpenRouter workaround, via `BABSON_GATEWAY_KEY`,
+  `BABSON_GATEWAY_URL` and `BABSON_GATEWAY_MODEL`. The gateway answers the
+  Anthropic Messages shape at `/v1/messages` with an `x-api-key` header, so it
+  shares one reader with the console-key path — and unlike OpenRouter it accepts
+  PDFs. `claude-sonnet-5` rejects `temperature`, so that field is omitted for the
+  gateway; sending it would have 400'd every bill. Precedence is gateway →
+  console key → OpenRouter → typed "not configured", and the UI's `reader`
+  provenance now reports `babson`.
 
 ### Fixed
 
