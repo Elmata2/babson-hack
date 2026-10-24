@@ -31,7 +31,7 @@ const SCAN_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json', '.css',
 const SKIP = new Set(['node_modules', '.next', '.git', '.vercel', 'dist', 'out', '.buildlog'])
 
 const MARKER = /@built\s+(F-\d+)\s+(.{0,120})/g
-const TASK_ROW = /^\|\s*(F-\d+)\s*\|\s*(P\d)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|/
+const TASK_ROW = /^\|\s*(F-\d+)\s*\|\s*(P\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|/
 
 const TAG_ICON = {
   calc: '🧮', api: '🔌', ui: '🎨', map: '🗺️', ocr: '📄',

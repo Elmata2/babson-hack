@@ -11,6 +11,7 @@ const config = [
     ignores: [
       '.next/**',
       '.vercel/**',
+      '.claude/**',
       'node_modules/**',
       'public/**',
       'data/**',

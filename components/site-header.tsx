@@ -36,6 +36,12 @@ export function SiteHeader() {
           >
             Map
           </Link>
+          <Link
+            href="/dashboard"
+            className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
+          >
+            Dashboard
+          </Link>
           <a
             href="https://github.com/Elmata2/babson-hack"
             className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
