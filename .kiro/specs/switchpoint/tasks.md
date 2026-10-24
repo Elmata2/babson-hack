@@ -254,3 +254,16 @@ they need an account with a home on a server, which this build does not have.
 | F-149 | P11 | Consent screen, contact status board, quotes/decision step (Addendum B §3.6 agent path) | A | 45m | F-147 |
 | F-150 | P11 | `/dashboard` — current situation, switch stage timeline, deadlines, forget-this-tab | A | 30m | F-146 |
 | F-151 | P11 | Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route | A | 30m | F-148 |
+
+---
+
+# R8 verdict on screen — tasks (2026-10-24)
+
+Spec: `.kiro/specs/switchpoint/requirements.md` R8. The engine (F-22/F-23) already
+honours 8.1, 8.2 and 8.4; the screen did not honour 8.3, because the reasons were
+never rendered and the caveats sat inside a collapsed drawer. Renumbered to
+F-152 because P11's switch work took F-143 first.
+
+| ID | Phase | Task | Owner | Est | Depends |
+| --- | --- | --- | --- | --- | --- |
+| F-152 | P4 | R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests | A | 20m | F-23 |

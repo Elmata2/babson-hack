@@ -27,6 +27,7 @@ import {
 import { getPrices } from '@/lib/prices'
 import { resolveUtility, SPONSOR_NAME, seasonalHeatPumpRate } from '@/lib/utility'
 import { entryFor, provenanceFor, type FigureId, type ProvenanceEntry } from '@/lib/verdict/provenance'
+import { verdictNotes } from '@/lib/verdict-notes'
 import { VERDICT_META } from '@/lib/verdicts'
 
 /**
@@ -41,6 +42,7 @@ import { VERDICT_META } from '@/lib/verdicts'
  * @built F-37 the 0% HEAT Loan payment sits beside the monthly saving, either way
  * @built F-38 the defaults and the disclaimer are on the page before any fold
  * @built F-39 three sentences of plain English, written from these numbers and checked against them
+ * @built F-152 R8.3 — two reasons and one caveat are floored by `verdictNotes`, not sliced off a raw array
  *
  * Server-rendered from the URL and `lib/calc`. No client JavaScript is needed to
  * see the answer, no API route is required to produce it, and the same link
@@ -183,6 +185,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const result = computeVerdict(heating, upgrade)
   const refusal = result ? null : refusalFor(heating, upgrade)
   const meta = result ? VERDICT_META[result.verdict] : null
+  // R8.3: the page never slices the raw arrays. `verdictNotes` floors any result
+  // at two reasons and one caveat, deduplicated, without inventing a number.
+  const notes = result ? verdictNotes(result) : null
   // The bill's own sender settles a mixed town: a light-plant bill means no Mass Save rebate;
   // an investor-owned sender means the question is answered.
   const billSaysMunicipal = utilityKey === 'municipal'
@@ -381,14 +386,12 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
               </p>
 
               <ul className="mt-5 grid gap-2 border-t border-rule pt-4 text-small text-ink">
-                {result.reasons.slice(0, 2).map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
+                {notes ? notes.reasons.slice(0, 2).map((reason) => <li key={reason}>{reason}</li>) : null}
               </ul>
-              {result.caveats[0] ? (
+              {notes?.caveats[0] ? (
                 <p className="mt-2 text-micro text-ink-muted">
                   <span className="font-medium text-ink">What could change it: </span>
-                  {result.caveats[0]}
+                  {notes.caveats[0]}
                 </p>
               ) : null}
 
