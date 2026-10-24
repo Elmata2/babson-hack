@@ -30,7 +30,9 @@ const SCAN_DIRS = ['src', 'lib', 'app', 'components', 'data', 'scripts', '.kiro/
 const SCAN_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json', '.css', '.md'])
 const SKIP = new Set(['node_modules', '.next', '.git', '.vercel', 'dist', 'out', '.buildlog'])
 
-const MARKER = /@built\s+(F-\d+)\s+(.{0,120})/g
+// A marker may name more than one feature, joined by `/`, `,`, `&` or `and`.
+// `(?=\s|$)` keeps a malformed id like `F-26a` from being read as `F-26`.
+const MARKER = /@built\s+((?:F-\d+)(?:(?:\s*[\/,&]\s*|\s+and\s+)F-\d+)*)(?=\s|$)\s*(.{0,120})/g
 const TASK_ROW = /^\|\s*(F-\d+)\s*\|\s*(P\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|/
 
 const TAG_ICON = {
@@ -144,20 +146,23 @@ function sync({ quiet = false } = {}) {
     try { text = fs.readFileSync(file, 'utf8') } catch { continue }
     if (!text.includes('@built')) continue
     for (const m of text.matchAll(MARKER)) {
-      const id = m[1]
-      const key = `${id}|${rel}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      fresh.push({
-        id,
-        phase: phaseOf(registry, id),
-        title: registry.find((r) => r.id === id)?.title ?? m[2].trim(),
-        file: rel,
-        ts: now,
-        commit: sha,
-        source: 'marker',
-        text: m[2].trim() || null,
-      })
+      // `F-148 / F-149` marks both features from one line; log each so a
+      // combined marker cannot silently drop the second id.
+      for (const id of m[1].match(/F-\d+/g) ?? []) {
+        const key = `${id}|${rel}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        fresh.push({
+          id,
+          phase: phaseOf(registry, id),
+          title: registry.find((r) => r.id === id)?.title ?? m[2].trim(),
+          file: rel,
+          ts: now,
+          commit: sha,
+          source: 'marker',
+          text: m[2].trim() || null,
+        })
+      }
     }
   }
 

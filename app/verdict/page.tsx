@@ -462,6 +462,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
 
           <CashFlow result={result} noMassSave={noMassSave} />
 
+          {/* @built F-151 the verdict hands the whole query to the switch flow, so the household's claim survives the next screen */}
           <section className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-card border border-rule bg-surface p-5">
             <div>
               <h2 className="text-small font-medium">What happens next</h2>
