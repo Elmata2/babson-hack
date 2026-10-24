@@ -92,6 +92,8 @@ export default function MapView() {
 
   const [lens, setLens] = useState<Lens>('energy')
   const [tab, setTab] = useState<Tab>('town')
+  /** No WebGL: the Heat numbers still work, so the Heat rail must stay usable. */
+  const [fallback, setFallback] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [selectedTract, setSelectedTract] = useState<string | null>(null)
   const [hour, setHour] = useState(18)
@@ -212,7 +214,15 @@ export default function MapView() {
   const changeLens = useCallback(
     (next: Lens, opts: { skipCamera?: boolean } = {}) => {
       const map = mapRef.current
-      if (!map || next === lens) return
+      if (!map) {
+        // Without WebGL only the Heat lens has content (metrics, scrubber, table).
+        if (next !== lens && next === 'heat') {
+          setLens(next)
+          setTab('town')
+        }
+        return
+      }
+      if (next === lens) return
       camera.stopOrbit()
       popupRef.current?.remove()
       hoverKey.current = null
@@ -416,6 +426,9 @@ export default function MapView() {
       // a consequence of a failed external system, not of this render.
       queueMicrotask(() => {
         setReady(false)
+        setFallback(true)
+        setLens('heat')
+        setTab('town')
         setMapError('This browser cannot draw the interactive map. The static map and the table view still work.')
         if (!staticShown.current) {
           staticShown.current = true
@@ -580,7 +593,7 @@ export default function MapView() {
                   key={l.id}
                   type="button"
                   aria-pressed={lens === l.id}
-                  disabled={!ready}
+                  disabled={!ready && !(fallback && l.id === 'heat')}
                   onClick={() => changeLens(l.id)}
                   className="h-8 rounded text-small text-ink-muted transition-colors hover:text-ink disabled:opacity-50 aria-pressed:bg-ink aria-pressed:text-paper"
                 >
