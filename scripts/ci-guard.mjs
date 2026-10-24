@@ -58,7 +58,7 @@ function insideWorkTree() {
   return res.status === 0 && res.stdout.trim() === 'true'
 }
 
-/** One line of the file as committed at HEAD, or null when untracked. */
+/** The file's contents as committed at HEAD, or null when it is untracked. */
 function committedFile(rel) {
   const res = git(['show', `HEAD:${rel}`])
   return res.status === 0 ? res.stdout : null
@@ -119,6 +119,18 @@ function checkBuildlog() {
     return
   }
 
+  // Capture the file before the regeneration so a passing run can leave the
+  // working tree byte-identical to how it found it. Without this the guard
+  // stamps a fresh header sha into BUILDLOG.md, and the *next* run fails the
+  // uncommitted-changes check it created itself.
+  const buildlogPath = path.join(ROOT, BUILDLOG)
+  let before = null
+  try {
+    before = fs.readFileSync(buildlogPath)
+  } catch {
+    before = null
+  }
+
   const regenerated = node('scripts/buildlog.mjs', ['hook'])
   if (regenerated.status !== 0) {
     fail(label, [
@@ -130,7 +142,7 @@ function checkBuildlog() {
 
   let onDisk
   try {
-    onDisk = fs.readFileSync(path.join(ROOT, BUILDLOG), 'utf8')
+    onDisk = fs.readFileSync(buildlogPath, 'utf8')
   } catch {
     fail(label, `${BUILDLOG} is missing. Run: node scripts/buildlog.mjs hook`)
     return
@@ -150,17 +162,18 @@ function checkBuildlog() {
   const left = normalise(committed)
   const right = normalise(onDisk)
   if (left === right) {
-    pass(label, 'regenerated copy is identical (header sha ignored)')
+    if (before != null) fs.writeFileSync(buildlogPath, before)
+    pass(label, 'regenerated copy is identical (header sha ignored), file left untouched')
     return
   }
 
   const diff = diffStrings(left, right)
   fail(label, [
     'BUILDLOG.md is out of date with the source. A file that is generated but stale',
-    'is a claim the repository can no longer back up.',
+    'is a claim the repository can no longer back up. It has been regenerated in the',
+    'working tree — review it and commit it with the markers.',
     '',
-    '  fix: node scripts/buildlog.mjs hook',
-    '       git add BUILDLOG.md .buildlog/events.jsonl',
+    '  fix: git add BUILDLOG.md .buildlog/events.jsonl',
     '',
     diff || '(diff unavailable)',
   ].join('\n'))
