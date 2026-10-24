@@ -97,6 +97,10 @@ confidence score per field.
   after a heating document.
 - 2.14 *(F-106)* The annualisation method, its confidence and its note reach
   `/verdict` and are shown in provenance. "Change the numbers" returns every input.
+- 2.15 *(F-110)* A PDF selected in bill upload is rendered to JPEG pages in the
+  browser before any request. The three-page limit counts PDF pages and photos
+  together; a longer or unreadable PDF gets a clear error. OpenRouter receives
+  image pages only, and PDF bytes never leave the browser.
 
 ## R3 — Live fuel and rate data
 

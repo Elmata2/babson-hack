@@ -226,3 +226,4 @@ Spec: `docs/fixes/2026-10-24-one-photo-intake.md`. Amends R1.4, R2, R4.
 | F-107 | P10 | Client image prep: orientation, ≤2000px JPEG < 1.5 MB, PDF < 4 MB | C | 25m | — |
 | F-108 | P10 | Route: up to 3 pages in one read; client sends `countyFips` and `heating` | C | 25m | F-107 |
 | F-109 | P10 | Confirm card: found-chips, check? on low confidence, auto-apply + Undo, "+ Add your electric bill" | A | 45m | F-102, F-108 |
+| F-110 | P10 | Render PDF pages to JPEG in browser so OpenRouter accepts PDF uploads; enforce 3-page total | A | 30m | F-107, F-108 |

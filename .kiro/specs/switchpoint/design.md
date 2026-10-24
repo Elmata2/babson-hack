@@ -658,7 +658,7 @@ centrepiece; whether Addendum A is approved and who supplies real dealer and
 installer lists; whether a dated Energy Switch MA snapshot is an acceptable source
 for competitive offers.
 
-### 15.x Bill intake shared with `/start` (2026-10-24, F-100–F-109)
+### 15.x Bill intake shared with `/start` (2026-10-24, F-100–F-110)
 
 Steps 2–4 of `/onboarding` reuse the one-photo pieces built on `/start`: the
 `BillApplied` contract (`lib/parse/contract.ts`), client image prep, the
@@ -669,5 +669,8 @@ found-chips confirm card and the parcel guard. Three corrections to §3.3–3.4 
   the user is asked only when both are missing.
 - The electricity profile needs the electric bill and the heat-pump verdict needs
   the heating document, so there are two bill slots.
+- PDF pages are rendered to JPEG in the browser before upload. This keeps
+  OpenRouter's image-only request shape and the three-page limit consistent;
+  PDF bytes stay on the device.
 - The privacy table must name both readers: Anthropic and the OpenRouter fallback
   added in F-79. **Open for team review.**

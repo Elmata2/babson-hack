@@ -15,7 +15,7 @@ import {
   type CheckField,
   type ParsedBill,
 } from '@/lib/client/bill-confirm'
-import { checkTotalSize, planPrepare, prepareFile } from '@/lib/client/prepare-image'
+import { prepareUploadFiles } from '@/lib/client/prepare-image'
 import type { BillApplied, BillRole } from '@/lib/parse/contract'
 import type { BillFuel } from '@/lib/parse/types'
 
@@ -143,33 +143,13 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
     setMessage(null)
     setApplied('no')
 
-    if (chosen.length > 3) {
-      setStatus('error')
-      setMessage('Attach at most 3 pages or photos of one bill.')
-      return
-    }
-
-    // Shrink in the browser first: Vercel answers an oversize body with an HTML 413.
-    const prepared: File[] = []
+    // Render PDF pages and shrink photos locally before sending JPEGs to the reader.
+    let prepared: File[]
     try {
-      for (const file of chosen) {
-        const plan = planPrepare(file)
-        if (plan.action === 'reject') {
-          setStatus('error')
-          setMessage(plan.message)
-          return
-        }
-        prepared.push(await prepareFile(file))
-      }
-    } catch {
+      prepared = await prepareUploadFiles(chosen)
+    } catch (error) {
       setStatus('error')
-      setMessage('That photo could not be prepared. Try a smaller JPG, or enter the numbers by hand.')
-      return
-    }
-    const tooBig = checkTotalSize(prepared.map((file) => file.size))
-    if (tooBig) {
-      setStatus('error')
-      setMessage(tooBig)
+      setMessage(error instanceof Error ? error.message : 'That document could not be prepared. Try a photo instead.')
       return
     }
 

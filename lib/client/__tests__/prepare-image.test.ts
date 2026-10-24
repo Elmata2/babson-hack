@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  MAX_TOTAL_BYTES,
+  MAX_PDF_BYTES,
   checkTotalSize,
   fitWithin,
   isHeic,
@@ -19,9 +19,10 @@ describe('planPrepare', () => {
     expect(planPrepare({ name: 'a.jpg', type: 'image/jpeg', size: 5 * MB }).action).toBe('reencode')
     expect(planPrepare({ name: 'IMG_1.HEIC', type: '', size: 3 * MB }).action).toBe('reencode')
   })
-  it('passes a small PDF through and rejects one over 4 MB', () => {
-    expect(planPrepare({ name: 'b.pdf', type: 'application/pdf', size: 2 * MB }).action).toBe('passthrough')
-    expect(planPrepare({ name: 'b.pdf', type: 'application/pdf', size: MAX_TOTAL_BYTES }).action).toBe('reject')
+  it('renders PDFs locally and rejects a PDF too large to decode', () => {
+    expect(planPrepare({ name: 'b.pdf', type: 'application/pdf', size: 2 * MB }).action).toBe('render_pdf')
+    expect(planPrepare({ name: 'b.pdf', type: '', size: 2 * MB }).action).toBe('render_pdf')
+    expect(planPrepare({ name: 'b.pdf', type: 'application/pdf', size: MAX_PDF_BYTES + 1 }).action).toBe('reject')
   })
   it('leaves unknown types for the route to refuse', () => {
     expect(planPrepare({ name: 'x.docx', type: 'application/zip', size: 10 }).action).toBe('passthrough')

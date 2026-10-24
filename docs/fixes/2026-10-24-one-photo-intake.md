@@ -1,6 +1,6 @@
 # Fix — one photo of one Massachusetts bill becomes advice tied to that household
 
-**Status:** implemented on `fix/one-photo-intake`; automated checks passed · 2026-10-24
+**Status:** implemented on `master`; automated checks passed · 2026-10-24
 **Feature ids:** F-100–F-119 (new block, reserved in `tasks.md`)
 **Amends:** R1.4, R2.1, R2.2, R2.4, R4 (`requirements.md`) · design §2.4, §15 (`design.md`)
 **Evidence:** three audits on 2026-10-24 — pipeline trace (code), MA bill formats
@@ -63,6 +63,7 @@ wrong house.
 | U7 | "← Change the numbers" drops every input. | Round-trip the query string; `/start` hydrates from it. | F-106 |
 | U8 | Method/confidence vanish after Apply; verdict shows an HDD-scaled estimate as if the user typed it. | `m`, `mc`, `mn` params; verdict lists them in provenance. | F-106 |
 | U9 | Duplicate address suggestions. | Dedupe by line1 + postcode. | F-104 |
+| U10 | OpenRouter rejects raw PDF, though upload offers PDF. | Render PDF pages to JPEG in browser; count them against the three-page limit. | F-110 |
 
 ## 3. Target flow
 

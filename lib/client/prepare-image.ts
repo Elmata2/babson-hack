@@ -1,11 +1,12 @@
 /**
  * @built F-107 client image prep — shrink the photo before it travels
+ * @built F-110 PDF pages rendered to JPEG locally for the OpenRouter reader
  *
  * A modern phone photo is 3–8 MB of HEIC or JPEG. Vercel rejects a request body
  * over 4.5 MB with a non-JSON 413, and the vision model gains nothing from more
  * than ~2000 px on the long edge (bill text is read at that size fine). So the
- * browser decodes (honouring EXIF rotation — a sideways bill reads worse), scales
- * down, and re-encodes to JPEG before upload.
+ * browser decodes photos (honouring EXIF rotation), renders PDF pages locally,
+ * scales down, and re-encodes to JPEG before upload.
  *
  * The decisions are pure and unit-tested (`planPrepare`, `fitWithin`,
  * `nextQuality`, `checkTotalSize`). Only `prepareFile` touches canvas, and it
@@ -15,10 +16,12 @@
 
 /** Long edge after scaling. */
 export const MAX_EDGE = 2_000
-/** Re-encoded images aim below this; PDFs are not re-encoded. */
+/** Re-encoded images and PDF pages aim below this. */
 export const TARGET_BYTES = 1.5 * 1024 * 1024
 /** Vercel's body limit is 4.5 MB; leave room for multipart framing and fields. */
 export const MAX_TOTAL_BYTES = 4 * 1024 * 1024
+/** PDFs never travel to the route, so this bounds only local decode cost. */
+export const MAX_PDF_BYTES = 20 * 1024 * 1024
 export const MAX_FILES = 3
 export const QUALITY_START = 0.85
 export const QUALITY_FLOOR = 0.6
@@ -28,7 +31,9 @@ const QUALITY_LADDER = [QUALITY_START, 0.75, 0.68, QUALITY_FLOOR] as const
 export type PreparePlan =
   /** Decode, scale, re-encode. */
   | { action: 'reencode' }
-  /** Send untouched (PDF within limits, or a type we cannot decode). */
+  /** Render each PDF page to JPEG in the browser. */
+  | { action: 'render_pdf' }
+  /** Send untouched when a photo cannot be decoded or its type is unknown. */
   | { action: 'passthrough' }
   /** Refuse before upload, with a sentence the UI can show. */
   | { action: 'reject'; message: string }
@@ -50,11 +55,11 @@ export function isPdf(file: Pick<FileFacts, 'name' | 'type'>): boolean {
 /** What to do with one chosen file. Pure: sizes and types in, a decision out. */
 export function planPrepare(file: FileFacts): PreparePlan {
   if (isPdf(file)) {
-    return file.size < MAX_TOTAL_BYTES
-      ? { action: 'passthrough' }
+    return file.size <= MAX_PDF_BYTES
+      ? { action: 'render_pdf' }
       : {
           action: 'reject',
-          message: 'That PDF is over 4 MB, which is more than the upload allows. Photograph the bill page instead.',
+          message: 'That PDF is over 20 MB. Export a smaller PDF or photograph the bill pages instead.',
         }
   }
   if (file.type.startsWith('image/') || isHeic(file)) return { action: 'reencode' }
@@ -90,12 +95,86 @@ function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
 }
 
+/** Convert one local PDF into JPEG pages; no PDF bytes leave the browser. */
+export async function preparePdf(file: File, remainingPages: number): Promise<File[]> {
+  if (remainingPages < 1) throw new Error(`Attach at most ${MAX_FILES} pages or photos of one bill.`)
+  if (typeof document === 'undefined') throw new Error('PDF rendering needs a browser. Try a photo instead.')
+
+  const pdfjs = await import('pdfjs-dist')
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
+  const loading = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), useSystemFonts: true })
+  try {
+    const pdf = await loading.promise
+    if (pdf.numPages > remainingPages) {
+      throw new Error(`This PDF has ${pdf.numPages} pages. Attach at most ${MAX_FILES} pages or photos of one bill.`)
+    }
+
+    const rendered: File[] = []
+    const baseName = file.name.replace(/\.pdf$/i, '') || 'bill'
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      const page = await pdf.getPage(pageNumber)
+      const base = page.getViewport({ scale: 1 })
+      let best: Blob | null = null
+      for (const edge of [MAX_EDGE, 1600, 1280, 1024, 800]) {
+        const viewport = page.getViewport({ scale: edge / Math.max(base.width, base.height) })
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(viewport.width))
+        canvas.height = Math.max(1, Math.round(viewport.height))
+        const context = canvas.getContext('2d')
+        if (!context) throw new Error('Could not render this PDF. Try exporting its pages as JPG.')
+        await page.render({ canvas, canvasContext: context, viewport }).promise
+        let quality: number | null = QUALITY_START
+        while (quality !== null) {
+          const blob = await canvasToBlob(canvas, quality)
+          if (!blob) break
+          if (!best || blob.size < best.size) best = blob
+          if (blob.size <= TARGET_BYTES) {
+            best = blob
+            break
+          }
+          quality = nextQuality(quality)
+        }
+        canvas.width = 0
+        canvas.height = 0
+        if (best && best.size <= TARGET_BYTES) break
+      }
+      page.cleanup()
+      if (!best) throw new Error('Could not turn this PDF page into a photo. Try exporting it as JPG.')
+      rendered.push(new File([best], `${baseName}-page-${pageNumber}.jpg`, { type: 'image/jpeg' }))
+    }
+    return rendered
+  } finally {
+    await loading.destroy()
+  }
+}
+
+/** Prepare one bill's selected files for either vision provider. */
+export async function prepareUploadFiles(chosen: File[]): Promise<File[]> {
+  if (chosen.length > MAX_FILES) throw new Error(`Attach at most ${MAX_FILES} pages or photos of one bill.`)
+  const prepared: File[] = []
+  for (const file of chosen) {
+    const plan = planPrepare(file)
+    if (plan.action === 'reject') throw new Error(plan.message)
+    if (plan.action === 'render_pdf') {
+      prepared.push(...await preparePdf(file, MAX_FILES - prepared.length))
+    } else {
+      prepared.push(await prepareFile(file))
+    }
+  }
+  const tooBig = checkTotalSize(prepared.map((file) => file.size))
+  if (tooBig) throw new Error(tooBig)
+  return prepared
+}
+
 /**
  * Browser-only. Returns the file to upload: a smaller JPEG when decoding works,
  * otherwise the original (the route decides whether it can read it).
  */
 export async function prepareFile(file: File): Promise<File> {
-  if (planPrepare(file).action !== 'reencode') return file
+  const plan = planPrepare(file)
+  if (plan.action === 'render_pdf') throw new Error('PDF pages must be rendered before upload.')
+  if (plan.action === 'reject') throw new Error(plan.message)
+  if (plan.action !== 'reencode') return file
   if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file
 
   let bitmap: ImageBitmap

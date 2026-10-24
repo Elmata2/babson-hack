@@ -25,6 +25,8 @@ because that is when the hackathon clock runs.
 - **F-107–F-109** — Photo prep fixes orientation and bounds image size. Up to
   three pages go through one read. Confirmation shows uncertain fields, asks
   for missing context, applies confident reads, and supports Undo.
+- **F-110** — PDF upload now renders up to three pages to JPEG in the browser.
+  OpenRouter receives images, and the PDF never leaves the device.
 - **F-01** — Next.js 16.4.3 App Router, React 19.3, Tailwind v4, TypeScript
   6.0.3. Deploys to Vercel on every push to `master`
   (<https://switchpoint-psi.vercel.app>). Geist is self-hosted, so no font
