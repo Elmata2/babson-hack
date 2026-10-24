@@ -9,8 +9,8 @@
     "status": "node scripts/buildlog.mjs status",
     "watch:log": "node scripts/buildlog.mjs watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run lib/calc",
-    "check": "tsc --noEmit && vitest run lib/calc"
+    "test": "vitest run lib",
+    "check": "tsc --noEmit && vitest run lib"
   },
   "engines": {
     "node": ">=20"
