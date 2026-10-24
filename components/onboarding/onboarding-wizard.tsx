@@ -1,6 +1,6 @@
 'use client'
 
-import { useSyncExternalStore, useState } from 'react'
+import { cloneElement, useId, useSyncExternalStore, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { AddressCombobox } from '@/components/address-combobox'
@@ -22,17 +22,14 @@ import {
 } from '@/lib/intake/params'
 import {
   anyDetailsNeeded,
-  billsReady,
   canLeaveDetails,
   detailsNeeds,
   eyebrowFor,
-  fuelFromBill,
   isProfileComplete,
   lowIncomeDetected,
   hasSingleSponsor,
   lowIncomeFlag,
   misplacedBillNote,
-  positiveNumber,
   townMismatch,
   nextStep,
   pickUtility,
@@ -47,10 +44,28 @@ import {
   visibleSteps,
   withoutProfile,
   writeProfile,
-  type BillSlots,
   type Profile,
   type Step,
 } from '@/lib/onboarding/flow'
+import {
+  EMPTY_SLOT,
+  billOf,
+  electricEntryErrors,
+  electricEntryFacts,
+  electricEntryFrom,
+  electricForMap,
+  heatingEntryErrors,
+  heatingEntryFrom,
+  isElectricReady,
+  isHeatingReady,
+  heatingFacts,
+  missingNotice,
+  slotsReady,
+  type ElectricEntry,
+  type ElectricSlot,
+  type HeatingEntry,
+  type HeatingSlot,
+} from '@/lib/onboarding/slots'
 import type { BillApplied, BillRole, BillUtility } from '@/lib/parse/contract'
 import type { BillFuel } from '@/lib/parse/types'
 
@@ -128,19 +143,14 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
   const accountErrors = validateProfile(profile)
 
   // ----------------------------------------------------------------- the bills
-  const [heatingBill, setHeatingBill] = useState<BillApplied | null>(null)
-  const [electricBill, setElectricBill] = useState<BillApplied | null>(null)
-  const [heatingByHand, setHeatingByHand] = useState(false)
-  const [electricByHand, setElectricByHand] = useState(false)
+  const [heatingSlot, setHeatingSlot] = useState<HeatingSlot>(EMPTY_SLOT)
+  const [electricSlot, setElectricSlot] = useState<ElectricSlot>(EMPTY_SLOT)
   const [slotNote, setSlotNote] = useState<{ slot: BillRole; text: string } | null>(null)
 
   // ---------------------------------------------------------------- the house
   const [townPick, setTownPick] = useState<string | null>(null)
   const [editingTown, setEditingTown] = useState(false)
   const [manualFuel, setManualFuel] = useState<BillFuel>('oil')
-  const [units, setUnits] = useState('')
-  const [price, setPrice] = useState('')
-  const [priceTouched, setPriceTouched] = useState(false)
   const [householdSize, setHouseholdSize] = useState<number | null>(null)
   const [incomeText, setIncomeText] = useState('')
   const [incomeDeclined, setIncomeDeclined] = useState(false)
@@ -148,10 +158,15 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
 
   const [step, setStep] = useState<Step>('account')
 
+  const heatingBill = billOf(heatingSlot)
+  const electricBill = billOf(electricSlot)
   const bills = [electricBill, heatingBill] as const
   const billTown = serviceTownFrom(bills, towns)
   const town = townPick ?? billTown ?? ''
-  const fuel: BillFuel = fuelFromBill(heatingBill) ?? manualFuel
+  const facts = heatingFacts(heatingSlot)
+  const fuel: BillFuel = facts?.fuel ?? manualFuel
+  const units = facts?.units ?? ''
+  const price = facts?.price ?? ''
   const incomeDetected = lowIncomeDetected(bills)
   const estimatedIncome = incomeDeclined ? null : parseIncome(incomeText)
   const income: Income = incomeDetected
@@ -160,20 +175,25 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       ? 'unsure'
       : eligibilityFor(householdSize, estimatedIncome)
   const incomeResult = incomeDeclined ? null : incomeResultCopy(householdSize, estimatedIncome)
-  const utility = pickUtility(electricBill, heatingBill, hasSingleSponsor(town))
+  const electricTyped = electricEntryFacts(electricSlot)
+  const utility =
+    electricSlot.kind === 'manual'
+      ? electricTyped.utility
+      : pickUtility(electricBill, heatingBill, hasSingleSponsor(town))
   const mismatch = townMismatch(electricBill, heatingBill, towns)
   const electricRate =
-    [electricBill?.electricRate, heatingBill?.electricRate].find(
-      (rate): rate is string => typeof rate === 'string' && plausibleElectricRate(rate) !== null,
-    ) ?? ''
-  const numbersReady = positiveNumber(units) !== null && positiveNumber(price) !== null
+    electricSlot.kind === 'manual'
+      ? electricTyped.rate
+      : ([electricBill?.electricRate, heatingBill?.electricRate].find(
+          (rate): rate is string => typeof rate === 'string' && plausibleElectricRate(rate) !== null,
+        ) ?? '')
   const needs = detailsNeeds({
     townRead: billTown !== null && town !== '' && !editingTown,
-    heating: heatingBill,
+    fuel: facts?.fuel ?? null,
     incomeDetected,
-    numbersReady,
   })
-  const slots: BillSlots = { heating: heatingBill, electricity: electricBill, heatingByHand, electricityByHand: electricByHand }
+  const billsOk = slotsReady(heatingSlot, electricSlot)
+  const notice = missingNotice(heatingSlot, electricSlot)
 
   const marketPrice: Partial<Record<BillFuel, number>> = {
     oil: prices.oil,
@@ -182,8 +202,7 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
   }
 
   const townKnown = towns.includes(town)
-  const detailsReady = canLeaveDetails({ fuel, units, price, town, towns })
-  const unitLabel = FUELS.find((entry) => entry.value === fuel)?.unit ?? 'units a year'
+  const detailsReady = facts !== null && canLeaveDetails({ fuel, units, price, town, towns })
   const detailsNeeded = anyDetailsNeeded(needs) || !detailsReady
 
   function goTo(next: Step) {
@@ -233,44 +252,44 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
   function applyBill(applied: BillApplied, slot: BillRole) {
     const text = misplacedBillNote(slot, applied.role)
     setSlotNote(text ? { slot, text } : null)
-    if (applied.role === 'electricity') {
-      setElectricBill(applied)
-      setElectricByHand(false)
-      return
-    }
-    setHeatingBill(applied)
-    setHeatingByHand(false)
-    setUnits(applied.units)
-    setPrice(applied.price)
-    setPriceTouched(true)
+    if (applied.role === 'electricity') setElectricSlot({ kind: 'bill', bill: applied })
+    else setHeatingSlot({ kind: 'bill', bill: applied })
   }
 
   function undoBill(role: BillRole) {
     setSlotNote(null)
-    if (role === 'heating') {
-      setHeatingBill(null)
-      setUnits('')
-      setPrice('')
-      setPriceTouched(false)
-    } else {
-      setElectricBill(null)
-    }
+    if (role === 'heating') setHeatingSlot(EMPTY_SLOT)
+    else setElectricSlot(EMPTY_SLOT)
   }
 
-  function enterHeatingByHand() {
-    setHeatingByHand(true)
-    if (price.trim() === '' && !priceTouched) {
-      const market = marketPrice[fuel]
-      if (market) setPrice(String(market))
-    }
+  function heatingDefaults(nextFuel: BillFuel): HeatingEntry {
+    const market = marketPrice[nextFuel]
+    return { fuel: nextFuel, units: '', price: market ? String(market) : '' }
+  }
+
+  function typeHeatingByHand() {
+    setSlotNote(null)
+    setHeatingSlot({ kind: 'manual', entry: heatingEntryFrom(heatingSlot, heatingDefaults(manualFuel)) })
+  }
+
+  function chooseHeatingFuel(entry: HeatingEntry, nextFuel: BillFuel) {
+    const marketNow = marketPrice[entry.fuel]
+    const untouched = entry.price.trim() === '' || (marketNow !== undefined && Number(entry.price) === marketNow)
+    const market = marketPrice[nextFuel]
+    setManualFuel(nextFuel)
+    setHeatingSlot({
+      kind: 'manual',
+      entry: { ...entry, fuel: nextFuel, price: untouched ? (market ? String(market) : '') : entry.price },
+    })
+  }
+
+  function typeElectricByHand() {
+    setSlotNote(null)
+    setElectricSlot({ kind: 'manual', entry: electricEntryFrom(electricSlot) })
   }
 
   function chooseFuel(next: BillFuel) {
     setManualFuel(next)
-    if (heatingBill === null && !priceTouched) {
-      const market = marketPrice[next]
-      setPrice(market ? String(market) : '')
-    }
   }
 
   function submitVerdict() {
@@ -300,7 +319,12 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
     writeProfile(
       mergeMapProfile(
         profileSnapshot(),
-        mapProfileFrom({ town, fuel, electric: electricBill, income }),
+        mapProfileFrom({
+          town,
+          fuel,
+          electric: electricForMap(electricSlot),
+          income,
+        }),
       ),
     )
     router.push(withDemo(`/verdict?${toQuery(values).toString()}`, demoFromLocation()))
@@ -403,21 +427,27 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
         <section className="grid gap-5 rounded-card border border-rule bg-surface p-5 sm:p-6">
           <div>
             <p className="text-eyebrow uppercase text-ink-muted">{eyebrowFor('bill', detailsNeeded)}</p>
-            <h2 className="mt-2 text-title font-medium">Show us your two bills</h2>
+            <h2 className="mt-2 text-title font-medium">Your electricity and heating</h2>
             <p className="mt-2 max-w-[58ch] text-small text-ink-muted">
-              Your electric bill, then your heating bill (a gas bill or an oil or propane delivery ticket). We read
-              each one, show you what we found, and you confirm it before it touches the verdict.
+              For each one, upload a bill or type the numbers in — any mix works. We read a bill, show you what we
+              found, and you confirm it before it touches the verdict.
             </p>
           </div>
 
           <BillSlot
-            title="1. Electric bill"
-            done={electricBill !== null || electricByHand}
-            byHand={electricByHand}
-            onByHand={() => setElectricByHand(true)}
-            onUndoByHand={() => setElectricByHand(false)}
-            byHandLabel="No electric bill handy? Use the statewide average rate"
-            byHandNote="Using the statewide average electricity rate. A bill gives a sharper answer."
+            title="1. Electricity"
+            done={isElectricReady(electricSlot)}
+            manual={electricSlot.kind === 'manual'}
+            onManual={typeElectricByHand}
+            onUpload={() => setElectricSlot(EMPTY_SLOT)}
+            manualForm={
+              electricSlot.kind === 'manual' ? (
+                <ElectricForm
+                  entry={electricSlot.entry}
+                  onChange={(entry) => setElectricSlot({ kind: 'manual', entry })}
+                />
+              ) : null
+            }
           >
             <BillUpload
               expect="electricity"
@@ -438,13 +468,20 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
           </BillSlot>
 
           <BillSlot
-            title="2. Heating bill"
-            done={heatingBill !== null || heatingByHand}
-            byHand={heatingByHand}
-            onByHand={enterHeatingByHand}
-            onUndoByHand={() => setHeatingByHand(false)}
-            byHandLabel="No heating bill handy? Enter the numbers myself"
-            byHandNote="You will type the fuel, the yearly amount and the price on the next screen."
+            title="2. Heating"
+            done={isHeatingReady(heatingSlot)}
+            manual={heatingSlot.kind === 'manual'}
+            onManual={typeHeatingByHand}
+            onUpload={() => setHeatingSlot(EMPTY_SLOT)}
+            manualForm={
+              heatingSlot.kind === 'manual' ? (
+                <HeatingForm
+                  entry={heatingSlot.entry}
+                  onFuel={(next) => chooseHeatingFuel(heatingSlot.entry, next)}
+                  onChange={(entry) => setHeatingSlot({ kind: 'manual', entry })}
+                />
+              ) : null
+            }
           >
             <BillUpload
               onApply={(applied) => applyBill(applied, 'heating')}
@@ -478,12 +515,14 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
             <button
               type="button"
               onClick={() => goTo(nextStep('bill', detailsNeeded))}
-              disabled={!billsReady(slots)}
+              disabled={!billsOk}
               className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper disabled:opacity-40"
             >
               Continue
             </button>
-            {!billsReady(slots) ? <p className="text-micro text-ink-faint">Both bills are needed to continue.</p> : null}
+            <p className="text-micro text-ink-faint" role="status">
+              {notice}
+            </p>
           </div>
         </section>
       ) : null}
@@ -552,58 +591,11 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
             </div>
           )}
 
-          {needs.fuel || needs.numbers ? (
+          {needs.fuel ? (
             <div className="grid gap-3">
-              <h3 className="text-small font-medium">What do you burn, and how much in a year?</h3>
-              {needs.fuel ? (
-                <div role="radiogroup" aria-label="Heating fuel" className="flex flex-wrap gap-2">
-                  {FUELS.map((entry) => {
-                    const active = entry.value === fuel
-                    return (
-                      <button
-                        key={entry.value}
-                        type="button"
-                        role="radio"
-                        aria-checked={active}
-                        onClick={() => chooseFuel(entry.value)}
-                        className={`rounded-pill border px-3.5 py-1.5 text-small transition-colors ${
-                          active
-                            ? 'border-ink bg-ink text-paper'
-                            : 'border-rule-strong bg-surface text-ink-muted hover:border-ink hover:text-ink'
-                        }`}
-                      >
-                        {entry.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              ) : null}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label={unitLabel}>
-                  <input
-                    value={units}
-                    onChange={(event) => setUnits(event.target.value)}
-                    inputMode="decimal"
-                    placeholder="e.g. 800"
-                    className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
-                  />
-                </Field>
-                <Field label={`Price per ${fuel === 'gas' ? 'therm' : fuel === 'resistance' ? 'kWh' : 'gallon'}`}>
-                  <input
-                    value={price}
-                    onChange={(event) => {
-                      setPrice(event.target.value)
-                      setPriceTouched(true)
-                    }}
-                    inputMode="decimal"
-                    placeholder={marketPrice[fuel] ? String(marketPrice[fuel]) : 'e.g. 4.50'}
-                    className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
-                  />
-                  <span className="text-micro text-ink-faint">
-                    Today&apos;s statewide price is prefilled; overwrite it with what you actually pay.
-                  </span>
-                </Field>
-              </div>
+              <h3 className="text-small font-medium">What do you heat with?</h3>
+              <FuelPicker value={fuel} onChange={chooseFuel} />
+              <p className="text-micro text-ink-faint">Your bill did not name the fuel.</p>
             </div>
           ) : null}
 
@@ -850,18 +842,27 @@ function Field({
   label: string
   error?: string
   hint?: string
-  children: React.ReactNode
+  children: React.ReactElement<{ id?: string; 'aria-invalid'?: boolean; 'aria-describedby'?: string }>
 }) {
+  const id = useId()
+  const noteId = `${id}-note`
+  const note = error ?? hint
   return (
-    <label className="grid gap-1.5 text-small">
-      <span className="font-medium">{label}</span>
-      {children}
-      {error ? (
-        <span className="text-micro text-deadline">{error}</span>
-      ) : hint ? (
-        <span className="text-micro text-ink-faint">{hint}</span>
+    <div className="grid gap-1.5 text-small">
+      <label htmlFor={id} className="font-medium">
+        {label}
+      </label>
+      {cloneElement(children, {
+        id,
+        'aria-invalid': error ? true : undefined,
+        'aria-describedby': note ? noteId : undefined,
+      })}
+      {note ? (
+        <span id={noteId} className={`text-micro ${error ? 'text-deadline' : 'text-ink-faint'}`}>
+          {note}
+        </span>
       ) : null}
-    </label>
+    </div>
   )
 }
 
@@ -891,46 +892,171 @@ function incomeNote(fuel: BillFuel): string {
     : 'Your bill shows a discount rate, so you likely qualify for enhanced rebates — Mass Save confirms.'
 }
 
+function FuelPicker({ value, onChange }: { value: BillFuel; onChange: (fuel: BillFuel) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Heating fuel" className="flex flex-wrap gap-2">
+      {FUELS.map((entry) => {
+        const active = entry.value === value
+        return (
+          <button
+            key={entry.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(entry.value)}
+            className={`rounded-pill border px-3.5 py-1.5 text-small transition-colors ${
+              active
+                ? 'border-ink bg-ink text-paper'
+                : 'border-rule-strong bg-surface text-ink-muted hover:border-ink hover:text-ink'
+            }`}
+          >
+            {entry.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const INPUT = 'rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums'
+
+function HeatingForm({
+  entry,
+  onFuel,
+  onChange,
+}: {
+  entry: HeatingEntry
+  onFuel: (fuel: BillFuel) => void
+  onChange: (entry: HeatingEntry) => void
+}) {
+  const errors = heatingEntryErrors(entry)
+  const [touched, setTouched] = useState(false)
+  const unit = FUELS.find((candidate) => candidate.value === entry.fuel)?.unit ?? 'Units a year'
+  const perUnit = entry.fuel === 'gas' ? 'therm' : entry.fuel === 'resistance' ? 'kWh' : 'gallon'
+  return (
+    <div className="grid gap-3 rounded-card border border-rule bg-paper-sunk/60 p-3">
+      <FuelPicker value={entry.fuel} onChange={onFuel} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={unit} error={touched ? errors.units : undefined}>
+          <input
+            value={entry.units}
+            onChange={(event) => {
+              setTouched(true)
+              onChange({ ...entry, units: event.target.value })
+            }}
+            inputMode="decimal"
+            placeholder="e.g. 800"
+            className={INPUT}
+          />
+        </Field>
+        <Field
+          label={`Price per ${perUnit}`}
+          error={touched ? errors.price : undefined}
+          hint="Today's statewide price is prefilled where we have one; overwrite it with what you pay."
+        >
+          <input
+            value={entry.price}
+            onChange={(event) => {
+              setTouched(true)
+              onChange({ ...entry, price: event.target.value })
+            }}
+            inputMode="decimal"
+            placeholder="e.g. 4.50"
+            className={INPUT}
+          />
+        </Field>
+      </div>
+    </div>
+  )
+}
+
+const UTILITY_CHOICES: readonly BillUtility[] = ['eversource', 'national_grid', 'unitil', 'liberty', 'municipal', 'other']
+
+function ElectricForm({ entry, onChange }: { entry: ElectricEntry; onChange: (entry: ElectricEntry) => void }) {
+  const errors = electricEntryErrors(entry)
+  return (
+    <div className="grid gap-3 rounded-card border border-rule bg-paper-sunk/60 p-3">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Electric company" hint="Optional.">
+          <select
+            value={entry.utility ?? ''}
+            onChange={(event) =>
+              onChange({ ...entry, utility: event.target.value === '' ? null : (event.target.value as BillUtility) })
+            }
+            className="rounded-card border border-rule-strong bg-surface px-3 py-2.5"
+          >
+            <option value="">Not sure</option>
+            {UTILITY_CHOICES.map((value) => (
+              <option key={value} value={value}>
+                {UTILITY_LABEL[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Price per kWh" error={errors.rate} hint="Leave empty to use the statewide average rate.">
+          <input
+            value={entry.rate}
+            onChange={(event) => onChange({ ...entry, rate: event.target.value })}
+            inputMode="decimal"
+            placeholder="e.g. 0.31"
+            className={INPUT}
+          />
+        </Field>
+        <Field label="kWh a month" error={errors.monthlyKwh} hint="Optional.">
+          <input
+            value={entry.monthlyKwh}
+            onChange={(event) => onChange({ ...entry, monthlyKwh: event.target.value })}
+            inputMode="decimal"
+            placeholder="e.g. 600"
+            className={INPUT}
+          />
+        </Field>
+      </div>
+    </div>
+  )
+}
+
 function BillSlot({
   title,
   done,
-  byHand,
-  onByHand,
-  onUndoByHand,
-  byHandLabel,
-  byHandNote,
+  manual,
+  onManual,
+  onUpload,
+  manualForm,
   children,
 }: {
   title: string
   done: boolean
-  byHand: boolean
-  onByHand: () => void
-  onUndoByHand: () => void
-  byHandLabel: string
-  byHandNote: string
+  manual: boolean
+  onManual: () => void
+  onUpload: () => void
+  manualForm: React.ReactNode
   children: React.ReactNode
 }) {
   return (
     <div className="grid gap-3">
       <h3 className="flex items-center gap-2 text-small font-medium">
         {title}
-        {done ? <span className="text-micro text-switch">✓ in</span> : null}
+        {done ? (
+          <span className="text-micro text-switch">
+            <span aria-hidden>✓ in</span>
+            <span className="sr-only">added</span>
+          </span>
+        ) : null}
       </h3>
-      {byHand ? (
-        <p className="text-micro text-ink-muted">
-          {byHandNote}{' '}
-          <button type="button" onClick={onUndoByHand} className="underline">
+      {manual ? (
+        <>
+          {manualForm}
+          <button type="button" onClick={onUpload} className="justify-self-start text-micro text-ink-muted underline">
             Upload a bill instead
           </button>
-        </p>
+        </>
       ) : (
         <>
           {children}
-          {!done ? (
-            <button type="button" onClick={onByHand} className="justify-self-start text-micro text-ink-muted underline">
-              {byHandLabel}
-            </button>
-          ) : null}
+          <button type="button" onClick={onManual} className="justify-self-start text-micro text-ink-muted underline">
+            Type the numbers in instead
+          </button>
         </>
       )}
     </div>

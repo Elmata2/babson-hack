@@ -119,18 +119,6 @@ export function previousStep(step: Step, detailsNeeded = true): Step {
 
 // --------------------------------------------------------------------- bills
 
-export interface BillSlots {
-  heating: BillApplied | null
-  electricity: BillApplied | null
-  heatingByHand: boolean
-  electricityByHand: boolean
-}
-
-/** Both bills are in, each either read and confirmed or entered by hand. */
-export function billsReady(slots: BillSlots): boolean {
-  return (slots.heating !== null || slots.heatingByHand) && (slots.electricity !== null || slots.electricityByHand)
-}
-
 /** The service town the bills printed, matched to the 351; the electric bill wins. */
 export function serviceTownFrom(
   bills: readonly (Pick<BillApplied, 'serviceTown'> | null)[],
@@ -208,27 +196,24 @@ export function misplacedBillNote(slot: BillRole, actual: BillRole): string | nu
 export interface DetailsNeeds {
   town: boolean
   fuel: boolean
-  numbers: boolean
   income: boolean
 }
 
 /** What the bills did not answer. Every key false means the house step is skipped. */
 export function detailsNeeds(input: {
   townRead: boolean
-  heating: BillApplied | null
+  fuel: BillFuel | null
   incomeDetected: boolean
-  numbersReady: boolean
 }): DetailsNeeds {
   return {
     town: !input.townRead,
-    fuel: fuelFromBill(input.heating) === null,
-    numbers: input.heating === null || !input.numbersReady,
-    income: !input.incomeDetected && fuelFromBill(input.heating) !== 'gas',
+    fuel: input.fuel === null,
+    income: !input.incomeDetected && input.fuel !== 'gas',
   }
 }
 
 export function anyDetailsNeeded(needs: DetailsNeeds): boolean {
-  return needs.town || needs.fuel || needs.numbers || needs.income
+  return needs.town || needs.fuel || needs.income
 }
 
 // ------------------------------------------------------------------- details

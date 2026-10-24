@@ -536,7 +536,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                         <dt className="text-micro text-ink-faint">Electricity price</dt>
                         <dd className="text-small tabular-nums text-ink">${billRate.toFixed(3)}/kWh</dd>
                         <dd className="text-micro text-ink-muted">
-                          Read off your electric bill, used instead of the statewide average of $
+                          Your electricity rate, used instead of the statewide average of $
                           {prices.elec.usdPerUnit.toFixed(3)}/kWh.
                         </dd>
                       </div>
