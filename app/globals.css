@@ -10,6 +10,21 @@
  *   - the verdict palette is three distinct tones, never a heat colour
  *   - the heat ramp is warm and sequential; it belongs to the map, not the verdict
  *   - every text/background pair below clears WCAG AA at its intended size
+ *
+ * R14.1 is not a claim in this comment. `lib/a11y/__tests__/contrast.test.ts`
+ * reads these values out of this file, converts each OKLCH token to sRGB with
+ * `lib/a11y/contrast`, and asserts the documented pairs. The numbers below are
+ * that test's output, not a hand-check:
+ *
+ *   ink        on paper / surface / any tone-tint   15.6–17.8:1  (body)
+ *   ink-muted  on paper / surface / any tone-tint    6.8–7.8:1   (secondary)
+ *   ink-faint  on paper-sunk / any tone-tint         4.8–5.5:1   (tertiary, 11–12px)
+ *   tone       on its own tint                       5.6–8.9:1   (verdict word)
+ *   paper      on ink                               17.0:1       (buttons)
+ *   focus      on paper                              4.9:1       (outline, non-text)
+ *
+ * `ink-faint` used to be 0.58, which measured 3.8–4.3:1 — under AA for the 11px
+ * and 12px text it is used for. It is 0.52 now: the lowest pair is 4.87:1.
  */
 
 @theme {
@@ -19,7 +34,8 @@
   --color-surface: oklch(1 0 0);
   --color-ink: oklch(0.21 0.012 60);
   --color-ink-muted: oklch(0.44 0.012 60);
-  --color-ink-faint: oklch(0.58 0.01 60);
+  /* 4.9:1 at worst (on a tone tint) — R14.1 needs 4.5 at the 11px it is used for. */
+  --color-ink-faint: oklch(0.52 0.01 60);
   --color-rule: oklch(0.898 0.008 78);
   --color-rule-strong: oklch(0.79 0.012 72);
   --color-focus: oklch(0.54 0.15 255);

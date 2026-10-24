@@ -2,16 +2,22 @@
 
 /**
  * @built F-36 provenance drawer — click any figure, get the formula, the values and the date
+ * @built F-50 R14.2 keyboard path — the drawer opens with focus on its close button
+ * and gives focus back to the figure it came from, because it is a native `<dialog>`
  *
  * A figure is a button with a dotted underline; the drawer is a native `<dialog>`
  * with the formula, every substituted value, and the publisher/document/date the
  * number came from (R9.1–9.2). The platform supplies what a hand-rolled overlay
- * has to remember: modal focus trap, Escape, and focus restored to the trigger.
- * It closes on Escape, the close button, or a click outside.
+ * has to remember: the modal focus trap, Escape, and focus restored to the
+ * trigger. It closes on Escape, the close button, or a click outside.
+ *
+ * `lib/a11y/focus` owns the one piece of logic worth testing — whether to call
+ * `showModal()` or `close()` — so this component never has to guess.
  */
 
 import { useEffect, useRef, useState } from 'react'
 
+import { dialogAction, provenanceDialogId } from '@/lib/a11y/focus'
 import type { ProvenanceEntry } from '@/lib/verdict/provenance'
 
 export function ProvenanceFigure({
@@ -25,14 +31,22 @@ export function ProvenanceFigure({
 }) {
   const [open, setOpen] = useState(false)
   const dialog = useRef<HTMLDialogElement>(null)
+  const closeButton = useRef<HTMLButtonElement>(null)
+  const headingId = provenanceDialogId(entry.id)
 
   // Drive the platform dialog from state, so Escape, the close button and the
   // backdrop all end in the same place — and focus returns to the figure.
   useEffect(() => {
     const element = dialog.current
     if (!element) return
-    if (open && !element.open) element.showModal()
-    else if (!open && element.open) element.close()
+    const action = dialogAction(element.open, open)
+    if (action === 'show') {
+      element.showModal()
+      // The dialog's content is rendered by now; put the keyboard in it.
+      closeButton.current?.focus()
+    } else if (action === 'close') {
+      element.close()
+    }
   }, [open])
 
   return (
@@ -57,7 +71,7 @@ export function ProvenanceFigure({
           // A click on the backdrop targets the dialog element itself.
           if (event.target === dialog.current) setOpen(false)
         }}
-        aria-labelledby={`provenance-${entry.id}`}
+        aria-labelledby={headingId}
         className="provenance-dialog m-auto w-[min(26rem,calc(100vw-2rem))] rounded-card border border-rule bg-surface p-0 text-ink shadow-2xl"
       >
         {open ? (
@@ -65,11 +79,12 @@ export function ProvenanceFigure({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-eyebrow uppercase text-ink-faint">Provenance</p>
-                <h2 id={`provenance-${entry.id}`} className="mt-1 text-small font-medium text-ink">
+                <h2 id={headingId} className="mt-1 text-small font-medium text-ink">
                   {entry.label}
                 </h2>
               </div>
               <button
+                ref={closeButton}
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close provenance"
