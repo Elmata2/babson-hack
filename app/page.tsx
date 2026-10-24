@@ -1,16 +1,24 @@
+import Link from 'next/link'
+
+import { FreshnessBadge } from '@/components/freshness-badge'
 import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
 import { VerdictLegend } from '@/components/verdict-legend'
+import { formatDateShort } from '@/lib/freshness'
+import { getPrices } from '@/lib/prices'
 
 /**
- * @built F-02 app shell — token-driven landing page, no network, no fake state
+ * @built F-02 app shell — token-driven landing page
+ * @built F-14 the fuel figure and its badge are read from the price adapter, so
+ * the front page cannot drift from the verdict screen's source of truth
  *
- * This is the shell the intake lands in. It states the product, shows the three
- * verdict tones, and dates every number it prints. Nothing here computes or
- * invents a figure: the constants below are quoted from
- * `.kiro/steering/mass-save-rules.md` with their source and effective date, and
- * they will be read from `lib/prices` + `data/rules` once intake is wired.
+ * Nothing here computes or invents a figure: the oil price comes from
+ * `lib/prices` with its date, and the rebate, household count and federal-credit
+ * lines are quoted from `.kiro/steering/mass-save-rules.md` and the baked ACS
+ * layer, each with its source on screen.
  */
+
+export const revalidate = 86_400
 
 interface Fact {
   value: string
@@ -19,29 +27,31 @@ interface Fact {
   source: string
 }
 
-const FACTS: readonly Fact[] = [
-  {
-    value: '$6.23',
-    unit: '/ gal',
-    label: 'Heating oil, Massachusetts average',
-    source: 'MA DOER weekly fuel survey · week of 19 Oct 2026 · up 75% on the year',
-  },
-  {
-    value: '$2,650 → $2,350',
-    unit: '/ ton',
-    label: 'Whole-home heat pump rebate, per ton',
-    source: 'Mass Save · installs on or after 1 Jan 2027 · cap falls $8,500 → $7,500',
-  },
-  {
-    value: '624,510',
-    unit: 'homes',
-    label: 'Massachusetts households heating with oil',
-    source:
-      '22.4% of 2,785,042 occupied units · ACS 5-year B25040, baked statewide from 1,620 tracts · ≈$2.9B a winter at 750 gal each',
-  },
-]
+export default async function Home() {
+  const prices = await getPrices({ timeoutMs: 4_000 })
 
-export default function Home() {
+  const facts: readonly Fact[] = [
+    {
+      value: `$${prices.oil.usdPerUnit.toFixed(2)}`,
+      unit: '/ gal',
+      label: 'Heating oil, Massachusetts average',
+      source: `MA DOER weekly fuel survey · ${formatDateShort(prices.oil.period) ?? prices.oil.period} · ${prices.mode === 'live' ? 'live reading' : 'dated snapshot'}`,
+    },
+    {
+      value: '$2,650 → $2,350',
+      unit: '/ ton',
+      label: 'Whole-home heat pump rebate, per ton',
+      source: 'Mass Save · installs on or after 1 Jan 2027 · cap falls $8,500 → $7,500',
+    },
+    {
+      value: '624,510',
+      unit: 'homes',
+      label: 'Massachusetts households heating with oil',
+      source:
+        '22.4% of 2,785,042 occupied units · ACS 5-year B25040, baked statewide from 1,620 tracts · ≈$2.9B a winter at 750 gal each',
+    },
+  ]
+
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader />
@@ -64,8 +74,22 @@ export default function Home() {
               says so and prints the break-even electricity price instead.
             </p>
 
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link
+                href="/start"
+                className="rounded-card bg-ink px-5 py-3 text-small font-medium text-paper transition-opacity hover:opacity-90"
+              >
+                Get the verdict
+              </Link>
+              <FreshnessBadge
+                kind={prices.mode === 'live' ? 'live' : 'snapshot'}
+                date={prices.asOf}
+                label="Fuel prices"
+              />
+            </div>
+
             <dl className="mt-12 grid overflow-hidden rounded-card border border-rule bg-surface sm:grid-cols-3">
-              {FACTS.map((fact, i) => (
+              {facts.map((fact, i) => (
                 <div
                   key={fact.value}
                   className={[

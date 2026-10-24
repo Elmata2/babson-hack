@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "tsc --noEmit && vitest run",
+    "check": "tsc --noEmit && eslint . && vitest run",
     "log": "node scripts/buildlog.mjs hook",
     "status": "node scripts/buildlog.mjs status",
     "watch:log": "node scripts/buildlog.mjs watch",
