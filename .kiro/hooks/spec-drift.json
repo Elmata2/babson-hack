@@ -1,0 +1,12 @@
+{
+  "name": "spec-drift",
+  "version": "1",
+  "description": "Manual check: does the code still match the spec we wrote before building?",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Read .kiro/specs/switchpoint/design.md and requirements.md, then read the current contents of lib/ and app/. Report every place the code has drifted from the spec: missing requirements, changed formulas, numbers that do not trace to .kiro/steering/mass-save-rules.md, and any new feature that is not in tasks.md. Output a short list of gaps, largest first. Do not change code in this run."
+  }
+}

@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+build/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# env — never commit keys
+.env
+.env.local
+.env.*.local
+
+# logs / os
+*.log
+npm-debug.log*
+.DS_Store
+
+# test / coverage
+coverage/
+
+# tool scratch
+.gstack/
+
+# Kiro: the .kiro directory MUST stay in the repo.
+# The hackathon rules disqualify a submission whose /.kiro is gitignored.
+!.kiro/
+!.kiro/**

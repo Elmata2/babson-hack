@@ -1,0 +1,13 @@
+{
+  "name": "pbt-guard",
+  "version": "1",
+  "description": "The calculation engine is the product. Any edit under lib/calc must keep the property suite green.",
+  "when": {
+    "type": "fileEdited",
+    "patterns": ["lib/calc/**/*.ts"]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run `npx vitest run lib/calc` and report the result. If a property test fails, the engine is wrong — fix lib/calc, never weaken the property. If you changed a constant, say which constant and why. Do not add example-based tests to paper over a failing property."
+  }
+}

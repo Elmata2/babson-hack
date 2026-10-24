@@ -1,0 +1,15 @@
+{
+  "name": "switchpoint",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The honest heat pump verdict for Massachusetts. Hackachusetts 2026, Babson hub, Climate Tech C2.",
+  "scripts": {
+    "log": "node scripts/buildlog.mjs hook",
+    "status": "node scripts/buildlog.mjs status",
+    "watch:log": "node scripts/buildlog.mjs watch"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
