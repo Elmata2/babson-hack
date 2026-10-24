@@ -370,18 +370,37 @@ export default function MapView() {
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    const map = new maplibregl.Map({
-      container,
-      style: STYLE_URL[pendingLens.current],
-      center: STATE_CENTER,
-      zoom: STATE_ZOOM,
-      pitch: VIEW[pendingLens.current].pitch,
-      bearing: VIEW[pendingLens.current].bearing,
-      maxPitch: 85,
-      attributionControl: { compact: true },
-      dragRotate: true,
-      touchPitch: true,
-    })
+    // R10.1: no WebGL is a fallback case, not a crash. A headless browser, a
+    // locked-down laptop, a projector with 3D disabled — the static image and
+    // the table still answer the question, so the page must not unmount.
+    let map: MlMap
+    try {
+      map = new maplibregl.Map({
+        container,
+        style: STYLE_URL[pendingLens.current],
+        center: STATE_CENTER,
+        zoom: STATE_ZOOM,
+        pitch: VIEW[pendingLens.current].pitch,
+        bearing: VIEW[pendingLens.current].bearing,
+        maxPitch: 85,
+        attributionControl: { compact: true },
+        dragRotate: true,
+        touchPitch: true,
+      })
+    } catch {
+      // Deferred: this runs before React commits the effect, and the fallback is
+      // a consequence of a failed external system, not of this render.
+      queueMicrotask(() => {
+        setReady(false)
+        setMapError('This browser cannot draw the interactive map. The static map and the table view still work.')
+        if (!staticShown.current) {
+          staticShown.current = true
+          setStaticReason('WebGL is unavailable in this browser, so this is the same data as a still image.')
+          setShowStatic(true)
+        }
+      })
+      return
+    }
     mapRef.current = map
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
     map.touchZoomRotate.enableRotation()
