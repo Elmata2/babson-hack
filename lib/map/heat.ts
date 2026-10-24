@@ -74,8 +74,8 @@ export type HeatMetric = 'oil_share' | 'oil_spend' | 'cliff_homes' | 'cliff_doll
 /** The install year the scrubber selects. */
 export type HeatYear = 2026 | 2027
 
-/** The three the switcher offers, in the order design §3 lists them. */
-export const HEAT_METRICS: readonly HeatMetric[] = ['oil_share', 'oil_spend', 'cliff_dollars']
+/** The four the switcher offers: design §3's three, plus the cliff cohort in homes (R10.2). */
+export const HEAT_METRICS: readonly HeatMetric[] = ['oil_share', 'oil_spend', 'cliff_homes', 'cliff_dollars']
 
 export const HEAT_METRIC_LABEL: Record<HeatMetric, string> = {
   oil_share: 'Oil share',

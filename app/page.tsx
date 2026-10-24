@@ -11,6 +11,8 @@ import { getPrices } from '@/lib/prices'
 
 /**
  * @built F-02 app shell — token-driven landing page
+ * @built F-140 the hero and the header's "Create profile" are the two ways in; the
+ * anonymous `/start` path stays one click away
  * @built F-14 the fuel figure and its badge are read from the price adapter, so
  * the front page cannot drift from the verdict screen's source of truth
  * @built F-49 `?demo=1` reads the baked snapshot and threads the flag into every
@@ -152,7 +154,7 @@ export default async function Home({ searchParams }: HomeProps) {
 
         <section className="border-b border-rule">
           <div className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
-            <DemoPresets />
+            <DemoPresets demo={demo} />
           </div>
         </section>
 

@@ -8,7 +8,10 @@
 
 import type { Prices } from './prices'
 
-/** What kind of provenance a badge may claim. */
+/**
+ * @built F-139 a number read from the household's own document says "bill", not "live"
+ *
+ * What kind of provenance a badge may claim. */
 export type FreshnessKind = 'live' | 'snapshot' | 'assessor' | 'manual' | 'baked' | 'bill'
 
 export interface Freshness {

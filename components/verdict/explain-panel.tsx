@@ -2,9 +2,8 @@
 
 /**
  * @built F-39 plain-English panel — three sentences, computed locally first, checked when written by a model
- * @built F-49 in demo mode the request carries `?demo=1` and `"demo": true`; the
- * route answers with this page's own deterministic sentences, so the panel is
- * unchanged and no model is called
+ * @built F-49 in demo mode no request is made at all: the deterministic
+ * sentences below are the answer, so the panel works with the network unplugged
  *
  * It renders the deterministic sentences immediately so the section is never
  * empty and never waits on a network. If `/api/explain` answers with a version a
@@ -16,7 +15,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import type { VerdictResult } from '@/lib/calc/types'
-import { demoFromLocation, withDemo } from '@/lib/demo'
+import { demoFromLocation } from '@/lib/demo'
 import { fallbackSentences } from '@/lib/verdict/explain'
 
 interface ExplainState {
@@ -32,11 +31,15 @@ export function ExplainPanel({ result }: { result: VerdictResult }) {
     let alive = true
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return
 
+    // R13.1: demo means no request at all, not a request the route answers locally.
+    // The deterministic sentences are already on screen.
     const demo = demoFromLocation()
-    fetch(withDemo('/api/explain', demo), {
+    if (demo) return
+
+    fetch('/api/explain', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(demo ? { result, demo: true } : { result }),
+      body: JSON.stringify({ result }),
     })
       .then(async (response) => (response.ok ? ((await response.json()) as unknown) : null))
       .then((payload) => {

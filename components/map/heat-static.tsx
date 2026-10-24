@@ -72,7 +72,7 @@ export function HeatStatic({ open, onClose, onTable, reason }: HeatStaticProps) 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {/* eslint-disable-next-line @next/next/no-img-element -- a committed SVG fallback, nothing to optimise at runtime */}
           <img
-            src="/data/ma-heat-map.svg"
+            src="/data/ma-heat-map.png"
             alt={`Share of homes heating with oil by census tract. Statewide ${percent(totals.oilShare)} of ${totals.households.toLocaleString(
               'en-US',
             )} occupied homes; ${totals.oilHouseholds.toLocaleString('en-US')} heat with oil.`}

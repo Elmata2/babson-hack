@@ -28,6 +28,7 @@ import {
   queryString,
   questionsFor,
 } from '@/lib/intake/params'
+import { demoFromParams } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
 import { resolveUtility, SPONSOR_NAME, seasonalHeatPumpRate } from '@/lib/utility'
 import { enhancedOffer } from '@/lib/verdict/enhanced-offer'
@@ -46,6 +47,8 @@ import { VERDICT_META } from '@/lib/verdicts'
  * @built F-36 every headline figure is a button that opens its formula, values and source date
  * @built F-37 the 0% HEAT Loan payment sits beside the monthly saving, either way
  * @built F-38 the defaults and the disclaimer are on the page before any fold
+ * @built F-57 the utility badge, and the plain refusal when a municipal light plant
+ * means there is no Mass Save electric rebate to quote
  * @built F-39 three sentences of plain English, written from these numbers and checked against them
  * @built F-152 R8.3 — two reasons and one caveat are floored by `verdictNotes`, not sliced off a raw array
  * @built F-153 R7.2 — the installed cost is editable here and on the form, badged with
@@ -160,7 +163,8 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
     )
   }
 
-  const prices = await getPrices({ timeoutMs: 4_000 })
+  // R13.1: a demo verdict must not read EIA even when a key is present.
+  const prices = await getPrices({ timeoutMs: 4_000, demo: demoFromParams(params) })
   // A rate read off the household's own electric bill beats the statewide EIA
   // average — but only inside a plausible band; a misread must not move the verdict.
   const billRate = plausibleElectricRate(first(params.er))

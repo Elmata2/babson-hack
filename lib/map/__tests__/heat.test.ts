@@ -111,7 +111,7 @@ describe('heatRow', () => {
 
 describe('metric selection', () => {
   it('offers the three metrics design §3 lists', () => {
-    expect(HEAT_METRICS).toEqual(['oil_share', 'oil_spend', 'cliff_dollars'])
+    expect(HEAT_METRICS).toEqual(['oil_share', 'oil_spend', 'cliff_homes', 'cliff_dollars'])
   })
 
   it('leaves oil share and oil spend unchanged by the year', () => {

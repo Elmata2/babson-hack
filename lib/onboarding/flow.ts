@@ -1,5 +1,6 @@
 /**
  * @built F-137 the onboarding wizard's rules, kept out of the component
+ * @built F-141 profile validation, the four-step machine and its storage round-trip
  *
  * The wizard is four steps and two decisions: is the profile usable, and are the
  * numbers usable. Both are pure functions here so the screen cannot disagree with

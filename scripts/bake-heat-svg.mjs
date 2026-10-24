@@ -151,3 +151,19 @@ if (checkOnly) {
 
 writeFileSync(resolve(process.cwd(), OUT), svg)
 console.log(`${OUT} — ${(Buffer.byteLength(svg) / 1024).toFixed(0)} KB, ${collection.features.length} tract paths`)
+
+// R10.1 names a PNG. The SVG above is the source of truth; rasterise it when
+// sharp is present (Next ships it as an optional dependency). The committed PNG
+// is what the fallback renders, so a machine without sharp still has the image;
+// it just cannot regenerate it.
+try {
+  const { default: sharp } = await import('sharp')
+  const png = resolve(process.cwd(), 'public/data/ma-heat-map.png')
+  await sharp(Buffer.from(svg)).png({ compressionLevel: 9, palette: true }).toFile(png)
+  console.log(`${'public/data/ma-heat-map.png'} — ${(statSync(png).size / 1024).toFixed(0)} KB`)
+} catch (error) {
+  console.warn(
+    `public/data/ma-heat-map.png not regenerated (${error instanceof Error ? error.message : String(error)}).`,
+    'The committed PNG is unchanged; install sharp to rebuild it.',
+  )
+}

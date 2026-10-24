@@ -72,6 +72,9 @@ npm run watch:log
 
 ## How Kiro was used
 
+<!-- @built F-51 the README and the Kiro write-up: spec, steering, hooks, PBT, and the one number rule -->
+<!-- @built F-59 challenge C2 quoted, and every organiser dataset named with its endpoint -->
+
 | Artefact | Where |
 | --- | --- |
 | Spec (requirements → design → tasks) | `.kiro/specs/switchpoint/` |
@@ -85,6 +88,23 @@ The short version: **the policy document is steering, so the model cannot invent
 a rebate number; and the arithmetic is property-tested, so a plausible-looking
 wrong answer cannot survive.** The model reads documents and writes sentences. It
 never produces a number that reaches the screen.
+
+### What the hooks actually changed
+
+`buildlog-sync` runs `node scripts/buildlog.mjs hook` on every source edit, so
+`BUILDLOG.md` and `.buildlog/events.jsonl` were updated in the same save as the
+`@built F-NN` marker. The log was never reconstructed at the end from memory.
+
+`pbt-guard` fires on `lib/calc/**` and asks for the property suite before the
+edit is accepted. That is why a change to the engine had to change the tests in
+the same pass: the suite (`lib/calc/__tests__/properties.test.ts`) is the thing
+that refuses a plausible-looking wrong number.
+
+**Honest caveat.** Kiro's hook file schema has moved between releases
+(`when.type` / `then.type`, pattern globs). `.kiro/hooks/README.md` says so, and
+the hook body is always the same command you can run by hand — `npm run log`,
+`npm run status`. We do not claim a hook fired on an install where it did not.
+The build log reads the same markers either way.
 
 ## Why not Zillow
 

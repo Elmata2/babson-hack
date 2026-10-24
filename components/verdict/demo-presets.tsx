@@ -9,10 +9,11 @@
 
 import Link from 'next/link'
 
+import { withDemo } from '@/lib/demo'
 import { DEMO_PRESETS } from '@/lib/verdict/presets'
 import { VERDICT_META } from '@/lib/verdicts'
 
-export function DemoPresets({ className = '' }: { className?: string }) {
+export function DemoPresets({ className = '', demo = false }: { className?: string; demo?: boolean }) {
   return (
     <section className={className} aria-labelledby="demo-presets-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -31,7 +32,8 @@ export function DemoPresets({ className = '' }: { className?: string }) {
               data-tone={meta.tone}
               className="rounded-card border border-rule border-l-4 border-l-(--tone) bg-surface"
             >
-              <Link href={preset.href} className="block p-4 transition-colors hover:bg-(--tone-tint)">
+              {/* R13.1: a preset clicked on a demo page must stay offline. */}
+              <Link href={withDemo(preset.href, demo)} className="block p-4 transition-colors hover:bg-(--tone-tint)">
                 <p className="text-eyebrow uppercase text-ink-faint">{meta.label}</p>
                 <p className="mt-2 text-small font-medium text-ink">{preset.label}</p>
                 <p className="mt-1 text-micro text-ink-muted">{preset.blurb}</p>

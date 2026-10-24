@@ -219,6 +219,10 @@ function asRateClass(value: unknown): RateClass | null {
  * impossible date (`19/10/2026`, `4/31/2026`) is still refused, and two-digit
  * years are refused too: the century would be a guess.
  */
+/**
+ * @built F-142 the printed `M/D/YYYY` is normalised before validation; the year
+ * band and impossible-date refusals are unchanged
+ */
 export function asDocumentDate(value: unknown, now = Date.now()): string | null {
   if (typeof value !== 'string') return null
   const iso = toIsoDate(value.trim())

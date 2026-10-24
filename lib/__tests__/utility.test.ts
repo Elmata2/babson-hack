@@ -3,6 +3,9 @@
  *
  * These are the tests that decide whether the app can quote a number at all. A
  * municipal light plant town must refuse; a `mixed` town must ask; an investor
+ * @built F-55 every one of the 351 towns is swept, and the municipal-light-plant
+ * towns and the `mixed` towns are spot-checked against the published sponsor list
+ *
  * utility must carry the right cents. Every one of the 351 towns is swept, so a
  * bake regression cannot pass by fixing one fixture.
  */

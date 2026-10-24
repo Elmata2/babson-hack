@@ -84,7 +84,7 @@ describe('the heat panels', () => {
     const html = renderToStaticMarkup(
       createElement(HeatStatic, { open: true, onClose: noop, onTable: noop, reason: null }),
     )
-    expect(html).toContain('ma-heat-map.svg')
+    expect(html).toContain('ma-heat-map.png')
     expect(html).toContain('Open the table view')
   })
 

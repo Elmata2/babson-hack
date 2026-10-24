@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { demoFromLocation } from '@/lib/demo'
 import { ALL_TOWNS } from '@/lib/utility'
 import { displayTown } from '@/lib/geo'
 import { intakeHrefForAddress } from '@/lib/intake/params'
@@ -118,7 +119,10 @@ export function Search({ knownTown, townAt, onResult, onUseHome }: Props) {
       setStatus({ tone: 'error', text: "We couldn't find that address. Pick your town instead." })
     }
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+      // R13.1: the demo flag travels with the request, so the route refuses
+      // instead of calling the Census geocoder. The town list is the fallback.
+      const demo = demoFromLocation() ? '&demo=1' : ''
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}${demo}`, { signal: ctrl.signal })
       const body = (await res.json()) as GeocodeOk | { ok: false }
       if (my !== requestId.current) return
       if (!res.ok || !body.ok) return fail()
