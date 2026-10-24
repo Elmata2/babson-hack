@@ -82,6 +82,18 @@ both. Treat it as `{ sponsors: string[], hasMunicipal: boolean, mixed: boolean }
 and, when `mixed`, ask the user which utility bills them. Never silently pick the
 first string.
 
+**Cape Light Compact is missing from the dataset (F-63).** CLC's 21 member towns
+in Barnstable and Dukes counties are published as *Eversource distribution*. CLC
+is a Mass Save Electric Sponsor (it appears in masssave.com's own sponsor list),
+so those towns are rewritten to `cape_light` at bake time, inferred from the
+county table rather than a typed list, and marked `inferred: true`. CLC is
+eligible for Mass Save rebates, but **no seasonal-rate adjustment is published for
+it** — that stays `null` and the UI says "verify", rather than inventing −$0.07.
+
+This is the same failure mode as Wellesley, in reverse: one town would have been
+quoted a rebate it cannot get, 21 towns would have been denied one they can, and
+both errors are invisible unless you check the sponsor layer first.
+
 ### Why BERDO is context, not a feature
 
 BERDO covers Boston buildings over ~20,000 sqft. Our user is a single-family

@@ -1,0 +1,15 @@
+{
+  "_synthetic": "SYNTHETIC FIXTURE A — invented, not a real bill. A Massachusetts oil delivery ticket that prints degree days, which is what makes one delivery enough. Numbers chosen to be plausible for a 1,500 sqft house in Middlesex County, January 2026.",
+  "fuel": "oil",
+  "quantity": 187.4,
+  "unit": "gal",
+  "price_per_unit": 6.239,
+  "billing_period": "delivery",
+  "document_date": "2026-01-14",
+  "document_type": "oil_delivery",
+  "usage_history": null,
+  "degree_days": 1183,
+  "tank_size_gal": 275,
+  "rate_class": null,
+  "confidence": "high"
+}

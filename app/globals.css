@@ -1,0 +1,147 @@
+@import "tailwindcss";
+
+/*
+ * @built F-02 type scale, colour tokens, verdict palette
+ *
+ * Design tokens — the single source of colour, type and rhythm.
+ *
+ * Rules encoded here:
+ *   - paper and ink are warm neutrals; the product is a document, not a dashboard
+ *   - the verdict palette is three distinct tones, never a heat colour
+ *   - the heat ramp is warm and sequential; it belongs to the map, not the verdict
+ *   - every text/background pair below clears WCAG AA at its intended size
+ */
+
+@theme {
+  /* Surfaces and ink */
+  --color-paper: oklch(0.986 0.006 85);
+  --color-paper-sunk: oklch(0.962 0.008 82);
+  --color-surface: oklch(1 0 0);
+  --color-ink: oklch(0.21 0.012 60);
+  --color-ink-muted: oklch(0.44 0.012 60);
+  --color-ink-faint: oklch(0.58 0.01 60);
+  --color-rule: oklch(0.898 0.008 78);
+  --color-rule-strong: oklch(0.79 0.012 72);
+  --color-focus: oklch(0.54 0.15 255);
+
+  /* Verdict palette — switch / deadline / hold */
+  --color-switch: oklch(0.44 0.085 158);
+  --color-switch-tint: oklch(0.962 0.022 158);
+  --color-switch-edge: oklch(0.85 0.05 158);
+
+  --color-deadline: oklch(0.5 0.105 62);
+  --color-deadline-tint: oklch(0.967 0.032 78);
+  --color-deadline-edge: oklch(0.86 0.07 70);
+
+  --color-hold: oklch(0.38 0.025 255);
+  --color-hold-tint: oklch(0.958 0.008 255);
+  --color-hold-edge: oklch(0.84 0.018 255);
+
+  /* Heat ramp — sequential, warm, for the tract choropleth only */
+  --color-heat-1: oklch(0.952 0.028 88);
+  --color-heat-2: oklch(0.886 0.062 78);
+  --color-heat-3: oklch(0.786 0.104 65);
+  --color-heat-4: oklch(0.664 0.135 52);
+  --color-heat-5: oklch(0.522 0.145 40);
+
+  /* Type — Geist, loaded locally by next/font, no network at build time */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Type scale — every size the app is allowed to use */
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1.3;
+  --text-eyebrow--letter-spacing: 0.12em;
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1.45;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.5;
+  --text-body: 1rem;
+  --text-body--line-height: 1.6;
+  --text-lede: 1.125rem;
+  --text-lede--line-height: 1.6;
+  --text-title: clamp(1.375rem, 2.2vw, 1.75rem);
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.015em;
+  --text-headline: clamp(1.75rem, 3.4vw, 2.5rem);
+  --text-headline--line-height: 1.1;
+  --text-headline--letter-spacing: -0.022em;
+  --text-display: clamp(2.5rem, 6.2vw, 4.25rem);
+  --text-display--line-height: 0.98;
+  --text-display--letter-spacing: -0.032em;
+  --text-number: clamp(3rem, 9vw, 6rem);
+  --text-number--line-height: 0.9;
+  --text-number--letter-spacing: -0.04em;
+
+  /* Rhythm */
+  --radius-card: 0.75rem;
+  --radius-pill: 999px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-deadline-tint);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Figures are audited, so they line up. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/*
+ * One attribute selects the palette, so a component never hard-codes a verdict
+ * colour. `data-tone` values come from `lib/verdicts.ts`.
+ */
+@layer components {
+  [data-tone="switch"] {
+    --tone: var(--color-switch);
+    --tone-tint: var(--color-switch-tint);
+    --tone-edge: var(--color-switch-edge);
+  }
+
+  [data-tone="deadline"] {
+    --tone: var(--color-deadline);
+    --tone-tint: var(--color-deadline-tint);
+    --tone-edge: var(--color-deadline-edge);
+  }
+
+  [data-tone="hold"] {
+    --tone: var(--color-hold);
+    --tone-tint: var(--color-hold-tint);
+    --tone-edge: var(--color-hold-edge);
+  }
+}

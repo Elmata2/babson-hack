@@ -9,9 +9,9 @@ Cleaner, more affordable buildings** · built with Kiro.
 
 ## The one sentence
 
-Three in ten Massachusetts homes heat with oil. Oil costs **$6.23/gal**, up
-**75%** in a year. The whole-home heat pump rebate drops by up to **$1,000** on
-January 1. Point the app at your address and your bill, and it tells you —
+One in four Massachusetts homes heats with oil — 624,510 households at last
+count. Oil costs **$6.23/gal**, up **75%** in a year. The whole-home heat pump
+rebate drops by up to **$1,000** on January 1. Point the app at your address and your bill, and it tells you —
 honestly — whether to switch, whether to do it before December 31, or whether to
 leave it alone.
 
@@ -39,8 +39,14 @@ product, not an edge case.
 ```bash
 npm install
 cp .env.example .env.local     # optional: EIA_API_KEY, ANTHROPIC_API_KEY
-npm run dev
+npm run dev                    # http://localhost:3000
+npm run build                  # production build, the same one Vercel runs
+npm run check                  # tsc + eslint + vitest — the gate before every commit
 ```
+
+Deployed on Vercel: **https://switchpoint-psi.vercel.app** — Next.js 16 (App
+Router, Turbopack), Tailwind v4 tokens, Geist self-hosted through the `geist`
+package so no font request leaves the page.
 
 No keys? It still works: fuel prices fall back to a dated DOER snapshot, and
 manual entry replaces bill OCR. `?demo=1` disables all network calls and uses

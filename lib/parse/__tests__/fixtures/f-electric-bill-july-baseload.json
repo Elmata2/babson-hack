@@ -1,0 +1,15 @@
+{
+  "_synthetic": "SYNTHETIC FIXTURE F — invented, not a real bill. A July electric bill for a house that does not heat with resistance: the fuel is real, the heat is not this fuel, so a flat ×12 is the correct reading and the parser must take it. Included for path coverage: fixture A–D do not reach it.",
+  "fuel": "resistance",
+  "quantity": 470,
+  "unit": "kWh",
+  "price_per_unit": 0.289,
+  "billing_period": "month",
+  "document_date": "2026-07-08",
+  "document_type": "electric_bill",
+  "usage_history": null,
+  "degree_days": null,
+  "tank_size_gal": null,
+  "rate_class": "R-1",
+  "confidence": "high"
+}

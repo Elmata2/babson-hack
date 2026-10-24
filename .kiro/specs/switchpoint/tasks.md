@@ -4,6 +4,12 @@
 **Legend:** every row is a feature the build log counts. `F-NN` is the marker id
 used in code.
 
+> **ID allocation — read this before adding a row.** Two agents are building in
+> this repo at once and both took F-64/F-65 within ten minutes of each other.
+> Blocks: **F-01–F-63** original spec · **F-64–F-75** app/ and components/ ·
+> **F-76–F-99** lib/, data/, parse/. Take the next free number *inside your block*,
+> and add your row in the same commit as your marker.
+
 Owner slots: **A** = UI/frontend · **B** = calc/data · **C** = OCR/map/integration
 · **D** = pitch, video, submission. Solo: work top to bottom, skip every row
 marked ✂ until P4 is green.
@@ -14,7 +20,7 @@ marked ✂ until P4 is green.
 
 | ID | Phase | Task | Owner | Est | Depends |
 | --- | --- | --- | --- | --- | --- |
-| F-01 | P0 | Next.js 15 + TypeScript + Tailwind scaffold, deploys to Vercel | A | 15m | — |
+| F-01 | P0 | Next.js 16 + TypeScript + Tailwind v4 scaffold, deploys to Vercel | A | 15m | — |
 | F-02 | P0 | App shell: type scale, colour tokens, verdict palette | A | 20m | F-01 |
 | F-03 | P0 | Build log tooling + Kiro hook wiring | D | 20m | F-01 |
 | F-04 | P0 | Commit `.kiro` specs + steering, confirm not gitignored | D | 10m | F-01 |
@@ -60,9 +66,15 @@ marked ✂ until P4 is green.
 | F-26 | P3 | `/api/parse-bill` — vision call, in-memory only, no storage | C | 40m | F-01 |
 | F-27 | P3 | OCR prompt + JSON schema + `not_a_bill` guard | C | 20m | F-26 |
 | F-28 | P3 | `lib/parse/plausibility.ts` — range checks, flags, confidence gate | B | 30m | F-27 |
+| F-64 | P3 | Address type-ahead over OpenStreetMap (Nominatim, bounded to MA) — "106 Chandler" finds every match in the state | A | 60m | F-10 |
+| F-65 | P3 | Bill upload side panel — the photo path with no dead end, fills the numbers only on request | A | 45m | F-26 |
+| F-76 | P3 | `lib/parse/annualise.ts` — five named methods (printed history, degree days, tank cadence, HDD-scaled, ×12) + a summer refusal; `hdd-monthly-weights.json` from the ERA5 bake | B | 60m | F-28 |
+| F-77 | P3 | Route plumbing: forward `deliveriesPerSeason` / `heating` / `forceMonthlyX12` / `countyFips`; 9 route tests with the vision call mocked | C | 30m | F-76 |
 | F-29 | P3 | Bill confirm UI — editable chips, confidence colours | A | 45m | F-28 |
 | F-30 | P3 | Manual entry — fuel select + two numbers, same speed as OCR | A | 25m | F-02 |
 | F-31 | P3 | Address intake, merge bill + assessor + manual with per-field source | A | 40m | F-11 |
+| F-64 | P3 | Address autocomplete: Nominatim (OpenStreetMap) forward search, Massachusetts-bounded, keyboard listbox, click → town + parcel prefill | A | 45m | F-31 |
+| F-65 | P3 | Bill upload side panel: photo → `/api/parse-bill` → editable fields, no dead end when OCR is unconfigured | A | 30m | F-26 |
 
 ## P4 — Verdict (this is the product)
 
@@ -110,6 +122,7 @@ marked ✂ until P4 is green.
 | F-56 | P7 | `lib/utility.ts` — sponsor → seasonal rate rule, MLP eligibility gate, `mixed` → ask | B | 20m | F-55 |
 | F-57 | P7 | Verdict screen utility badge + MLP refusal state (the Wellesley beat) | A | 20m | F-56 |
 | F-58 | P7 | EJ2020 bake + `ej-overlay` map layer toggle, no effect on heat values | C | 30m | F-42 |
+| F-63 | P7 | Cape Light Compact: infer the 21 member towns from Barnstable (25001) + Dukes (25007) county membership, rewrite `eversource` → `cape_light`, mark `inferred: true`, eligibility `true`, seasonal rule `null` | C | 25m | F-60 |
 | F-59 | P7 | README: challenge C2 quote, dataset citations, utility-coverage note | D | 15m | F-56 |
 
 **F-55/F-56/F-57 are not optional.** They are the difference between quoting a

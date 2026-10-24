@@ -21,8 +21,14 @@ next-env.d.ts
 npm-debug.log*
 .DS_Store
 
+# bake scratch — 18 MB of cached Census geometry, never committed
+.bake-cache/
+
 # test / coverage
 coverage/
+
+# bake scratch
+.bake-cache/
 
 # tool scratch
 .gstack/
@@ -31,3 +37,5 @@ coverage/
 # The hackathon rules disqualify a submission whose /.kiro is gitignored.
 !.kiro/
 !.kiro/**
+.vercel
+.env*

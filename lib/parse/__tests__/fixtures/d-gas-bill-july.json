@@ -1,0 +1,15 @@
+{
+  "_synthetic": "SYNTHETIC FIXTURE D — invented, not a real National Grid bill. A single July gas bill: 18 therms of hot water and cooking. It says nothing about the heating year, and the parser must refuse to make one out of it.",
+  "fuel": "gas",
+  "quantity": 18,
+  "unit": "therm",
+  "price_per_unit": 1.42,
+  "billing_period": "month",
+  "document_date": "2026-07-12",
+  "document_type": "gas_bill",
+  "usage_history": null,
+  "degree_days": null,
+  "tank_size_gal": null,
+  "rate_class": null,
+  "confidence": "high"
+}

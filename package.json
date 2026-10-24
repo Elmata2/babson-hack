@@ -5,20 +5,42 @@
   "type": "module",
   "description": "The honest heat pump verdict for Massachusetts. Hackachusetts 2026, Babson hub, Climate Tech C2.",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "tsc --noEmit && eslint . && vitest run",
     "log": "node scripts/buildlog.mjs hook",
     "status": "node scripts/buildlog.mjs status",
     "watch:log": "node scripts/buildlog.mjs watch",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run lib",
-    "check": "tsc --noEmit && vitest run lib"
+    "bake": "node scripts/bake-utilities.mjs && node scripts/bake-hdd.mjs && node scripts/bake-map.mjs && node scripts/trim-geo.mjs",
+    "bake:check": "node scripts/bake-utilities.mjs --check && node scripts/bake-hdd.mjs --check && node scripts/bake-map.mjs --check && node scripts/trim-geo.mjs --check"
   },
   "engines": {
     "node": ">=20"
   },
+  "dependencies": {
+    "geist": "^1.8.2",
+    "maplibre-gl": "^4.7.1",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "topojson-client": "^3.1.0"
+  },
   "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/topojson-client": "^3.1.5",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.3",
     "fast-check": "^4.10.2",
-    "typescript": "^7.0.2",
+    "postcss": "^8.5.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "^6.0.3",
     "vitest": "^5.0.5"
   }
 }
