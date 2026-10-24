@@ -11,8 +11,8 @@ import type { Topology } from 'topojson-specification'
 import { townKey } from '@/lib/elec-label'
 import { displayTown, tractStats } from '@/lib/geo'
 import { resolveUtility } from '@/lib/utility'
-import { areaKm2, anchorOf, bboxOf, centroidOf, geometryHas, type AreaGeometry } from '@/lib/map/geometry'
-import { buildEnergyTowns, type EnergyTown } from '@/lib/map/energy-model'
+import { anchorOf, bboxOf, centroidOf, geometryHas, type AreaGeometry } from '@/lib/map/geometry'
+import { buildEnergyTowns, type BakedEnergy, type EnergyTown } from '@/lib/map/energy-model'
 
 export interface TownEntry {
   /** Display name, "Wellesley". */
@@ -30,6 +30,8 @@ export interface TownData {
   collection: FeatureCollection<Geometry, Record<string, unknown>>
   entries: TownEntry[]
   byKey: Map<string, TownEntry>
+  /** The baked usage, solar and zonal load behind every `entry.energy`. */
+  baked: BakedEnergy
 }
 
 export interface TractData {
@@ -49,21 +51,24 @@ interface RawTownProps {
 }
 
 export async function loadTowns(): Promise<TownData> {
-  const raw = await json<FeatureCollection<Geometry, RawTownProps>>('/data/ma-towns.json')
+  const [raw, baked] = await Promise.all([
+    json<FeatureCollection<Geometry, RawTownProps>>('/data/ma-towns.json'),
+    json<BakedEnergy>('/data/ma-town-energy.json'),
+  ])
   const entries: TownEntry[] = []
   const features: Feature<Geometry, Record<string, unknown>>[] = []
   const inputs = raw.features.map((f) => {
     const geometry = f.geometry as AreaGeometry
     const name = displayTown(f.properties.town)
     return {
+      source: f.properties.town,
       town: name,
       county: f.properties.county,
       centroid: centroidOf(geometry),
-      areaKm2: areaKm2(geometry),
       sponsors: resolveUtility(name).sponsors,
     }
   })
-  const energy = buildEnergyTowns(inputs)
+  const energy = buildEnergyTowns(inputs, baked)
   raw.features.forEach((f, i) => {
     const geometry = f.geometry as AreaGeometry
     const name = inputs[i].town
@@ -82,6 +87,7 @@ export async function loadTowns(): Promise<TownData> {
     collection: { type: 'FeatureCollection', features },
     entries,
     byKey: new Map(entries.map((e) => [e.key, e])),
+    baked,
   }
 }
 

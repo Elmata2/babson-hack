@@ -33,7 +33,7 @@ export function geometryHas(geometry: AreaGeometry, x: number, y: number): boole
   return polygonsOf(geometry).some((polygon) => inPolygon(x, y, polygon))
 }
 
-/** Mean of the outer-ring vertices, the mock model's "where the load is". */
+/** Mean of the outer-ring vertices, the point the Energy lens anchors a town's solar marker and label to. */
 export function centroidOf(geometry: AreaGeometry): [number, number] {
   const points = polygonsOf(geometry).flatMap((polygon) => polygon[0])
   let sx = 0
@@ -49,18 +49,6 @@ function ringArea(ring: Ring): number {
   let area = 0
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) area += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1]
   return Math.abs(area / 2)
-}
-
-/** Planar area in km², equirectangular at the polygon's own latitude. Good to a few percent. */
-export function areaKm2(geometry: AreaGeometry): number {
-  let total = 0
-  for (const polygon of polygonsOf(geometry)) {
-    const lat = polygon[0].reduce((sum, p) => sum + p[1], 0) / polygon[0].length
-    const kx = 111.32 * Math.cos((lat * Math.PI) / 180)
-    const holes = polygon.slice(1).reduce((sum, ring) => sum + ringArea(ring), 0)
-    total += (ringArea(polygon[0]) - holes) * kx * 110.57
-  }
-  return total
 }
 
 /** A point guaranteed inside the geometry: bbox centre, else the inside grid point nearest the largest ring's mean. */

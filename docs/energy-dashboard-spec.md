@@ -23,8 +23,8 @@ into `HeatingInput` (design §2.1).
 
 It is the `/map` route (F-41…F-58) plus one new panel. Everything here obeys
 the product rule: **no invented numbers**. Program and price figures come from the
-steering docs or a dated source shown on screen. The demand and solar map layers
-are explicitly mock until replaced (§6).
+steering docs or a dated source shown on screen. The Energy lens shows real public
+data, each figure with its source and date on screen (§4, F-75).
 
 ---
 
@@ -92,9 +92,9 @@ is confirmed as law here. Treat this as "pending" and re-check before quoting it
   Pitch goes up to 85°, bearing all 360°.
 - On-screen cluster: rotate ±45°, tilt ±15°, reset, **Orbit** (slow continuous
   rotation that stops on any interaction and is off under reduced motion).
-- Layers: demand columns, provider territories, solar sites, labels. Colour by
+- Layers: residential-use or installed-solar columns, provider territories, solar capacity, labels (top 15 towns). Colour by
   provider (Eversource / National Grid / Unitil / Municipal / Mixed) or intensity.
-- Timeline 24 h with play. Polar load clock. Region select (ISO-NE zones).
+- Timeline 24 h with play. Polar clock of real ISO-NE zonal load for a winter or summer day. Region select (ISO-NE zones).
 
 ### 3.2 Search
 - One box: town typeahead over all 351 towns, or a street address.
@@ -188,8 +188,13 @@ writing it.
 | Street basemap | live tiles | OpenFreeMap (OSM data), no key |
 | Basic Service rates | real, dated constants | see §2.2; refresh Feb 1 / Aug 1 |
 | Program numbers | real | `.kiro/steering/mass-save-rules.md` |
-| Hourly demand, solar per town | **mock** | to be replaced by Mass Save Data town usage, ISO-NE zonal load, DOER solar |
+| Residential electricity use per town | **real**, baked | Mass Save "Town-by-Town Savings in 2023", residential MWh. 299 of 351 towns; 50 municipal light plants and 2 privacy-suppressed towns have no figure |
+| Installed solar per town | **real**, baked | MassCEC Production Tracking System, DC MW as of 2025-01-14. Self-reported; SMART-only systems from 2022 to 2024 are under-captured |
+| Hourly load per zone | **real**, baked | ISO-NE zonal demand via EIA-930, NEMA / SEMA / WCMA, Jan 15 and Jul 15 2026. No hourly per-town load or solar exists, so columns are static |
+
 | Aggregation per town | **not shown** | DPU list has no API; link out rather than guess |
+
+`scripts/bake-town-energy.mjs` joins the three to the town polygons into `public/data/ma-town-energy.json`; the cleaned CSVs and parsers are in `data/sources/energy` and `scripts/energy`.
 
 Utility counts from the live layer: 158 National Grid, 130 Eversource, 41 municipal,
 4 Unitil, 1 Nantucket Electric, 17 mixed.
@@ -248,7 +253,7 @@ Consider `POST` with `cache-control: no-store`.
 | 7 | Street / Energy views | address search whooshes into OSM street view; toggle returns to 3D energy (§3.5) |
 | 8 | ZIP search | ZCTA table baked; a ZIP lands in the right town; a split ZIP shows the pick-your-town prompt |
 | 9 | Port into Next `/map` | shares geocode route, towns data and calc types |
-| 10 | Replace mock demand | Mass Save Data town totals + ISO-NE shapes |
+| 10 | Replace mock demand | Done in F-75: Mass Save town totals, MassCEC solar, ISO-NE zonal load |
 
 ---
 
