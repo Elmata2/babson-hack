@@ -1,6 +1,7 @@
 /**
  * @built F-76 annualise — five named methods, one refusal, no silent multiplication
  * @built F-26a annualise — one document into one heating year, and name the method
+ * @built F-103 hdd_scaled weights the real service days; baseload from summer bars; bars cap at 0.75
  *
  * The rule this file exists for: **`month × 12` is not how a heating year works.**
  * In Boston, January is 19.1% of the heating year and July is 0.0%. Multiplying a
@@ -86,6 +87,13 @@ export interface AnnualiseInput {
   documentPeriod: BillPeriod
   /** ISO `YYYY-MM-DD` from the document. The only source of the month. */
   documentDate: string | null
+  /** ISO start/end of the service period, when the bill printed them. */
+  periodStart?: string | null
+  periodEnd?: string | null
+  /** `numbers` = a printed table (0.95); `bars` or unknown = read by eye (0.75). */
+  historyKind?: 'numbers' | 'bars' | null
+  /** Name used in user-facing text: "Worcester County", else "Massachusetts". */
+  placeName?: string | null
   /** Monthly bars from the bill's usage chart, oldest first, or null. */
   usageHistory: unknown
   /** Degree days the document printed for its own period, or null. */
@@ -143,6 +151,99 @@ export function monthOf(documentDate: string | null): number | null {
   return month >= 1 && month <= 12 ? month : null
 }
 
+const DAY_MS = 86_400_000
+
+function parseIso(value: unknown): number | null {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const t = Date.parse(`${value}T00:00:00Z`)
+  return Number.isFinite(t) ? t : null
+}
+
+function isoOf(t: number): string {
+  return new Date(t).toISOString().slice(0, 10)
+}
+
+/** The days a bill actually covers. `assumed` is true when we had to guess them. */
+export interface ServiceWindow {
+  start: string
+  end: string
+  /** Inclusive day count. */
+  days: number
+  assumed: boolean
+}
+
+/** Longest period we accept as one bill. Beyond this the dates are a misread. */
+export const MAX_WINDOW_DAYS = 62
+/** Bills are dated after the period they cover; this is the usual gap. */
+export const BILL_LAG_DAYS = 3
+export const ASSUMED_PERIOD_DAYS = 30
+
+/**
+ * The service days of a bill. Printed start/end win. With only a document date
+ * we assume the ~30 days ending 3 days before it, because a bill is dated after
+ * its period — the statement month is the wrong month for a bill dated Feb 5.
+ */
+export function serviceWindow(
+  periodStart: string | null | undefined,
+  periodEnd: string | null | undefined,
+  documentDate: string | null | undefined,
+): ServiceWindow | null {
+  const start = parseIso(periodStart)
+  const end = parseIso(periodEnd)
+  if (start !== null && end !== null && end >= start) {
+    const days = Math.round((end - start) / DAY_MS) + 1
+    if (days <= MAX_WINDOW_DAYS) return { start: isoOf(start), end: isoOf(end), days, assumed: false }
+  }
+  const doc = parseIso(documentDate)
+  if (doc === null) return null
+  const assumedEnd = doc - BILL_LAG_DAYS * DAY_MS
+  const assumedStart = assumedEnd - (ASSUMED_PERIOD_DAYS - 1) * DAY_MS
+  return { start: isoOf(assumedStart), end: isoOf(assumedEnd), days: ASSUMED_PERIOD_DAYS, assumed: true }
+}
+
+/**
+ * The share of the heating year the window carries: for each month overlapped,
+ * that month's share × (window days in it ÷ days in it). A 25-day and a 35-day
+ * bill at the same daily rate normalise to the same year.
+ */
+export function heatingShareOfWindow(window: ServiceWindow, monthShares: readonly number[]): number | null {
+  if (monthShares.length !== 12) return null
+  const start = parseIso(window.start)
+  const end = parseIso(window.end)
+  if (start === null || end === null) return null
+  let share = 0
+  for (let t = start; t <= end; t += DAY_MS) {
+    const d = new Date(t)
+    const m = d.getUTCMonth()
+    const dim = new Date(Date.UTC(d.getUTCFullYear(), m + 1, 0)).getUTCDate()
+    const monthShare = finite(monthShares[m])
+    if (monthShare === null || monthShare < 0) return null
+    share += monthShare / dim
+  }
+  return share
+}
+
+/** The summer floor of a printed history, as annual units. See `baseloadFromHistory`. */
+export function baseloadFromHistory(
+  history: readonly number[],
+  endMonth: number | null,
+): { annual: number; aligned: boolean } | null {
+  if (history.length === 0) return null
+  let pool: number[] = [...history]
+  let aligned = false
+  if (endMonth !== null) {
+    const summer = history.filter((_, idx) => {
+      const month = ((((endMonth - 1 - (history.length - 1 - idx)) % 12) + 12) % 12) + 1
+      return month >= 6 && month <= 8
+    })
+    if (summer.length > 0) {
+      pool = summer
+      aligned = true
+    }
+  }
+  return { annual: Math.min(...pool) * 12, aligned }
+}
+
 /** That month's share of the heating year, or null when the table has no answer. */
 export function heatingShareOfMonth(
   month: number | null,
@@ -192,14 +293,18 @@ function choose(
   assumptions: string[],
   note: string,
   warnings: AnnualWarning[] = [],
+  extra: Partial<Pick<AnnualEstimate, 'confidence' | 'baseloadAnnual' | 'spaceHeating'>> = {},
 ): AnnualiseOutcome {
   return {
     estimate: {
       value,
       method,
-      confidence: METHOD_CONFIDENCE[method],
+      confidence: extra.confidence ?? METHOD_CONFIDENCE[method],
       assumptions,
       note,
+      ...(extra.baseloadAnnual !== undefined
+        ? { baseloadAnnual: extra.baseloadAnnual, spaceHeating: extra.spaceHeating }
+        : {}),
     },
     refusal: null,
     warnings,
@@ -217,9 +322,15 @@ export function annualise(input: AnnualiseInput): AnnualiseOutcome {
   const warnings: AnnualWarning[] = []
   const quantity = finite(input.quantity)
   const bounds = input.bounds
-  const month = monthOf(input.documentDate)
-  const share = heatingShareOfMonth(month, input.monthShares)
+  // The service days, not the statement month: a bill dated Feb 5 covers January.
+  const window = serviceWindow(input.periodStart, input.periodEnd, input.documentDate)
+  const midpoint = window ? (parseIso(window.start)! + parseIso(window.end)!) / 2 : null
+  const month = midpoint !== null ? new Date(midpoint).getUTCMonth() + 1 : monthOf(input.documentDate)
+  const share = window
+    ? heatingShareOfWindow(window, input.monthShares)
+    : heatingShareOfMonth(month, input.monthShares)
   const summer = month !== null && SUMMER_MONTHS.includes(month)
+  const place = input.placeName ?? 'Massachusetts'
 
   if (quantity === null || quantity <= 0) {
     return refuse('missing_quantity', 'No usable quantity was legible on the document, so there is no year to give.')
@@ -247,13 +358,34 @@ export function annualise(input: AnnualiseInput): AnnualiseOutcome {
       history.length > 12
         ? ['The chart prints 13 months; the oldest bar is left out so the total is exactly one year.']
         : []
+    // A numeric table is read; bar heights are eyeballed. Only the first gets 0.95.
+    const numbers = input.historyKind === 'numbers'
+    if (!numbers) assumptions.push('Monthly usage was read from bar heights, so each month is approximate.')
     if (inside(value, bounds)) {
+      const extra: Parameters<typeof choose>[5] = { confidence: numbers ? METHOD_CONFIDENCE.printed_history : 0.75 }
+      if (input.heating && ['gas', 'oil', 'propane'].includes(input.fuel)) {
+        const endMonth = window ? Number(window.end.slice(5, 7)) : null
+        const base = baseloadFromHistory(history, endMonth)
+        if (base !== null) {
+          const baseload = Math.min(base.annual, value)
+          extra.baseloadAnnual = baseload
+          extra.spaceHeating = Math.max(0, value - baseload)
+          assumptions.push(
+            base.aligned
+              ? 'Baseload (hot water, cooking) is the lowest of the June, July and August months times 12; the last month on the chart is taken to be the bill month.'
+              : 'Baseload (hot water, cooking) is the lowest month on the chart times 12; the months could not be lined up.',
+          )
+        }
+      }
       return choose(
         'printed_history',
         value,
         assumptions,
-        `Printed on the document: ${used.length} months of usage, added up. Nothing here is estimated.`,
+        numbers
+          ? `Printed on the document: ${used.length} months of usage, added up. Nothing here is estimated.`
+          : `Read from the bar chart on the document: ${used.length} months of usage, added up. Bars are read by eye, so treat it as close, not exact.`,
         warnings,
+        extra,
       )
     }
     warnings.push({
@@ -329,24 +461,34 @@ export function annualise(input: AnnualiseInput): AnnualiseOutcome {
       )
     }
     const value = share >= MIN_HEATING_SHARE ? quantity / share : null
-    if (value !== null) {
+    if (value !== null && window !== null) {
       if (!inside(value, bounds)) {
         return refuse(
           'out_of_range',
-          `${count(quantity)} in ${MONTH_NAMES[month - 1]} scales to ${count(Math.round(value))} a year, which is outside what a Massachusetts house uses. Check the quantity.`,
+          `${count(quantity)} over ${window.days} days scales to ${count(Math.round(value))} a year, which is outside what a Massachusetts house uses. Check the quantity.`,
           warnings,
+        )
+      }
+      const assumptions = [
+        'All usage on this bill is heating; a summer bill would separate baseload.',
+        `The ${window.days} service days carry ${(share * 100).toFixed(1)}% of a ${place} heating year (2015–2024 average, each day weighted by its own month).`,
+      ]
+      if (window.assumed) {
+        assumptions.unshift(
+          `No service dates were printed, so the period is taken as the ${ASSUMED_PERIOD_DAYS} days ending ${BILL_LAG_DAYS} days before the document date (${window.start} to ${window.end}).`,
         )
       }
       return choose(
         'hdd_scaled',
         value,
-        [
-          'All usage on this bill is heating; a summer bill would separate baseload.',
-          `${MONTH_NAMES[month - 1]} carries ${(share * 100).toFixed(1)}% of a Boston heating year (2015–2024 average).`,
-        ],
-        `${MONTH_NAMES[month - 1]} is ${(share * 100).toFixed(1)}% of a Boston heating year, so this month implies this year.`,
+        assumptions,
+        `${MONTH_NAMES[month - 1]} is ${(share * 100).toFixed(1)}% of a ${place} heating year, so this bill implies this year.`,
         warnings,
       )
+    }
+    if (value !== null) {
+      // Unreachable while a month implies a window, kept so the type narrows.
+      return refuse('partial_period', 'The service period could not be placed in the year.', warnings)
     }
   }
 

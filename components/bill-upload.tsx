@@ -2,32 +2,44 @@
 
 import { useRef, useState } from 'react'
 
-import type { BillFuel, BillParse } from '@/lib/parse/types'
+import {
+  UNIT_BY_FUEL,
+  buildApplied,
+  evaluateBill,
+  formatAmount,
+  formatPrice,
+  hasQuestion,
+  messageForNonJson,
+  methodPhrase,
+  withFills,
+  type CheckField,
+  type ParsedBill,
+} from '@/lib/client/bill-confirm'
+import { checkTotalSize, planPrepare, prepareFile } from '@/lib/client/prepare-image'
+import type { BillApplied, BillRole } from '@/lib/parse/contract'
+import type { BillFuel } from '@/lib/parse/types'
 
 /**
  * @built F-29 bill confirm UI — editable fields, confidence colours, and the
  * annualisation named instead of implied
- * @built F-65 bill upload side panel — one photo in, eleven fields out, no dead end
+ * @built F-65 bill upload side panel — one photo in, the fields out, no dead end
+ * @built F-107 client image prep — photos are shrunk in the browser before upload
+ * @built F-108 multi-page upload (up to 3), camera-first button, county + heating sent
+ * @built F-109 confirm panel rewrite — "Here's what we found", touch-to-confirm
+ * for shaky fields, auto-apply when clean, Undo, and an electric-bill follow-up
  *
- * The contract this screen renders (F-76/F-77): a bill is not "a number". It is a
- * document that covered some period, plus a named method that turned that period
- * into a heating year, with the assumptions that method needed. So the panel
- * shows `annualisation.method`, its note, its assumptions and its confidence —
- * never a bare annual figure.
+ * A bill is not "a number". It is a document that covered some period, plus a
+ * named method that turned that period into a heating year. The card therefore
+ * shows the method in plain words next to the yearly amount, and keeps the
+ * assumptions one click away under "How we got this number".
  *
- * When there is no year to show, the screen asks for the missing fact instead of
- * inventing one:
- *   - `needs_fills`  → a 2–8 fills input, and the same photo is re-read with the
- *                      household's own cadence (tank_cadence)
- *   - `summer_month` → a May–September heating bill cannot describe a winter; ask
- *                      for a winter document
- *   - `partial_period` → one delivery, or an unreadable period; ask for the year
- * `stale_price` never blocks: last winter's oil really was $3.55/gal, so the
- * number stays and the DOER date is printed next to it.
+ * Trust rules (requirements R2.4):
+ *   - a field the validator is unsure of gets a dotted outline and "check?" and
+ *     blocks "Use these numbers" until it is edited or confirmed
+ *   - a clean parse applies itself; "Undo" takes it back
+ *   - a question (`needs_fills`, summer bill) is asked, never papered over
  *
- * The image is never previewed, stored, or sent anywhere but this app's own
- * route, and it is only kept in memory so a re-read with a fill count needs no
- * second upload.
+ * The image is never previewed or stored; it goes to this app's own route only.
  */
 
 const FUEL_VALUES: readonly BillFuel[] = ['oil', 'propane', 'gas', 'resistance']
@@ -39,262 +51,378 @@ const FUEL_LABEL: Record<BillFuel, string> = {
   resistance: 'Electric resistance',
 }
 
-const UNIT_BY_FUEL: Record<BillFuel, string> = {
-  oil: 'gal',
-  propane: 'gal',
-  gas: 'therms',
-  resistance: 'kWh',
+const FUEL_NOUN: Record<BillFuel, string> = {
+  oil: 'Oil',
+  propane: 'Propane',
+  gas: 'Gas',
+  resistance: 'Electricity',
 }
 
-/** Plain English for the five methods, in the order `annualise` tries them. */
-const METHOD_LABEL: Record<string, string> = {
-  printed_history: 'Twelve months printed on the document',
-  degree_days: 'Degree-day ratio from the ticket',
-  tank_cadence: 'Your own fill count',
-  hdd_scaled: 'One winter month, scaled by its share of the heating year',
-  monthly_x12: 'Flat × 12',
-}
-
-const DOCUMENT_LABEL: Record<string, string> = {
-  oil_delivery: 'Oil delivery receipt',
-  propane_delivery: 'Propane delivery receipt',
-  electric_bill: 'Electric bill',
-  gas_bill: 'Gas bill',
-  unknown: 'Unclassified document',
-}
-
-/** Questions that want an answer, not an error. */
-const QUESTION_CODES = new Set(['needs_fills', 'summer_month', 'partial_period'])
-
-/** Doubts that must be visible but must never stop the numbers being used. */
-const NOTICE_CODES = new Set(['stale_price', 'low_confidence', 'annualised'])
-
-const CONFIDENCE_TONE: Record<string, string> = {
-  high: 'text-switch border-switch-edge bg-switch-tint',
-  medium: 'text-deadline border-deadline-edge bg-deadline-tint',
-  low: 'text-hold border-hold-edge bg-hold-tint',
+const UTILITY_LABEL: Record<string, string> = {
+  eversource: 'Eversource',
+  national_grid: 'National Grid',
+  unitil: 'Unitil',
+  liberty: 'Liberty',
+  berkshire_gas: 'Berkshire Gas',
+  municipal: 'Municipal light plant',
+  oil_dealer: 'Oil dealer',
+  propane_dealer: 'Propane dealer',
+  other: 'Other supplier',
 }
 
 type Status = 'idle' | 'reading' | 'confirm' | 'error'
 
 export interface BillUploadProps {
-  onApply: (values: { fuel: BillFuel; units: string; price: string; note: string }) => void
+  /** Receives exactly one `BillApplied` per bill. Called again if the person edits and re-applies. */
+  onApply: (applied: BillApplied) => void
+  /** The person took an applied bill back. The form should clear what that bill filled in. */
+  onUndo?: (role: BillRole) => void
+  /** 5-digit MA county FIPS (25001–25027) of the chosen town; shapes the heating year. */
+  countyFips?: string
+  /** Whether the fuel on this document is the home's heat source. Default: let the reader decide. */
+  heating?: boolean
+  /** Which bill this instance asks for. `electricity` is the optional second bill. Default `heating`. */
+  expect?: BillRole
 }
 
-export function BillUpload({ onApply }: BillUploadProps) {
-  const input = useRef<HTMLInputElement>(null)
+/** Dotted outline + "check?" on a field that still needs a human. */
+function fieldShell(needsCheck: boolean): string {
+  return needsCheck ? 'rounded-card border border-dotted border-deadline bg-deadline-tint/40 p-2' : 'p-2'
+}
+
+export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'heating' }: BillUploadProps) {
+  const cameraInput = useRef<HTMLInputElement>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState<string | null>(null)
-  const [bill, setBill] = useState<BillParse | null>(null)
-  const [file, setFile] = useState<File | null>(null)
+  const [bill, setBill] = useState<ParsedBill | null>(null)
   const [fills, setFills] = useState('')
   const [fuel, setFuel] = useState<BillFuel | ''>('')
   const [units, setUnits] = useState('')
   const [price, setPrice] = useState('')
-  const [applied, setApplied] = useState(false)
+  const [unitsEdited, setUnitsEdited] = useState(false)
+  const [touched, setTouched] = useState<ReadonlySet<CheckField>>(new Set())
+  const [applied, setApplied] = useState<'no' | 'auto' | 'manual'>('no')
+  const [showElectric, setShowElectric] = useState(false)
 
-  async function read(nextFile: File, deliveriesPerSeason?: number) {
-    setStatus('reading')
-    setMessage(null)
-    setApplied(false)
+  const electricInstance = expect === 'electricity'
 
-    const body = new FormData()
-    body.append('file', nextFile)
-    if (deliveriesPerSeason !== undefined) body.append('deliveriesPerSeason', String(deliveriesPerSeason))
+  function touch(field: CheckField) {
+    setTouched((previous) => new Set(previous).add(field))
+  }
 
-    try {
-      const response = await fetch('/api/parse-bill', { method: 'POST', body })
-      const payload = (await response.json()) as
-        | { ok: true; bill: BillParse }
-        | { ok: false; message?: string }
+  function emit(source: ParsedBill, nextFuel: BillFuel | '', nextUnits: string, nextPrice: string, edited: boolean) {
+    const result = buildApplied({ bill: source, fuel: nextFuel, units: nextUnits, price: nextPrice, unitsEdited: edited })
+    if (!result) return false
+    onApply(result)
+    return true
+  }
 
-      if (!payload.ok) {
-        setStatus('error')
-        setMessage(payload.message ?? 'That document could not be read. Type the two numbers below instead.')
-        return
-      }
+  function show(parsed: ParsedBill) {
+    const nextFuel = parsed.fuel ?? ''
+    const nextUnits = parsed.units.value === null ? '' : formatAmount(parsed.units.value)
+    const nextPrice = parsed.price.value === null ? '' : formatPrice(parsed.price.value)
+    setBill(parsed)
+    setFuel(nextFuel)
+    setUnits(nextUnits)
+    setPrice(nextPrice)
+    setUnitsEdited(false)
+    setTouched(new Set())
+    setStatus('confirm')
 
-      const parsed = payload.bill
-      setBill(parsed)
-      setFile(nextFile)
-      setFuel(parsed.fuel ?? '')
-      setUnits(parsed.units.value === null ? '' : String(parsed.units.value))
-      setPrice(parsed.price.value === null ? '' : String(parsed.price.value))
-      setStatus('confirm')
-    } catch {
-      setStatus('error')
-      setMessage('The upload did not reach the reader. Type the two numbers below instead.')
+    // A clean parse needs no click. "Undo" stays visible.
+    if (evaluateBill(parsed).autoApply && emit(parsed, nextFuel, nextUnits, nextPrice, false)) {
+      setApplied('auto')
+    } else {
+      setApplied('no')
     }
   }
 
-  function reRead() {
+  async function read(chosen: File[]) {
+    setStatus('reading')
+    setMessage(null)
+    setApplied('no')
+
+    if (chosen.length > 3) {
+      setStatus('error')
+      setMessage('Attach at most 3 pages or photos of one bill.')
+      return
+    }
+
+    // Shrink in the browser first: Vercel answers an oversize body with an HTML 413.
+    const prepared: File[] = []
+    try {
+      for (const file of chosen) {
+        const plan = planPrepare(file)
+        if (plan.action === 'reject') {
+          setStatus('error')
+          setMessage(plan.message)
+          return
+        }
+        prepared.push(await prepareFile(file))
+      }
+    } catch {
+      setStatus('error')
+      setMessage('That photo could not be prepared. Try a smaller JPG, or enter the numbers by hand.')
+      return
+    }
+    const tooBig = checkTotalSize(prepared.map((file) => file.size))
+    if (tooBig) {
+      setStatus('error')
+      setMessage(tooBig)
+      return
+    }
+
+    const body = new FormData()
+    for (const file of prepared) body.append('file', file)
+    if (countyFips) body.append('countyFips', countyFips)
+    const heatingFlag = electricInstance ? false : heating
+    if (heatingFlag !== undefined) body.append('heating', String(heatingFlag))
+
+    let response: Response
+    try {
+      response = await fetch('/api/parse-bill', { method: 'POST', body })
+    } catch {
+      setStatus('error')
+      setMessage('We could not reach the reader — check your connection and try again, or type the two numbers.')
+      return
+    }
+
+    let payload: { ok: true; bill: ParsedBill } | { ok: false; message?: string }
+    try {
+      payload = (await response.json()) as typeof payload
+    } catch {
+      // 413 / 504 from the platform arrive as HTML, not our JSON envelope.
+      setStatus('error')
+      setMessage(messageForNonJson(response.status))
+      return
+    }
+
+    if (!payload.ok) {
+      setStatus('error')
+      setMessage(payload.message ?? 'That document could not be read. Type the two numbers instead.')
+      return
+    }
+
+    show(payload.bill)
+  }
+
+  function submitFills() {
     const count = Number(fills)
-    if (!file) return
+    if (!bill) return
     if (!Number.isInteger(count) || count < 2 || count > 8) {
       setMessage('A heating season is between 2 and 8 fills. Enter a whole number in that range.')
       return
     }
     setMessage(null)
-    void read(file, count)
+    const next = withFills(bill, count, countyFips)
+    if (typeof next === 'string') setMessage(next)
+    else show(next)
   }
 
-  function apply() {
+  function applyNow() {
     if (!bill) return
-    const nextFuel = FUEL_VALUES.find((value) => value === fuel)
-    const nextUnits = Number(units.replace(/,/g, ''))
-    const nextPrice = Number(price.replace(/,/g, ''))
-    if (!nextFuel || !Number.isFinite(nextUnits) || nextUnits <= 0 || !Number.isFinite(nextPrice) || nextPrice <= 0) {
-      return
-    }
-
-    onApply({
-      fuel: nextFuel,
-      units: String(nextUnits),
-      price: String(nextPrice),
-      note: bill.annualisation?.note ?? 'read straight off the document',
-    })
-    setApplied(true)
+    if (emit(bill, fuel, units, price, unitsEdited)) setApplied('manual')
   }
 
-  const canApply =
-    FUEL_VALUES.some((value) => value === fuel) &&
-    Number(units.replace(/,/g, '')) > 0 &&
-    Number(price.replace(/,/g, '')) > 0
+  function undo() {
+    if (!bill) return
+    setApplied('no')
+    onUndo?.(bill.role ?? 'heating')
+  }
 
-  const question = bill?.flags.find((flag) => QUESTION_CODES.has(flag.code)) ?? null
-  const notices = bill?.flags.filter((flag) => NOTICE_CODES.has(flag.code)) ?? []
-  const others = bill?.flags.filter((flag) => !QUESTION_CODES.has(flag.code) && !NOTICE_CODES.has(flag.code)) ?? []
+  const evaluation = bill ? evaluateBill(bill) : null
+  const outstanding = evaluation ? evaluation.checks.filter((field) => !touched.has(field)) : []
+  const role: BillRole = bill?.role ?? expect
+  const electricityRole = role === 'electricity'
+  const unit = electricityRole ? 'kWh' : fuel ? UNIT_BY_FUEL[fuel] : 'units'
+  const noun = electricityRole ? 'Electricity' : fuel ? FUEL_NOUN[fuel] : 'Fuel'
+  const canApply =
+    outstanding.length === 0 &&
+    Number(price.replace(/,/g, '')) > 0 &&
+    (electricityRole || (FUEL_VALUES.some((value) => value === fuel) && Number(units.replace(/,/g, '')) > 0))
+  const question = bill && hasQuestion(bill) ? (bill.flags.find((flag) => flag.code === 'needs_fills' || flag.code === 'summer_month' || flag.code === 'partial_period') ?? null) : null
+  const detailFlags = bill?.flags.filter((flag) => flag !== question) ?? []
+  const place = [bill?.serviceTown, bill?.serviceZip].filter(Boolean).join(' ')
+  const utilityLabel = bill?.utility ? (UTILITY_LABEL[bill.utility] ?? bill.utility) : null
+  const method = bill ? methodPhrase(bill, Number(fills) || null) : ''
+
+  const buttonBase =
+    'rounded-card border px-3 py-2 text-small font-medium transition-colors disabled:opacity-50'
+  const busy = status === 'reading'
+
+  function chosen(list: FileList | null) {
+    const picked = list ? Array.from(list) : []
+    if (picked.length) void read(picked)
+  }
 
   return (
     <div className="rounded-card border border-dashed border-rule-strong bg-paper-sunk/60 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-eyebrow uppercase text-ink-muted">Or read the bill</p>
-          <p className="mt-1 max-w-[42ch] text-small text-ink">
-            Photograph an oil delivery receipt or a utility bill. We read eleven fields, name how the year was
-            worked out, and throw the image away.
-          </p>
+      <div>
+        <p className="text-eyebrow uppercase text-ink-muted">
+          {electricInstance ? 'Your electric bill' : 'Start with a bill'}
+        </p>
+        <p className="mt-1 max-w-[46ch] text-small text-ink">
+          {electricInstance
+            ? 'Your electric bill gives us your real price per kWh and your utility.'
+            : 'Photograph your oil receipt or gas or electric bill. Up to three pages are fine. We read it, show you what we found, and throw the image away.'}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => cameraInput.current?.click()}
+            disabled={busy}
+            className={`${buttonBase} border-ink bg-ink text-paper`}
+          >
+            {busy ? 'Reading…' : bill ? 'Take another photo' : 'Take a photo of your bill'}
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            disabled={busy}
+            className={`${buttonBase} border-rule-strong bg-surface text-ink hover:border-ink`}
+          >
+            Upload PDF or photos
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => input.current?.click()}
-          disabled={status === 'reading'}
-          className="rounded-card border border-rule-strong bg-surface px-3 py-2 text-small font-medium text-ink transition-colors hover:border-ink disabled:opacity-50"
-        >
-          {status === 'reading' ? 'Reading…' : bill ? 'Upload another' : 'Upload a photo'}
-        </button>
       </div>
 
+      {/* Camera-first on phones; desktops fall back to the file picker. */}
       <input
-        ref={input}
+        ref={cameraInput}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+        accept="image/*"
+        capture="environment"
         className="sr-only"
+        tabIndex={-1}
         onChange={(event) => {
-          const chosen = event.target.files?.[0]
-          if (chosen) void read(chosen)
+          chosen(event.target.files)
+          event.target.value = ''
+        }}
+      />
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*,application/pdf,.heic,.heif"
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => {
+          chosen(event.target.files)
           event.target.value = ''
         }}
       />
 
-      {status === 'error' && message ? <p className="mt-3 text-micro text-deadline">{message}</p> : null}
+      <div aria-live="polite">
+        {status === 'error' && message ? <p className="mt-3 text-micro text-deadline">{message}</p> : null}
+      </div>
 
       {status === 'confirm' && bill ? (
         <div className="mt-3 grid gap-3 border-t border-rule pt-3">
-          {/* what the document is */}
-          <div className="flex flex-wrap items-center gap-2 text-micro">
-            <span className="rounded-pill border border-rule bg-surface px-2 py-0.5 text-ink">
-              {DOCUMENT_LABEL[bill.documentType ?? 'unknown'] ?? 'Document'}
-            </span>
-            {bill.documentDate ? <span className="text-ink-muted">{bill.documentDate}</span> : null}
-            {bill.rateClass ? <span className="text-ink-muted">rate class {bill.rateClass}</span> : null}
-            <span
-              className={`ml-auto rounded-pill border px-2 py-0.5 font-medium ${
-                CONFIDENCE_TONE[bill.confidence] ?? CONFIDENCE_TONE.low
-              }`}
-            >
-              {bill.confidence} confidence
-            </span>
-          </div>
+          <p className="text-small font-medium text-ink">Here’s what we found</p>
 
-          {/* editable fields */}
-          <div className="grid gap-2 sm:grid-cols-[1.1fr_1fr_1fr]">
-            <label className="grid gap-1 text-micro">
-              <span className="text-ink-muted">Fuel</span>
-              <select
-                value={fuel}
-                onChange={(event) => setFuel(event.target.value as BillFuel | '')}
-                className="rounded-card border border-rule-strong bg-surface px-2 py-1.5 text-small"
-              >
-                <option value="">Not legible</option>
-                {FUEL_VALUES.map((value) => (
-                  <option key={value} value={value}>
-                    {FUEL_LABEL[value]}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="grid gap-1 text-micro">
-              <span className="text-ink-muted">
-                Annual units {fuel ? `(${UNIT_BY_FUEL[fuel]} a year)` : ''}
-              </span>
-              <input
-                value={units}
-                onChange={(event) => setUnits(event.target.value)}
-                inputMode="decimal"
-                placeholder="not legible"
-                className="rounded-card border border-rule-strong bg-surface px-2 py-1.5 text-small tabular-nums"
-              />
-            </label>
-
-            <label className="grid gap-1 text-micro">
-              <span className="text-ink-muted">Price {fuel ? `($/${UNIT_BY_FUEL[fuel]})` : ''}</span>
-              <input
-                value={price}
-                onChange={(event) => setPrice(event.target.value)}
-                inputMode="decimal"
-                placeholder="not legible"
-                className="rounded-card border border-rule-strong bg-surface px-2 py-1.5 text-small tabular-nums"
-              />
-            </label>
-          </div>
-
-          {/* how the year was worked out */}
-          {bill.annualisation ? (
-            <div className="rounded-card border border-rule bg-surface p-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-micro font-medium text-ink">
-                  {METHOD_LABEL[bill.annualisation.method] ?? bill.annualisation.method}
-                </p>
-                <span
-                  className={`rounded-pill border px-2 py-0.5 text-[11px] font-medium ${
-                    CONFIDENCE_TONE[bill.annualisation.confidence >= 0.8 ? 'high' : bill.annualisation.confidence >= 0.55 ? 'medium' : 'low']
-                  }`}
-                >
-                  {Math.round(bill.annualisation.confidence * 100)}% on this method
-                </span>
-              </div>
-              <p className="mt-1 text-micro text-ink-muted">{bill.annualisation.note}</p>
-              {bill.annualisation.assumptions.length ? (
-                <ul className="mt-1.5 grid gap-0.5 text-micro text-ink-faint">
-                  {bill.annualisation.assumptions.map((assumption) => (
-                    <li key={assumption}>{assumption}</li>
-                  ))}
-                </ul>
-              ) : null}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {/* fuel */}
+            <div className={fieldShell(outstanding.includes('fuel'))}>
+              {electricityRole ? (
+                <p className="text-small text-ink">Electricity — not your heat source</p>
+              ) : (
+                <label className="grid gap-1 text-micro">
+                  <span className="text-ink-muted">Fuel</span>
+                  <select
+                    value={fuel}
+                    onChange={(event) => {
+                      setFuel(event.target.value as BillFuel | '')
+                      touch('fuel')
+                    }}
+                    className="rounded-card border border-rule-strong bg-surface px-2 py-1.5 text-small"
+                  >
+                    <option value="">Not legible</option>
+                    {FUEL_VALUES.map((value) => (
+                      <option key={value} value={value}>
+                        {FUEL_LABEL[value]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {outstanding.includes('fuel') ? <CheckChip onConfirm={() => touch('fuel')} /> : null}
             </div>
-          ) : bill.units.value !== null ? (
-            <p className="text-micro text-ink-muted">
-              Nothing was multiplied: the document already covers a full heating year.
-            </p>
-          ) : null}
+
+            {/* who and where */}
+            {utilityLabel || place ? (
+              <div className="p-2 text-small text-ink">
+                <p className="text-micro text-ink-muted">Utility and address area</p>
+                <p>{[utilityLabel, place].filter(Boolean).join(' · ')}</p>
+              </div>
+            ) : null}
+
+            {/* yearly amount */}
+            <div className={fieldShell(outstanding.includes('units'))}>
+              <label className="grid gap-1 text-micro">
+                <span className="text-ink-muted">
+                  {noun} used in a year ({unit})
+                </span>
+                <input
+                  value={units}
+                  onChange={(event) => {
+                    setUnits(event.target.value)
+                    setUnitsEdited(true)
+                    touch('units')
+                  }}
+                  inputMode="decimal"
+                  placeholder="not legible"
+                  className="rounded-card border border-rule-strong bg-surface px-2 py-1.5 text-small tabular-nums"
+                />
+              </label>
+              <p className="mt-1 text-micro text-ink-muted">{method}</p>
+              {!electricityRole && bill.baseloadAnnual ? (
+                <p className="text-micro text-ink-muted">
+                  We’ll leave out about {formatAmount(bill.baseloadAnnual)} {unit} of year-round use (hot water,
+                  cooking).
+                </p>
+              ) : null}
+              {outstanding.includes('units') ? <CheckChip onConfirm={() => touch('units')} /> : null}
+            </div>
+
+            {/* all-in price */}
+            <div className={fieldShell(outstanding.includes('price'))}>
+              <label className="grid gap-1 text-micro">
+                <span className="text-ink-muted">
+                  What you pay per {unit === 'units' ? 'unit' : unit.replace(/s$/, '')} (all charges ÷ {unit})
+                </span>
+                <input
+                  value={price}
+                  onChange={(event) => {
+                    setPrice(event.target.value)
+                    touch('price')
+                  }}
+                  inputMode="decimal"
+                  placeholder="not legible"
+                  className="rounded-card border border-rule-strong bg-surface px-2 py-1.5 text-small tabular-nums"
+                />
+              </label>
+              <p className="mt-1 text-micro text-ink-muted">Total ÷ usage, so it includes delivery and fees.</p>
+              {outstanding.includes('price') ? <CheckChip onConfirm={() => touch('price')} /> : null}
+            </div>
+
+            {/* rate class */}
+            {bill.rateClassV3 || bill.lowIncomeSignal ? (
+              <div className="p-2 text-small text-ink sm:col-span-2">
+                {bill.rateClassV3 ? <span>Rate class {bill.rateClassV3}</span> : null}
+                {bill.lowIncomeSignal ? (
+                  <span className="text-ink-muted">
+                    {bill.rateClassV3 ? ' · ' : ''}Looks like a discount rate — we’ll check what that unlocks.
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
 
           {/* questions, not errors */}
           {question ? (
             <div className="rounded-card border border-rule bg-surface p-3">
               <p className="text-small text-ink">{question.message}</p>
-
               {question.code === 'needs_fills' ? (
                 <div className="mt-2 flex flex-wrap items-end gap-2">
                   <label className="grid gap-1 text-micro">
@@ -309,44 +437,97 @@ export function BillUpload({ onApply }: BillUploadProps) {
                   </label>
                   <button
                     type="button"
-                    onClick={reRead}
+                    onClick={submitFills}
                     className="rounded-card border border-rule-strong px-3 py-1.5 text-micro font-medium text-ink hover:border-ink"
                   >
                     Work out the year
                   </button>
                 </div>
               ) : null}
-
               {message ? <p className="mt-2 text-micro text-deadline">{message}</p> : null}
             </div>
           ) : null}
 
-          {/* doubts that do not block */}
-          {notices.length || others.length ? (
-            <ul className="grid gap-1 text-micro text-ink-muted">
-              {[...notices, ...others].map((flag, index) => (
-                <li key={`${flag.field}-${flag.code}-${index}`}>{flag.message}</li>
+          <details className="text-micro text-ink-muted">
+            <summary className="cursor-pointer text-ink">How we got this number</summary>
+            <div className="mt-2 grid gap-1">
+              {bill.annualisation ? (
+                <>
+                  <p>{bill.annualisation.note}</p>
+                  {bill.annualisation.assumptions.length ? (
+                    <ul className="grid gap-0.5 text-ink-faint">
+                      {bill.annualisation.assumptions.map((assumption) => (
+                        <li key={assumption}>{assumption}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              ) : (
+                <p>Nothing was multiplied: the document already covers a full year.</p>
+              )}
+              {detailFlags.map((flag, index) => (
+                <p key={`${flag.field}-${flag.code}-${index}`}>{flag.message}</p>
               ))}
-            </ul>
-          ) : null}
+              <p className="text-ink-faint">Reader confidence: {bill.confidence}.</p>
+            </div>
+          </details>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={apply}
-              disabled={!canApply || applied}
-              className="rounded-card bg-ink px-3 py-1.5 text-micro font-medium text-paper disabled:opacity-40"
-            >
-              {applied ? 'Applied to the form' : 'Use these numbers'}
-            </button>
-            <span className="text-micro text-ink-faint">
-              {bill.ready
-                ? 'Every number above is editable before it reaches the calculator.'
-                : 'Check the flagged numbers — the form takes whatever you leave.'}
-            </span>
+          <div className="flex flex-wrap items-center gap-2" aria-live="polite">
+            {applied === 'no' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={applyNow}
+                  disabled={!canApply}
+                  className="rounded-card bg-ink px-3 py-1.5 text-micro font-medium text-paper disabled:opacity-40"
+                >
+                  Use these numbers
+                </button>
+                <span className="text-micro text-ink-faint">
+                  {outstanding.length
+                    ? 'Check the dotted fields first — edit them or tap “check?”.'
+                    : 'Every number above is editable first.'}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-micro font-medium text-switch">
+                  {applied === 'auto' ? 'Filled in from your bill' : 'Applied to the form'}
+                </span>
+                <button type="button" onClick={undo} className="text-micro text-ink-muted underline">
+                  Undo
+                </button>
+              </>
+            )}
           </div>
+
+          {applied !== 'no' && !electricInstance && role === 'heating' ? (
+            showElectric ? (
+              <BillUpload expect="electricity" heating={false} countyFips={countyFips} onApply={onApply} onUndo={onUndo} />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowElectric(true)}
+                className="justify-self-start text-micro font-medium text-ink underline"
+              >
+                + Add your electric bill
+              </button>
+            )
+          ) : null}
         </div>
       ) : null}
     </div>
+  )
+}
+
+function CheckChip({ onConfirm }: { onConfirm: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onConfirm}
+      className="mt-1 rounded-pill border border-dotted border-deadline px-2 py-0.5 text-[11px] font-medium text-deadline"
+    >
+      check? tap if this is right
+    </button>
   )
 }

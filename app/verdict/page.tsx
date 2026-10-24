@@ -7,11 +7,14 @@ import { SiteHeader } from '@/components/site-header'
 import { computeVerdict, refusalFor } from '@/lib/calc'
 import type { Fuel, Tier } from '@/lib/calc/types'
 import { displayTown, hdd65ForTown } from '@/lib/geo'
+import { plausibleElectricRate, provenanceLine, queryString } from '@/lib/intake/params'
 import { getPrices } from '@/lib/prices'
 import { resolveUtility, SPONSOR_NAME, seasonalHeatPumpRate } from '@/lib/utility'
 import { VERDICT_META } from '@/lib/verdicts'
 
 /**
+ * @built F-106 round-trip + provenance: the change link carries the whole query; the bill's
+ * method, note and confidence, and a household electricity rate (`er`), show up here
  * @built F-32 verdict screen shell — one number, big, unmissable
  *
  * Server-rendered from the URL and `lib/calc`. No client JavaScript is needed to
@@ -110,7 +113,14 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   }
 
   const prices = await getPrices({ timeoutMs: 4_000 })
-  const standardRate = prices.elec.usdPerUnit
+  // A rate read off the household's own electric bill beats the statewide EIA
+  // average — but only inside a plausible band; a misread must not move the verdict.
+  const billRate = plausibleElectricRate(first(params.er))
+  const standardRate = billRate ?? prices.elec.usdPerUnit
+  const utilityKey = first(params.ut)
+  const provenance = provenanceLine((first(params.mn) ?? '').slice(0, 160) || null, number(params.mc))
+  const buildingUnits = number(params.bu)
+  const changeHref = `/start?${queryString(params)}`
   const seasonal = seasonalHeatPumpRate(standardRate, townRaw)
   const utility = resolveUtility(townRaw)
   const hdd65 = hdd65ForTown(townRaw) ?? undefined
@@ -134,14 +144,18 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const result = computeVerdict(heating, upgrade)
   const refusal = result ? null : refusalFor(heating, upgrade)
   const meta = result ? VERDICT_META[result.verdict] : null
-  const noMassSave = utility.eligibleForMassSave === false
-  const asksUtility = utility.eligibleForMassSave === null
+  // The bill's own sender settles a mixed town: a light-plant bill means no Mass Save rebate;
+  // an investor-owned sender means the question is answered.
+  const billSaysMunicipal = utilityKey === 'municipal'
+  const billSaysInvestorOwned = ['eversource', 'national_grid', 'unitil'].includes(utilityKey ?? '')
+  const noMassSave = billSaysMunicipal || utility.eligibleForMassSave === false
+  const asksUtility = !billSaysMunicipal && !billSaysInvestorOwned && utility.eligibleForMassSave === null
 
   return (
     <Chrome>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
-          href="/start"
+          href={changeHref}
           className="text-micro text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
         >
           ← Change the numbers
@@ -151,6 +165,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
           {first(params.src) === 'assessor' && yearBuilt !== null ? (
             <FreshnessBadge kind="assessor" label="Year built" />
           ) : null}
+          {billRate !== null ? <FreshnessBadge kind="manual" label="Electricity rate: your bill" /> : null}
         </div>
       </div>
 
@@ -160,7 +175,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
           <p className="mt-2 max-w-[52ch] text-small text-ink-muted">
             {refusal?.message ?? 'One of the numbers is outside what this calculator will stand behind.'}
           </p>
-          <Link href="/start" className="mt-5 inline-block text-small underline underline-offset-4">
+          <Link href={changeHref} className="mt-5 inline-block text-small underline underline-offset-4">
             Try different numbers
           </Link>
         </section>
@@ -319,6 +334,34 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
             </summary>
 
             <dl className="mt-4 divide-y divide-rule border-y border-rule">
+              {provenance ? (
+                <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
+                  <dt className="text-micro text-ink-faint">Yearly {UNIT_LABEL[result.fuel] === 'kWh' ? 'electricity' : 'fuel'}</dt>
+                  <dd className="text-small tabular-nums text-ink">
+                    {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]}
+                  </dd>
+                  <dd className="text-micro text-ink-muted">{provenance}</dd>
+                </div>
+              ) : null}
+              {billRate !== null ? (
+                <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
+                  <dt className="text-micro text-ink-faint">Electricity price</dt>
+                  <dd className="text-small tabular-nums text-ink">${billRate.toFixed(3)}/kWh</dd>
+                  <dd className="text-micro text-ink-muted">
+                    Read off your electric bill, used instead of the statewide average of $
+                    {prices.elec.usdPerUnit.toFixed(3)}/kWh.
+                  </dd>
+                </div>
+              ) : null}
+              {buildingUnits !== null && buildingUnits > 1 ? (
+                <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
+                  <dt className="text-micro text-ink-faint">Floor area</dt>
+                  <dd className="text-small tabular-nums text-ink">{sqft?.toLocaleString('en-US') ?? '—'} sqft</dd>
+                  <dd className="text-micro text-ink-muted">
+                    Assumption: the assessor&rsquo;s building area divided by {buildingUnits} units.
+                  </dd>
+                </div>
+              ) : null}
               {result.assumptions.map((assumption) => (
                 <div key={`${assumption.field}-${assumption.value}`} className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
                   <dt className="text-micro text-ink-faint">{assumption.field}</dt>

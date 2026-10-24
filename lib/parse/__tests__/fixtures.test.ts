@@ -38,7 +38,7 @@ const FIXTURES: { name: string; json: unknown; options?: Parameters<typeof readB
   { name: 'A oil ticket with degree days', json: fixtureA },
   { name: 'B oil ticket, four fills', json: fixtureB, options: { deliveriesPerSeason: 4 } },
   { name: 'B oil ticket, no fill count', json: fixtureB },
-  { name: 'C electric bill with a chart', json: fixtureC },
+  { name: 'C electric bill with a chart', json: fixtureC, options: { heating: true } },
   { name: 'D July gas bill', json: fixtureD },
   { name: 'E January gas bill', json: fixtureE },
   { name: 'F July electric baseload', json: fixtureF, options: { heating: false } },
@@ -117,8 +117,9 @@ describe('C — an electric bill with the printed usage chart', () => {
   })
 
   it('claims the printed-history confidence and needs no annualisation flag', () => {
-    expect(bill.annualisation?.confidence).toBe(0.95)
-    expect(bill.annualisation?.assumptions).toHaveLength(0)
+    // Bars only: no numeric table is printed, so the ceiling is 0.75, not 0.95.
+    expect(bill.annualisation?.confidence).toBe(0.75)
+    expect(bill.annualisation?.assumptions).toHaveLength(1)
     expect(bill.flags.map((f) => f.code)).not.toContain('annualised')
     expect(bill.ready).toBe(true)
   })
@@ -129,9 +130,9 @@ describe('C — an electric bill with the printed usage chart', () => {
   })
 
   it('does not treat 11 bars as a year, and says why', () => {
-    const short = { ...fixtureC, document_date: '2026-01-18' }
+    const short = { ...fixtureC, document_date: '2026-01-18', period_start: '2026-01-01', period_end: '2026-01-31' }
     const chart = (fixtureC as { usage_history: number[] }).usage_history
-    const bill = parse({ ...short, usage_history: chart.slice(0, 11) })
+    const bill = parse({ ...short, usage_history: chart.slice(0, 11) }, { heating: true })
     expect(bill.annualisation?.method).not.toBe('printed_history')
     expect(bill.annualisation?.method).toBe('hdd_scaled')
     expect(bill.flags.map((f) => f.message).join(' ')).toMatch(/11 months/)
@@ -143,7 +144,10 @@ describe('C — an electric bill with the printed usage chart', () => {
       [...chart.slice(0, 11), null],
       [...chart.slice(0, 11), '470'],
     ]) {
-      const bill = parse({ ...fixtureC, document_date: '2026-01-18', usage_history: poisoned })
+      const bill = parse(
+        { ...fixtureC, document_date: '2026-01-18', period_start: '2026-01-01', period_end: '2026-01-31', usage_history: poisoned },
+        { heating: true },
+      )
       expect(bill.annualisation?.method).not.toBe('printed_history')
       expect(bill.annualisation?.method).toBe('hdd_scaled')
       expect(bill.flags.map((f) => f.message).join(' ')).toMatch(/could not be read cleanly/)
@@ -190,7 +194,7 @@ describe('E and F — the two remaining paths', () => {
   })
 
   it('F: the same bill claiming resistance heat is a summer refusal', () => {
-    const bill = parse(fixtureF)
+    const bill = parse(fixtureF, { heating: true })
     expect(bill.annualisation).toBeNull()
     expect(bill.flags.map((f) => f.code)).toContain('summer_month')
   })

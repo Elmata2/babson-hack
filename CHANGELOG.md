@@ -14,6 +14,17 @@ because that is when the hackathon clock runs.
 
 ### Added
 
+- **F-100–F-103** — Bill parser now reads service dates, utility, rate class,
+  usage history, discounts, and CCF conversion. Annual estimates use printed
+  history or service days when available; incomplete periods ask for household
+  fill cadence. Electric bills supply electricity price unless explicitly
+  marked as electric resistance heat.
+- **F-104–F-106** — Address matches guard against nonresidential parcels and
+  duplicate suggestions. Intake keeps bill provenance, utility rate, and
+  building details through verdict link.
+- **F-107–F-109** — Photo prep fixes orientation and bounds image size. Up to
+  three pages go through one read. Confirmation shows uncertain fields, asks
+  for missing context, applies confident reads, and supports Undo.
 - **F-01** — Next.js 16.4.3 App Router, React 19.3, Tailwind v4, TypeScript
   6.0.3. Deploys to Vercel on every push to `master`
   (<https://switchpoint-psi.vercel.app>). Geist is self-hosted, so no font

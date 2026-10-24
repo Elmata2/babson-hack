@@ -38,6 +38,13 @@ can find (year built, use code, town) with a per-field source badge.
 - 1.3 `YEAR_BUILT` is used only for the weatherization check and heating-load
   fallback; it never silently overrides a bill-derived number.
 - 1.4 Address is never persisted server-side and never sent to the LLM.
+  *Amended 2026-10-24 (F-101, `docs/fixes/2026-10-24-one-photo-intake.md`):* the
+  model may return the **service ZIP and town** printed on a bill, never the
+  street, account number or name. The street still reaches only the geocoder.
+- 1.8 *(F-104)* A parcel record prefills only when its house number matches the
+  address the user picked **and** its use code is residential (1xx, or mixed-use
+  013/031). Exact-point and buffered matches get the same check. `units` is
+  carried; with more than one unit the area is divided and marked an assumption.
 - 1.5 A bad address produces "we could not find that parcel — continue manually",
   not a stack trace.
 - 1.6 **Statewide, no allow-list.** Any of the 351 municipalities resolves.
@@ -68,6 +75,28 @@ confidence score per field.
   analytics event.
 - 2.6 Manual entry is always available and equally fast: one fuel select, two
   numbers, one winter total.
+- 2.7 *(F-102)* `pricePerUnit` is computed in code from `totalCharge ÷ quantity`
+  and marked `derived`. The model never divides (ADR-005). Amount Due is never
+  used: under budget billing it is levelised.
+- 2.8 *(F-101/F-102)* An electric bill that is not the heat source returns
+  `role: "electricity"` and no heating fuel. It supplies the household's $/kWh,
+  utility and income signal only.
+- 2.9 *(F-102)* Gas rate class R-3/R-4 means gas heats the home; R-1/R-2 means it
+  does not. R-2/R-4 or a printed discount line sets `lowIncomeSignal`, which the
+  UI offers as "you may qualify" and never applies without the user's answer.
+- 2.10 *(F-102)* CCF converts to therms with the printed therm factor, else 1.037
+  flagged. A `season` period is partial unless the printed period spans ≥ 330 days.
+- 2.11 *(F-103)* Single-bill annualisation weights the actual service days
+  (`periodStart`–`periodEnd`), not the statement month. A printed history read
+  from bars caps confidence at 0.75; a numeric table at 0.95.
+- 2.12 *(F-107/F-108)* Photos are re-encoded in the browser (long edge ≤ 2000px,
+  JPEG, < 1.5 MB, EXIF orientation applied) so no request meets Vercel's 4.5 MB
+  limit. Up to three pages of one bill go to one vision call.
+- 2.13 *(F-109)* When no field is below the confidence bar the bill applies
+  without a confirm click, with Undo. A second "electric bill" slot is offered
+  after a heating document.
+- 2.14 *(F-106)* The annualisation method, its confidence and its note reach
+  `/verdict` and are shown in provenance. "Change the numbers" returns every input.
 
 ## R3 — Live fuel and rate data
 
@@ -118,6 +147,9 @@ design load, and recommend a system size in tons rounded to 0.5.
 - 4.4 Without a bill, fall back to `sqft × 35–50 BTU/hr/sqft` and mark the result
   `assumption: envelope estimate`, high-end for pre-1950.
 - 4.5 Tonnage never exceeds what the rebate cap implies without a warning.
+- 4.6 *(F-103)* When a 12-month history is printed, non-heating use
+  (`baseloadAnnual` ≈ lowest summer months × 12: hot water, cooking) is removed
+  before 4.1. Without a history nothing is removed and the verdict says so.
 
 ## R5 — Rebate stack
 
@@ -304,5 +336,211 @@ for the Climate track, and say so.
 ## Out of scope (explicitly)
 
 Accounts, saved projects, installer marketplace, scheduling, payments, income
-verification, multi-state, ground-source sizing, commercial buildings, financing
+verification, *(Addendum A, if approved: phone quotes from dealers and installers on
+the user's request are in; booking, paying and lead sales stay out)*, multi-state, ground-source sizing, commercial buildings, financing
 beyond the HEAT Loan, emailed reports.
+
+---
+
+# Addendum A — Decide, call, compare (proposal, pending review · 2026-10-24)
+
+**Status:** proposal. Nothing below is approved for build until the team signs off.
+**Reads with:** design §12–§14, tasks P8–P9, `../steering/voice-agent-rules.md`.
+
+## Why this addendum exists
+
+The verdict tells a household *whether* to switch. It does not help them act.
+The two markets where a Massachusetts household loses the most money by not
+shopping publish no prices at all: **heating-oil and propane dealers** (cash/COD
+prices vary by dealer and by day and are given out by phone) and **heat pump
+installers** (availability before the Dec 31 rebate step-down is the binding
+constraint). A voice agent can make the six phone calls nobody makes.
+
+Dutch comparison services set the bar for "easy to switch":
+
+| Pattern (NL) | Where we saw it | What we take |
+| --- | --- | --- |
+| Postcode + house number is the whole intake | Consumentenbond Energievergelijker | address + bill stays the whole intake (R1, R2); the agent asks the user nothing new |
+| One comparable number per offer, bonuses listed separately, price *after* the contract term shown | Independer (reported by duurzaamnieuws.nl) | every offer is an **annual cost at your usage**; teaser and after-term prices both shown (R20.4) |
+| Usage pulled from the grid operator, not estimated | Gaslicht.com via iDIN | bill OCR today; Green Button download later (R24, verify MA availability) |
+| "We arrange your switch", 14-day cooling-off | Consumentenbond Overstapservice, Gaslicht | a **switch kit**: who to call, what to say, what to have ready, rescission window (R20.8) |
+| "100% independent since 1953" | Consumentenbond | ranking cannot be bought; no referral fees, no lead sales (R20.9) |
+| Collective auction twice a year | Consumentenbond Energiecollectief | roadmap: a town-level oil collective (R24.3) |
+
+## R17 — The switch decision is the user's
+
+**WHEN** a verdict renders, **THE SYSTEM SHALL** offer the user an explicit choice
+of what to do next, and take no outbound action until they choose.
+
+**Acceptance**
+- 17.1 Choices, closed set: `STAY` · `SHOP_FUEL` · `SHOP_SUPPLY` · `SWITCH_HEAT_PUMP`.
+- 17.2 Which choices appear is a pure function of verdict, fuel and utility:
+  - `SHOP_FUEL` only for oil and propane (gas and electricity have no dealer to shop).
+  - `SHOP_SUPPLY` only in investor-owned-utility towns; never in municipal light
+    plant towns, where there is no supply choice.
+  - `SWITCH_HEAT_PUMP` always appears. Under `DO_NOT_SWITCH_YET` the verdict and
+    break-even price are repeated directly above it.
+- 17.3 Nothing is preselected. `STAY` has the same visual weight as the others and
+  shows what would change the answer (break-even price, the Jan 1 delta).
+- 17.4 `SHOP_SUPPLY` places no calls. Supplier offers are already published on
+  Energy Switch Massachusetts; the panel compares them with Basic Service at the
+  user's kWh (dashboard spec §3.4). Calling for a published number is theatre.
+
+## R18 — Consent before any call
+
+**WHEN** the user picks `SHOP_FUEL` or `SWITCH_HEAT_PUMP`, **THE SYSTEM SHALL**
+show exactly what the agent will say about them and who it will call, and place no
+call without an explicit confirm.
+
+**Acceptance**
+- 18.1 The disclosure lists every fact the agent may say: town and ZIP, fuel,
+  annual volume rounded to the nearest 50 gal, delivery size (default 150 gal,
+  editable), tank size if known, delivery window,
+  and for installers home size in sqft and the estimated tons. Nothing else.
+- 18.2 Never said on a call: name, street address, phone number, email, account
+  number, payment details, income.
+- 18.3 The provider list shows name, phone number, source and date of each entry,
+  one checkbox per provider, at most **6 calls per session**.
+- 18.4 A provider that wants to call back is told "the homeowner will contact you"
+  and the quote is marked `needs_callback`.
+- 18.5 Consent lives in the session only. Reloading the page clears it.
+
+## R19 — Quote-calling agent (ElevenLabs)
+
+**WHEN** the user confirms, **THE SYSTEM SHALL** place the calls through an
+ElevenLabs agent over a Twilio number and return one structured quote per call.
+
+**Acceptance**
+- 19.1 The first sentence of every call, verbatim from steering: the caller is an
+  automated AI assistant calling for a homeowner in {town}, the call is recorded
+  and transcribed, may it continue. A "no" ends the call politely with status
+  `declined`. Disclosure is our choice, not a legal shield: Massachusetts requires
+  all-party consent to record (M.G.L. c.272 §99), and we treat the FCC's 2024 AI
+  voice ruling as the spirit even though it targets consumer calls.
+- 19.2 Questions by vertical:
+  - **Fuel dealer:** cash/COD price per gallon at the user's delivery size, minimum
+    delivery, delivery or small-load fee, card surcharge, price-cap or prebuy price
+    for this winter and its fee, earliest delivery date, serves {town} yes/no.
+  - **Installer:** Mass Save participating contractor yes/no, accepts the HEAT Loan
+    yes/no, earliest site visit, can finish an install by **2026-12-31** yes/no,
+    ballpark $/ton for a cold-climate air-source system (labelled ballpark).
+- 19.3 Each call returns a typed `ProviderQuote`. Every field is nullable and
+  carries its evidence: the extraction's rationale, plus the provider's own turns
+  of the transcript, viewable in the drawer.
+- 19.4 The agent never agrees to buy, books a delivery or visit, gives payment or
+  personal details, states a competing price it was not handed by code (R21),
+  claims to be human, or continues after "stop" or "take me off your list".
+- 19.5 Calls end at **4 minutes**. Voicemail, IVR dead end and no answer end the
+  call with a status; the agent leaves no message.
+- 19.6 Calls are placed only within the provider's business hours (Mon–Fri
+  08:00–17:00, Sat 08:00–12:00 ET). Outside them the UI says when it will call.
+  Allowlisted team numbers are exempt, so the demo works on a Saturday evening.
+- 19.7 Each call shows live status: `queued · ringing · in_progress · done ·
+  no_answer · voicemail · declined · failed`.
+- 19.8 Real businesses are called only when the server has
+  `PROVIDER_CALLS_ENABLED=true`. Otherwise numbers come from a team allowlist.
+
+## R20 — Comparison and "best deal"
+
+**THE SYSTEM SHALL** rank quotes with deterministic code and show why the top one
+is top.
+
+**Acceptance**
+- 20.1 Ranking lives in `lib/quotes`, pure and property-tested. The model
+  extracts; code ranks (ADR-005 holds).
+- 20.2 Fuel: `effectivePerGal = pricePerGal + deliveryFee / deliveryGallons`
+  (+ card surcharge if the user pays by card); annual cost at the user's volume.
+  `deliveryGallons` is the delivery size from R18.1. A dealer whose minimum is
+  above it is flagged `min_above_delivery` and ranked at its minimum. Prebuy and
+  price-cap offers are shown, never ranked: they are a bet on the winter, not a
+  price.
+- 20.3 Plausibility gate: oil $4.50–8.50/gal, propane $2.00–6.00/gal, installer
+  $2,000–12,000/ton. Out of range → `unverified`: shown, never ranked.
+- 20.4 Every row shows one comparable number (annual cost) and, separately, any
+  prebuy fee, price-cap term or teaser price, with what it becomes after the term.
+- 20.5 Each figure links to its evidence and the provider's transcript turns. Source badge:
+  `Said on a call · {provider} · {date time}`.
+- 20.6 Comparison against the DOER statewide average: "$0.41/gal below the state
+  average, about $330 a year at 800 gal."
+- 20.7 "Use this price" writes `effectivePerGal` into `unitPrice` and the verdict
+  recomputes. If a cheaper oil price flips the verdict to `DO_NOT_SWITCH_YET`, the
+  screen says so. That is the product working.
+- 20.8 The top quote opens a **switch kit**: phone number, the exact sentence to
+  say, what to have ready, and the label *Phone quote, not a contract. Confirm the
+  price when you order.*
+- 20.9 Ranking cannot be bought. No referral fees, no paid placement, no lead
+  sales. Stated on the comparison screen.
+
+## R21 — Ask for a better price ✂
+
+**WHEN** round one has ≥ 2 ranked fuel quotes, the user **MAY** ask the agent to
+call the next two and ask them to beat the best one.
+
+**Acceptance**
+- 21.1 The price cited is passed to the agent by code and must equal a ranked
+  quote from this session. The other dealer is never named.
+- 21.2 One round per session. Same consent rules as R18.
+
+## R22 — Call records and privacy
+
+- 22.1 No database (ADR-004 holds). The server is stateless: the browser holds
+  the conversation ids and sends them with each poll; the ElevenLabs conversation
+  is the record (ADR-010).
+- 22.2 Twilio recording stays off (API default). ElevenLabs keeps audio and
+  transcript by default, so: the agent's retention is set to the shortest the
+  plan allows (verify the setting), and the browser deletes each conversation
+  through `DELETE /api/calls` when the user presses Done or leaves the page
+  (`sendBeacon`). Deletion is best effort; retention is the backstop.
+- 22.3 Provider phone numbers are business lines from `data/providers/*.json`, each
+  entry with a source and as-of date. No scraping of review sites.
+- 22.4 ElevenLabs (and Twilio) become data processors for the call facts in
+  R18.1. None of those identify a person, but the privacy line in `product.md`
+  and `data-sources.md` ("removes the entire privacy surface") must be reworded
+  to say so if this addendum is approved.
+
+## R23 — Verdict by phone ✂
+
+- 23.1 An inbound number where a resident can get the verdict by voice in English,
+  Spanish, Portuguese or Haitian Creole.
+- 23.2 The agent calls a server tool that runs `computeVerdict`. The model reads
+  the number back; it never computes it.
+- 23.3 Tied to R14 and the EJ2020 limited-English layer (R10.11).
+
+## R24 — Watch and collective (roadmap, not today)
+
+Needs a contact channel and stored state, so it breaks ADR-004 and the no-account
+rule. Slide only.
+- 24.1 Price watch: re-survey dealers when the DOER weekly price moves > 5%.
+- 24.2 Supply watch: alert before Basic Service resets (Feb 1, Aug 1) and before a
+  competitive contract ends.
+- 24.3 Town oil collective: pooled gallons from many households, one agent call
+  round to dealers, the Energiecollectief pattern applied to heating oil.
+- 24.4 Usage import via Green Button download instead of bill OCR (verify which MA
+  utilities support it before claiming it).
+
+## R25 — Continuous integration
+
+**THE SYSTEM SHALL** run the checks on every push and pull request, so a red
+property test or a leaked key cannot reach `master` unnoticed.
+
+**Acceptance**
+- 25.1 GitHub Actions on push and PR to `master`: `npm ci`, `npm run check`
+  (tsc + vitest including the property suite). Red blocks merge.
+- 25.2 Build-log drift: run `node scripts/buildlog.mjs hook` and fail if
+  `BUILDLOG.md` differs from the committed file.
+- 25.3 Submission guard: `.kiro/specs/switchpoint/requirements.md` exists and
+  `git check-ignore .kiro` finds nothing (R12.1).
+- 25.4 Secret scan (gitleaks) on every push. ElevenLabs, Twilio, Anthropic and EIA
+  keys never enter the repo.
+- 25.5 Agent contract tests, no network: the agent prompt, first message and
+  extraction schema live in `agents/quote-caller/`. Tests assert the first message
+  contains the AI and recording disclosure, the schema matches `ProviderQuote`,
+  and fixture transcripts (clean quote, cash vs card price, refusal, voicemail,
+  hostile "$0.99/gal") extract and rank as expected.
+- 25.6 ✂ ElevenLabs Agents Testing (simulation tests) runs only on PRs touching
+  `agents/**`, only when the `ELEVENLABS_API_KEY` secret is present. Asserts: AI
+  disclosure in turn one, no competing price stated unprompted, call ends on "stop".
+- 25.7 ✂ On merge to `master`, the agent config in `agents/` is pushed to
+  ElevenLabs, so the deployed agent is the reviewed one.
+- 25.8 CI finishes in under 3 minutes. Vercel preview deploys per PR come from the
+  Vercel Git integration and are not rebuilt in Actions.

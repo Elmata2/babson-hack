@@ -1,11 +1,16 @@
 /**
  * @built F-28 types for a parsed bill — typed, editable, confidence-scored
+ * @built F-101 prompt v3: BillParse extends the one-photo contract (`BillParseExtras`)
+ * @built F-102 `not_heating_fuel` flag, `BillField.note`, `documentQuantity`
+ * @built F-103 `AnnualEstimate.spaceHeating` / `baseloadAnnual`
  *
  * The model returns JSON in the shape described by `PARSE_SCHEMA_TEXT`; this file
  * is the contract the code holds it to. Nothing here trusts the model: every
  * field carries the confidence the *validator* assigned, and a missing value is
  * `null`, never 0 and never a guess.
  */
+
+import type { BillParseExtras, RateClassV3 } from './contract'
 
 /** The four fuels this build accepts. Mirrors `lib/calc/types.ts`. */
 export type BillFuel = 'oil' | 'propane' | 'gas' | 'resistance'
@@ -24,8 +29,12 @@ export type DocumentType =
   | 'gas_bill'
   | 'unknown'
 
-/** The rate class printed on an electric bill, when it is legible. */
-export type RateClass = 'R-1' | 'R-2' | 'heat pump' | 'other'
+/**
+ * The rate class printed on a bill, when it is legible. Since v3 this is the
+ * contract's `RateClassV3` (R-1…R-4, heat pump, other); the old name stays so
+ * nothing that imported it breaks.
+ */
+export type RateClass = RateClassV3
 
 /**
  * How a document that covers less than a year became an annual figure.
@@ -58,6 +67,13 @@ export interface AnnualEstimate {
   assumptions: string[]
   /** One sentence the UI shows next to the number. */
   note: string
+  /**
+   * Annual units that are not space heat, from the summer months of a printed
+   * history. Present only for a heating-role gas/oil/propane document with a year.
+   */
+  baseloadAnnual?: number
+  /** `value` − baseload, floored at 0: the units the retrofit can actually save. */
+  spaceHeating?: number
 }
 
 /** Why `annualise` declined to produce a year. A question, never a dead end. */
@@ -77,6 +93,8 @@ export interface BillField {
   derived: boolean
   /** What the number means, e.g. `gal/yr` or `$/gal`. */
   unit: string
+  /** How a derived value was made, e.g. `total ÷ quantity`. Shown beside the number. */
+  note?: string
 }
 
 /** Why a value needs a human before it reaches the calculator. */
@@ -96,12 +114,14 @@ export interface BillFlag {
     | 'summer_month'
     /** One delivery, and nobody has said how many fills a season holds. */
     | 'needs_fills'
+    /** A gas bill on R-1/R-2: gas cooks and heats water here, it is not the heat source. */
+    | 'not_heating_fuel'
   /** Safe to render as-is. Short. No address, no account number. */
   message: string
 }
 
 /** A parsed bill the UI can edit field by field. */
-export interface BillParse {
+export interface BillParse extends BillParseExtras {
   fuel: BillFuel | null
   units: BillField
   price: BillField
@@ -115,8 +135,18 @@ export interface BillParse {
   flags: BillFlag[]
   /** What the document is, as the model classified it. Never inferred here. */
   documentType: DocumentType | null
-  /** The rate class on an electric bill. `null` when the bill did not print one. */
+  /**
+   * The rate class on the bill. `null` when the bill did not print one.
+   * @deprecated Same value as `rateClassV3`; kept so v2 callers compile.
+   */
   rateClass: RateClass | null
+  /**
+   * The quantity the document printed, in the fuel's own unit (CCF already
+   * converted to therms). Lets the client re-annualise with fills, no second read.
+   */
+  documentQuantity: number | null
+  /** Tank size the document printed, for the fills sanity check. */
+  tankSizeGal: number | null
   /**
    * How the units above became a year, and how much of it is arithmetic on an
    * assumption. `null` when the document already covered a year (or a season),

@@ -94,6 +94,17 @@ describe('rows the dropdown can render', () => {
     expect(rows.map((entry) => entry.town)).toEqual(['Worcester', 'Boston'])
   })
 
+  it('dedupes the same house by normalised line1 + postcode even at different coordinates', () => {
+    const a = row({ place_id: 10, lat: '42.2626', lon: '-71.8023' })
+    const b = row({
+      place_id: 11,
+      lat: '42.2630',
+      lon: '-71.8030',
+      address: { house_number: '106', road: 'CHANDLER ST.', city: 'Worcester', state: 'Massachusetts', postcode: '01609', country_code: 'us' },
+    })
+    expect(readSuggestions([a, b])).toHaveLength(1)
+  })
+
   it('removes duplicates that differ only by place_id', () => {
     const rows = readSuggestions([row({ place_id: 1 }), row({ place_id: 99 })])
     expect(rows).toHaveLength(1)
