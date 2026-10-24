@@ -2,17 +2,22 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { FreshnessBadge } from '@/components/freshness-badge'
+import { Figure, ProvenanceProvider } from '@/components/provenance'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { computeVerdict, refusalFor } from '@/lib/calc'
+import { rulesForYear } from '@/lib/calc/rules'
 import type { Fuel, Tier } from '@/lib/calc/types'
-import { displayTown, hdd65ForTown } from '@/lib/geo'
+import { countyOfTown, displayTown, GEO_META, hdd65ForTown } from '@/lib/geo'
 import { plausibleElectricRate, provenanceLine, queryString } from '@/lib/intake/params'
 import { getPrices } from '@/lib/prices'
 import { resolveUtility, SPONSOR_NAME, seasonalHeatPumpRate } from '@/lib/utility'
+import { provenanceFor, type ProvenanceContext, type SourceRef } from '@/lib/verdict/provenance'
 import { VERDICT_META } from '@/lib/verdicts'
 
 /**
+ * @built F-36 provenance wired into the screen — every printed figure opens its formula,
+ * its substituted values and its dated source in the drawer
  * @built F-106 round-trip + provenance: the change link carries the whole query; the bill's
  * method, note and confidence, and a household electricity rate (`er`), show up here
  * @built F-32 verdict screen shell — one number, big, unmissable
@@ -21,9 +26,10 @@ import { VERDICT_META } from '@/lib/verdicts'
  * see the answer, no API route is involved, and the same link recomputes the same
  * number tomorrow at tomorrow's prices, with the date on screen.
  *
- * What is deliberately not here yet: the dial (F-34), the number flip (F-33), the
- * provenance drawer (F-36) and the explanation (F-39). This is the shell those
- * hang on.
+ * What is deliberately not here yet: the dial (F-34), the number flip (F-33) and
+ * the explanation (F-39). This is the shell those hang on. The provenance drawer
+ * (F-36) hangs here: every figure below is a `Figure` that opens its formula, its
+ * substituted values and its dated source.
  *
  * The municipal-light-plant gate is applied here in its minimal honest form: if
  * the town is served by a municipal department, Mass Save electric rebates do not
@@ -151,8 +157,84 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const noMassSave = billSaysMunicipal || utility.eligibleForMassSave === false
   const asksUtility = !billSaysMunicipal && !billSaysInvestorOwned && utility.eligibleForMassSave === null
 
+  // ---- provenance (R9): only the page knows where a number came from, so the
+  // page names the sources and the pure module does the rest.
+  const asOfDay = (raw: string): string => raw.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? raw
+  const billRead = provenance !== null
+  const fuelSource: SourceRef = billRead
+    ? {
+        publisher: 'Your fuel document',
+        document: 'The delivery receipt or bill you uploaded — the yearly use and the price per unit',
+        asOf: 'as billed',
+      }
+    : {
+        publisher: 'You',
+        document: 'The yearly use and the price per unit you entered',
+        asOf: 'as entered',
+      }
+  const electricitySource: SourceRef =
+    billRate !== null
+      ? {
+          publisher: 'Your electric bill',
+          document: 'The all-in rate read from your own bill, used instead of the statewide average',
+          asOf: 'as billed',
+        }
+      : {
+          publisher: 'U.S. Energy Information Administration',
+          document: prices.mode === 'snapshot'
+            ? 'Electric Power Monthly — Massachusetts residential, all-in average (dated snapshot)'
+            : 'Electric Power Monthly — Massachusetts residential, all-in average',
+          asOf: prices.elec.period,
+        }
+  const sponsorNames = utility.sponsors.map((sponsor) => SPONSOR_NAME[sponsor]).join(' / ')
+  const heatPumpRateSource: SourceRef = seasonal.applied
+    ? {
+        publisher: `Mass Save · ${sponsorNames || 'sponsor not resolved'}`,
+        document: `Seasonal heat-pump rate: standard rate ${seasonal.rule !== null && seasonal.rule < 0 ? '−' : ''}$${Math.abs(seasonal.rule ?? 0).toFixed(2)}/kWh, 1 Nov – 30 Apr`,
+        asOf: electricitySource.asOf,
+      }
+    : {
+        publisher: 'Mass Save',
+        document: 'No seasonal heat-pump adjustment applies here; the standard all-in rate is used',
+        asOf: electricitySource.asOf,
+      }
+  const county = countyOfTown(townRaw)
+  const climateSource: SourceRef = {
+    publisher: 'Open-Meteo — ERA5 reanalysis',
+    document: `Heating degree days, base 65 °F, ${county?.name ?? 'Massachusetts'} county centroid, 2015–2024 mean`,
+    asOf: asOfDay(GEO_META.hdd.fetchedAt),
+  }
+  const rebateRules = rulesForYear(installYear)
+  const rebateSource: SourceRef = {
+    publisher: 'Mass Save',
+    document: rebateRules?.source ?? 'Mass Save residential heat-pump rebate table',
+    asOf: asOfDay(rebateRules?.source ?? '2026-10-24'),
+  }
+  const installCostSource: SourceRef = {
+    publisher: 'Mass Save',
+    document: 'Average whole-home installation cost, installs completed 2022',
+    asOf: '2026-10-24',
+  }
+  const equipmentSource: SourceRef = {
+    publisher: 'Switchpoint, from the documented defaults',
+    document: 'SCOP 2.70 · AHRI cooling-capacity sizing at 12,000 BTU per ton',
+    asOf: '2026-10-24',
+  }
+  const provenanceContext: ProvenanceContext = {
+    fuelSource,
+    electricitySource,
+    heatPumpRateSource,
+    climateSource,
+    rebateSource,
+    installCostSource,
+    equipmentSource,
+    billNote: provenance,
+  }
+  const entries = result ? provenanceFor(result, provenanceContext) : []
+
   return (
     <Chrome>
+      <ProvenanceProvider entries={entries}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={changeHref}
@@ -211,7 +293,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 {result.annualSavings > 0 ? (
                   <>
                     <p className="text-number font-medium tabular-nums tracking-[-0.03em]">
-                      {usd(result.annualSavings)}
+                      <Figure id="savings">{usd(result.annualSavings)}</Figure>
                     </p>
                     <p className="mb-2 max-w-[24ch] text-small text-ink-muted">
                       a year, at the seasonal heat-pump rate
@@ -220,7 +302,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 ) : (
                   <>
                     <p className="text-number font-medium tabular-nums tracking-[-0.03em]">
-                      {result.breakEvenElectricPrice === null ? '—' : cents(result.breakEvenElectricPrice)}
+                      <Figure id="breakEven">
+                        {result.breakEvenElectricPrice === null ? '—' : cents(result.breakEvenElectricPrice)}
+                      </Figure>
                     </p>
                     <p className="mb-2 max-w-[28ch] text-small text-ink-muted">
                       break-even electricity price. Above it, the heat pump costs you money.
@@ -230,11 +314,19 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
               </div>
 
               <p className="mt-6 text-small text-ink-muted">
-                You spend <span className="tabular-nums text-ink">{usd(result.oldAnnualCost)}</span> a year on{' '}
-                {FUEL_LABEL[result.fuel]}. The same heat from a heat pump:{' '}
-                <span className="tabular-nums text-ink">{usd(result.newAnnualCostHeatPumpRate)}</span> at the
-                seasonal rate, <span className="tabular-nums text-ink">{usd(result.newAnnualCostStandard)}</span> at
-                the standard rate.
+                You spend{' '}
+                <span className="tabular-nums text-ink">
+                  <Figure id="oldCost">{usd(result.oldAnnualCost)}</Figure>
+                </span>{' '}
+                a year on {FUEL_LABEL[result.fuel]}. The same heat from a heat pump:{' '}
+                <span className="tabular-nums text-ink">
+                  <Figure id="newCostSeasonal">{usd(result.newAnnualCostHeatPumpRate)}</Figure>
+                </span>{' '}
+                at the seasonal rate,{' '}
+                <span className="tabular-nums text-ink">
+                  <Figure id="newCostStandard">{usd(result.newAnnualCostStandard)}</Figure>
+                </span>{' '}
+                at the standard rate.
               </p>
 
               {result.annualSavings <= 0 ? (
@@ -255,31 +347,45 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
           <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat
               label="Rebate, 2026 install"
-              value={noMassSave ? 'not available' : usd(result.totalRebate)}
+              value={noMassSave ? 'not available' : <Figure id="rebate">{usd(result.totalRebate)}</Figure>}
               note={noMassSave ? 'municipal light plant' : `2027: ${usd(result.rebate2027)}`}
               muted={noMassSave}
             />
             <Stat
               label="Net cost after rebate"
-              value={noMassSave ? 'not quoted' : usd(result.netCost)}
+              value={noMassSave ? 'not quoted' : <Figure id="netCost">{usd(result.netCost)}</Figure>}
               note={noMassSave ? 'rebate does not exist here' : `on ${usd(result.installCost)} installed`}
               muted={noMassSave}
             />
             <Stat
               label="Payback"
-              value={noMassSave ? 'not quoted' : result.paybackYears === null ? 'none' : `${result.paybackYears.toFixed(1)} yr`}
+              value={
+                noMassSave ? (
+                  'not quoted'
+                ) : result.paybackYears === null ? (
+                  'none'
+                ) : (
+                  <Figure id="payback">{`${result.paybackYears.toFixed(1)} yr`}</Figure>
+                )
+              }
               note={noMassSave ? 'depends on a rebate' : result.paybackYears === null ? 'no savings, no payback' : 'simple, undiscounted'}
               muted={noMassSave}
             />
             <Stat
               label="0% heat loan"
-              value={noMassSave ? 'not quoted' : usd(result.monthlyLoan)}
+              value={noMassSave ? 'not quoted' : <Figure id="monthlyLoan">{usd(result.monthlyLoan)}</Figure>}
               note={
-                noMassSave
-                  ? 'the loan is not the issue'
-                  : result.cashFlowPositive
-                    ? `+${usd(result.monthlySavings)} a month in pocket`
-                    : `${usd(Math.abs(result.monthlySavings))} a month short`
+                noMassSave ? (
+                  'the loan is not the issue'
+                ) : result.cashFlowPositive ? (
+                  <>
+                    +<Figure id="monthlySavings">{usd(result.monthlySavings)}</Figure> a month in pocket
+                  </>
+                ) : (
+                  <>
+                    <Figure id="monthlySavings">{usd(Math.abs(result.monthlySavings))}</Figure> a month short
+                  </>
+                )
               }
               muted={noMassSave}
             />
@@ -309,20 +415,24 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
               <div>
                 <dt className="text-ink-faint">Climate</dt>
                 <dd className="tabular-nums text-ink">
-                  {result.hdd65.toLocaleString('en-US')} HDD65 · {result.designTempF}°F design
+                  <Figure id="hdd">{`${result.hdd65.toLocaleString('en-US')} HDD65`}</Figure> · {result.designTempF}°F
+                  design
                 </dd>
               </div>
               <div>
                 <dt className="text-ink-faint">Sized</dt>
                 <dd className="tabular-nums text-ink">
-                  {result.tons.toFixed(1)} tons · {Math.round(result.designBTUhr).toLocaleString('en-US')} BTU/hr
+                  <Figure id="tons">{`${result.tons.toFixed(1)} tons`}</Figure> ·{' '}
+                  <Figure id="designLoad">{`${Math.round(result.designBTUhr).toLocaleString('en-US')} BTU/hr`}</Figure>
                 </dd>
               </div>
               <div>
                 <dt className="text-ink-faint">Bill used</dt>
                 <dd className="tabular-nums text-ink">
-                  {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]} at $
-                  {result.unitPrice.toFixed(2)} · {result.scop} SCOP
+                  <Figure id="fuelUse">
+                    {`${result.annualUnits.toLocaleString('en-US')} ${UNIT_LABEL[result.fuel]} at $${result.unitPrice.toFixed(2)}`}
+                  </Figure>{' '}
+                  · <Figure id="scop">{`${result.scop} SCOP`}</Figure>
                 </dd>
               </div>
             </dl>
@@ -338,7 +448,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
                   <dt className="text-micro text-ink-faint">Yearly {UNIT_LABEL[result.fuel] === 'kWh' ? 'electricity' : 'fuel'}</dt>
                   <dd className="text-small tabular-nums text-ink">
-                    {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]}
+                    <Figure id="fuelUse">
+                      {`${result.annualUnits.toLocaleString('en-US')} ${UNIT_LABEL[result.fuel]}`}
+                    </Figure>
                   </dd>
                   <dd className="text-micro text-ink-muted">{provenance}</dd>
                 </div>
@@ -369,6 +481,15 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                   <dd className="text-micro text-ink-muted">{assumption.reason}</dd>
                 </div>
               ))}
+              <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
+                <dt className="text-micro text-ink-faint">Waiting until 1 Jan</dt>
+                <dd className="text-small tabular-nums text-ink">
+                  <Figure id="cliff">{usd(result.cliffCost)}</Figure>
+                </dd>
+                <dd className="text-micro text-ink-muted">
+                  What the 2027 step-down costs this house, on the same tier and tonnage.
+                </dd>
+              </div>
             </dl>
 
             {result.caveats.length ? (
@@ -385,7 +506,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                   <span>
                     {line.label} <span className="text-ink-faint">· {line.source}</span>
                   </span>
-                  <span className="tabular-nums text-ink-muted">{usd(line.amount)}</span>
+                  <span className="tabular-nums text-ink-muted">
+                    <Figure id="rebate">{usd(line.amount)}</Figure>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -397,6 +520,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
           </p>
         </>
       )}
+      </ProvenanceProvider>
     </Chrome>
   )
 }
@@ -420,8 +544,8 @@ function Stat({
   muted = false,
 }: {
   label: string
-  value: string
-  note: string
+  value: React.ReactNode
+  note: React.ReactNode
   muted?: boolean
 }) {
   return (

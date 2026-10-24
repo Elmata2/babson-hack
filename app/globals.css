@@ -123,6 +123,22 @@
 }
 
 /*
+ * The provenance drawer (F-36) is a native dialog, so the backdrop is styled
+ * here rather than with a portal. Warm, translucent ink — the same paper the
+ * verdict is printed on, dimmed, never a black overlay.
+ */
+@layer components {
+  .provenance-dialog {
+    margin: auto;
+  }
+
+  .provenance-dialog::backdrop {
+    background-color: color-mix(in oklch, var(--color-ink) 42%, transparent);
+    backdrop-filter: blur(1.5px);
+  }
+}
+
+/*
  * One attribute selects the palette, so a component never hard-codes a verdict
  * colour. `data-tone` values come from `lib/verdicts.ts`.
  */
