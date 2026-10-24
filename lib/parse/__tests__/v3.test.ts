@@ -109,9 +109,13 @@ describe('fixture I: National Grid electric R-2, numeric history', () => {
     expect(bill.annualisation?.confidence).toBe(0.95)
     expect(bill.role).toBe('electricity')
   })
-  it('low-income also fires from a discount line alone', () => {
-    expect(parse({ ...i, rate_class: 'R-1' }).lowIncomeSignal).toBe(true)
-    expect(parse({ ...i, rate_class: 'R-1', discount_line_present: false }).lowIncomeSignal).toBe(false)
+  it('a discount line alone is reported apart and does not set the low-income signal', () => {
+    const lineOnly = parse({ ...i, rate_class: 'R-1' })
+    expect(lineOnly.lowIncomeSignal).toBe(false)
+    expect(lineOnly.discountLine).toBe(true)
+    const none = parse({ ...i, rate_class: 'R-1', discount_line_present: false })
+    expect(none.lowIncomeSignal).toBe(false)
+    expect(none.discountLine).toBe(false)
   })
 })
 

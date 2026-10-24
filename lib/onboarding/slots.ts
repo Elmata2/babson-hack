@@ -1,5 +1,5 @@
 import { plausibleElectricRate } from '../intake/params'
-import type { BillApplied, BillUtility } from '../parse/contract'
+import type { BillApplied, BillRole, BillUtility } from '../parse/contract'
 import type { BillFuel } from '../parse/types'
 import { monthlyKwh } from './profile-map'
 
@@ -22,15 +22,19 @@ export interface ElectricEntry {
 export type Slot<Entry> =
   | { kind: 'empty' }
   | { kind: 'bill'; bill: BillApplied }
-  | { kind: 'manual'; entry: Entry }
+  | { kind: 'manual'; entry: Entry; saved?: boolean }
 
 export type HeatingSlot = Slot<HeatingEntry>
 export type ElectricSlot = Slot<ElectricEntry>
 
 export const EMPTY_SLOT = { kind: 'empty' } as const
 
+const PLAIN_NUMBER = /^\d[\d,]*(\.\d+)?$/
+
 function positive(raw: string): number | null {
-  const value = Number(raw.replace(/[,\s]/g, ''))
+  const text = raw.replace(/\s/g, '')
+  if (!PLAIN_NUMBER.test(text)) return null
+  const value = Number(text.replace(/,/g, ''))
   return Number.isFinite(value) && value > 0 ? value : null
 }
 
@@ -65,6 +69,45 @@ export function isHeatingReady(slot: HeatingSlot): boolean {
 
 export function isElectricReady(slot: ElectricSlot): boolean {
   return slot.kind === 'bill' || (slot.kind === 'manual' && Object.keys(electricEntryErrors(slot.entry)).length === 0)
+}
+
+export interface SaveResult<Entry> {
+  slot: Slot<Entry>
+  errors: Record<string, string>
+}
+
+export function saveHeating(slot: HeatingSlot): SaveResult<HeatingEntry> {
+  if (slot.kind !== 'manual') return { slot, errors: {} }
+  const errors: Record<string, string> = { ...heatingEntryErrors(slot.entry) }
+  if (!FUEL_VALUES.includes(slot.entry.fuel)) errors.fuel = 'Pick a heating fuel.'
+  return Object.keys(errors).length === 0 ? { slot: { ...slot, saved: true }, errors } : { slot, errors }
+}
+
+export function saveElectric(slot: ElectricSlot): SaveResult<ElectricEntry> {
+  if (slot.kind !== 'manual') return { slot, errors: {} }
+  const errors: Record<string, string> = { ...electricEntryErrors(slot.entry) }
+  return Object.keys(errors).length === 0 ? { slot: { ...slot, saved: true }, errors } : { slot, errors }
+}
+
+/** A bill read, or typed numbers the household saved. */
+export function isSlotSaved(slot: Slot<unknown>): boolean {
+  return slot.kind === 'bill' || (slot.kind === 'manual' && slot.saved === true)
+}
+
+/** Continue with valid typed numbers counts as Save. */
+export function settleSlots(heating: HeatingSlot, electric: ElectricSlot): { heating: HeatingSlot; electric: ElectricSlot } {
+  return { heating: saveHeating(heating).slot as HeatingSlot, electric: saveElectric(electric).slot as ElectricSlot }
+}
+
+/** True when a bill read for one slot would overwrite typed numbers in the other. */
+export function replacesTypedEntry(
+  applied: BillRole,
+  slot: BillRole,
+  heating: HeatingSlot,
+  electric: ElectricSlot,
+): boolean {
+  if (applied === slot) return false
+  return (applied === 'heating' ? heating : electric).kind === 'manual'
 }
 
 /** Continue is open when each slot holds a read bill or valid typed numbers, in any combination. */

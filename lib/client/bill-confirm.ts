@@ -143,9 +143,16 @@ function toNumber(text: string): number {
 }
 
 /** Every number the form needs is present and positive. The click on "Use these numbers" is the confirmation. */
-export function canUseNumbers({ role, fuel, units, price }: { role: BillRole; fuel: BillFuel | ''; units: string; price: string }): boolean {
-  if (!(toNumber(price) > 0)) return false
-  return role === 'electricity' || (fuel !== '' && toNumber(units) > 0)
+export function canUseNumbers(input: { role: BillRole; fuel: BillFuel | ''; units: string; price: string }): boolean {
+  return missingNumberReason(input) === null
+}
+
+/** The one-line reason "Use these numbers" is disabled, naming the field, or null when it is open. */
+export function missingNumberReason({ role, fuel, units, price }: { role: BillRole; fuel: BillFuel | ''; units: string; price: string }): string | null {
+  if (role !== 'electricity' && fuel === '') return 'Add the fuel to continue.'
+  if (role !== 'electricity' && !(toNumber(units) > 0)) return 'Add the yearly amount to continue.'
+  if (!(toNumber(price) > 0)) return 'Add the price to continue.'
+  return null
 }
 
 /** The one object the form receives, or null while a required number is missing. */
@@ -178,6 +185,7 @@ export function buildApplied({ bill, fuel, units, price, unitsEdited }: AppliedI
     methodConfidence: bill.annualisation?.confidence ?? null,
     utility: bill.utility ?? null,
     lowIncomeSignal: bill.lowIncomeSignal ?? false,
+    discountLine: bill.discountLine ?? false,
     serviceZip: bill.serviceZip ?? null,
     serviceTown: bill.serviceTown ?? null,
     electricRate: role === 'electricity' ? formatPrice(rate) : null,

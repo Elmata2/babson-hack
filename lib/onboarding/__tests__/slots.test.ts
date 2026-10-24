@@ -9,7 +9,13 @@ import {
   electricEntryFacts,
   electricEntryFrom,
   electricForMap,
+  heatingEntryErrors,
   heatingEntryFrom,
+  isSlotSaved,
+  replacesTypedEntry,
+  saveElectric,
+  saveHeating,
+  settleSlots,
   heatingFacts,
   isElectricReady,
   isHeatingReady,
@@ -32,6 +38,7 @@ const bill = (over: Partial<BillApplied> = {}): BillApplied => ({
   methodConfidence: null,
   utility: null,
   lowIncomeSignal: false,
+  discountLine: false,
   serviceZip: null,
   serviceTown: null,
   electricRate: null,
@@ -182,5 +189,46 @@ describe('facts downstream', () => {
       sizingBonus: false,
     })
     expect(isVerdictQueryComplete(Object.fromEntries(query.entries()))).toBe(true)
+  })
+})
+
+describe('save', () => {
+  const heating: HeatingSlot = { kind: 'manual', entry: { fuel: 'oil', units: '800', price: '4.5' } }
+  const electric: ElectricSlot = { kind: 'manual', entry: { utility: null, rate: '', monthlyKwh: '' } }
+
+  it('marks a valid heating entry saved', () => {
+    const result = saveHeating(heating)
+    expect(result.errors).toEqual({})
+    expect(isSlotSaved(result.slot)).toBe(true)
+  })
+
+  it('returns the field errors and leaves an invalid entry unsaved', () => {
+    const result = saveHeating({ kind: 'manual', entry: { fuel: 'oil', units: '0x1F', price: '' } })
+    expect(Object.keys(result.errors).sort()).toEqual(['price', 'units'])
+    expect(isSlotSaved(result.slot)).toBe(false)
+  })
+
+  it('saves an electric entry with every field optional, and rejects a bad rate', () => {
+    expect(isSlotSaved(saveElectric(electric).slot)).toBe(true)
+    const bad = saveElectric({ kind: 'manual', entry: { utility: null, rate: '1e1', monthlyKwh: '' } })
+    expect(bad.errors.rate).toBeTruthy()
+    expect(isSlotSaved(bad.slot)).toBe(false)
+  })
+
+  it('settles valid unsaved entries on continue and leaves invalid ones alone', () => {
+    const settled = settleSlots(heating, { kind: 'manual', entry: { utility: null, rate: 'x', monthlyKwh: '' } })
+    expect(isSlotSaved(settled.heating)).toBe(true)
+    expect(isSlotSaved(settled.electric)).toBe(false)
+  })
+
+  it('rejects hex and exponent numbers in typed entries', () => {
+    expect(heatingEntryErrors({ fuel: 'oil', units: '1e1', price: '0x1F' })).toHaveProperty('units')
+    expect(electricEntryErrors({ utility: null, rate: '', monthlyKwh: '1e3' })).toHaveProperty('monthlyKwh')
+  })
+
+  it('asks before a bill for the other slot replaces typed numbers', () => {
+    expect(replacesTypedEntry('heating', 'electricity', heating, EMPTY_SLOT)).toBe(true)
+    expect(replacesTypedEntry('heating', 'heating', heating, EMPTY_SLOT)).toBe(false)
+    expect(replacesTypedEntry('heating', 'electricity', EMPTY_SLOT, electric)).toBe(false)
   })
 })

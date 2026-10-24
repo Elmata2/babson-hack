@@ -5,7 +5,7 @@ import { useRef, useState } from 'react'
 import {
   UNIT_BY_FUEL,
   buildApplied,
-  canUseNumbers,
+  missingNumberReason,
   confirmCopy,
   evaluateBill,
   formatAmount,
@@ -164,6 +164,15 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
   }
 
   async function read(chosen: File[]) {
+    const replacedRole = applied !== 'no' ? (bill?.role ?? expect) : null
+    function fail(text: string) {
+      setStatus('error')
+      setMessage(text)
+      if (replacedRole !== null) {
+        setBill(null)
+        onUndo?.(replacedRole)
+      }
+    }
     setStatus('reading')
     setMessage(null)
     setApplied('no')
@@ -173,8 +182,7 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
     try {
       prepared = await prepareUploadFiles(chosen)
     } catch (error) {
-      setStatus('error')
-      setMessage(error instanceof Error ? error.message : 'That document could not be prepared. Try a photo instead.')
+      fail(error instanceof Error ? error.message : 'That document could not be prepared. Try a photo instead.')
       return
     }
 
@@ -192,8 +200,7 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
     try {
       response = await fetch(withDemo('/api/parse-bill', demo), { method: 'POST', body })
     } catch {
-      setStatus('error')
-      setMessage('We could not reach the reader — check your connection and try again, or type the two numbers.')
+      fail('We could not reach the reader — check your connection and try again, or type the two numbers.')
       return
     }
 
@@ -202,14 +209,12 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
       payload = (await response.json()) as typeof payload
     } catch {
       // 413 / 504 from the platform arrive as HTML, not our JSON envelope.
-      setStatus('error')
-      setMessage(messageForNonJson(response.status))
+      fail(messageForNonJson(response.status))
       return
     }
 
     if (!payload.ok) {
-      setStatus('error')
-      setMessage(payload.message ?? 'That document could not be read. Type the two numbers instead.')
+      fail(payload.message ?? 'That document could not be read. Type the two numbers instead.')
       return
     }
 
@@ -246,7 +251,8 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
   const electricityRole = role === 'electricity'
   const unit = electricityRole ? 'kWh' : fuel ? UNIT_BY_FUEL[fuel] : 'units'
   const noun = electricityRole ? 'Electricity' : fuel ? FUEL_NOUN[fuel] : 'Fuel'
-  const canApply = canUseNumbers({ role, fuel, units, price })
+  const applyBlocker = missingNumberReason({ role, fuel, units, price })
+  const canApply = applyBlocker === null
   const confirm = confirmCopy(outstanding)
   const question = bill && hasQuestion(bill) ? (bill.flags.find((flag) => flag.code === 'needs_fills' || flag.code === 'summer_month' || flag.code === 'partial_period') ?? null) : null
   const detailFlags = bill?.flags.filter((flag) => flag !== question) ?? []
@@ -278,6 +284,11 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
     } catch {
       setStatus('error')
       setMessage('That sample bill could not be loaded. Try again, or upload your own photo.')
+      if (applied !== 'no') {
+        setApplied('no')
+        onUndo?.(bill?.role ?? expect)
+        setBill(null)
+      }
     } finally {
       setSampleId(null)
     }
@@ -535,8 +546,8 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
                 >
                   {confirm.button}
                 </button>
-                <span className="text-micro text-ink-faint">
-                  {outstanding.length ? 'Edit any dotted field that looks wrong first.' : 'Every number above is editable first.'}
+                <span className={`text-micro ${applyBlocker ? 'text-deadline' : 'text-ink-faint'}`}>
+                  {applyBlocker ?? (outstanding.length ? 'Edit any dotted field that looks wrong first.' : 'Every number above is editable first.')}
                 </span>
               </>
             ) : (

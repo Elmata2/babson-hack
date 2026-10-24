@@ -99,8 +99,13 @@ export function visibleSteps(detailsNeeded: boolean): readonly StepMeta[] {
   return detailsNeeded ? STEPS : STEPS.filter((entry) => entry.id !== 'details')
 }
 
+/** The details step stays in the list while the household is on it, even if the answers arrive mid-step. */
+export function stepsFor(step: Step, detailsNeeded: boolean): readonly StepMeta[] {
+  return visibleSteps(detailsNeeded || step === 'details')
+}
+
 export function eyebrowFor(step: Step, detailsNeeded: boolean): string {
-  const steps = visibleSteps(detailsNeeded)
+  const steps = stepsFor(step, detailsNeeded)
   const index = Math.max(0, steps.findIndex((entry) => entry.id === step))
   return `Step ${index + 1} of ${steps.length}`
 }
@@ -136,9 +141,16 @@ export function fuelFromBill(heating: Pick<BillApplied, 'fuel'> | null): BillFue
   return heating?.fuel ?? null
 }
 
-/** True when either bill carries the discount-rate signal (R-2/R-4 or a discount line). */
+/** True when either bill printed rate class R-2 or R-4. A discount line alone does not count. */
 export function lowIncomeDetected(bills: readonly (Pick<BillApplied, 'lowIncomeSignal'> | null)[]): boolean {
   return bills.some((bill) => bill?.lowIncomeSignal === true)
+}
+
+/** True when a bill shows a discount line but no R-2/R-4 class: ask the household before treating it as low income. */
+export function discountLineNeedsConfirm(
+  bills: readonly (Pick<BillApplied, 'lowIncomeSignal' | 'discountLine'> | null)[],
+): boolean {
+  return !lowIncomeDetected(bills) && bills.some((bill) => bill?.discountLine === true)
 }
 
 /** `true` when a bill was read and showed no discount, `null` when nothing was read. */
@@ -227,9 +239,22 @@ export interface DetailsInput {
 }
 
 /** `1,200` and ` 1200 ` are the same number; `0`, `` and `abc` are not numbers we can use. */
+const PLAIN_NUMBER = /^\d[\d,]*(\.\d+)?$/
+
 export function positiveNumber(raw: string): number | null {
-  const value = Number(raw.replace(/[,\s]/g, ''))
+  const text = raw.replace(/\s/g, '')
+  if (!PLAIN_NUMBER.test(text)) return null
+  const value = Number(text.replace(/,/g, ''))
   return Number.isFinite(value) && value > 0 ? value : null
+}
+
+/** The one-line reason the details step cannot continue, or null when it can. */
+export function detailsBlocker(input: DetailsInput): string | null {
+  if (!input.towns.includes(input.town)) return 'Add your town to continue.'
+  if (!['oil', 'propane', 'gas', 'resistance'].includes(input.fuel)) return 'Add what you heat with to continue.'
+  if (positiveNumber(input.units) === null) return 'Add the yearly amount to continue. Go back to your bills.'
+  if (positiveNumber(input.price) === null) return 'Add the price to continue. Go back to your bills.'
+  return null
 }
 
 export function canLeaveDetails(input: DetailsInput): boolean {

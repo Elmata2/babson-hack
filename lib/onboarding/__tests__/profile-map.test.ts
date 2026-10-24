@@ -86,10 +86,18 @@ describe('mergeMapProfile', () => {
   })
   it('keeps stored kwh and utility when the new bill gives none, and overwrites them when it does', () => {
     const none = mapProfileFrom({ town: 'Newton', fuel: 'gas', electric: null, income: 'unsure' })
-    const kept = JSON.parse(mergeMapProfile(JSON.stringify({ kwh: 450, utility: 'eversource', town: 'Waltham' }), none))
+    const kept = JSON.parse(mergeMapProfile(JSON.stringify({ kwh: 450, utility: 'eversource', town: 'Newton' }), none))
     expect(kept).toMatchObject({ kwh: 450, utility: 'eversource', town: 'Newton' })
     const fresh = JSON.parse(mergeMapProfile(JSON.stringify({ kwh: 450, utility: 'eversource' }), fields))
     expect(fresh).toMatchObject({ kwh: 600, utility: 'nationalgrid' })
+  })
+  it('drops town-bound data when the town changes', () => {
+    const none = mapProfileFrom({ town: 'Worcester', fuel: 'gas', electric: null, income: 'unsure' })
+    const stored = { town: 'Boston', kwh: 450, kwhIsExample: false, utility: 'eversource', supply: 'basic', supplierRateCents: 12, incomeEligible: 'yes' }
+    const merged = JSON.parse(mergeMapProfile(JSON.stringify(stored), none))
+    expect(merged.town).toBe('Worcester')
+    for (const key of ['kwh', 'kwhIsExample', 'utility', 'supply', 'supplierRateCents']) expect(merged).not.toHaveProperty(key)
+    expect(merged.incomeEligible).toBe('yes')
   })
   it('maps a gas home with no income answer', () => {
     const gas = mapProfileFrom({ town: 'Quincy', fuel: 'gas', electric: { units: '6,000', utility: 'eversource' }, income: 'unsure' })
