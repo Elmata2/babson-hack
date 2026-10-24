@@ -57,8 +57,8 @@ is a review failure.
 - **Time.** All timestamps ISO 8601 UTC in data, `America/New_York` for display.
   The rebate year is decided by the **install date**, not today's date.
 - **Confidence.** Parsed bill fields carry `confidence: 0–1`. `< 0.75` renders
-  the field with a confirm affordance and excludes it from the verdict until
-  confirmed.
+  the field flagged, named in a "Check before you use them" line; one click on
+  "Use these numbers" confirms every flagged field.
 - **Deterministic core.** `lib/calc/**` imports nothing. No `Date.now()`, no
   `fetch`, no `process.env`. Time is always injected. This is what makes the
   property tests meaningful and the demo reproducible.

@@ -12,7 +12,7 @@
  * user did not check. Editing or explicitly confirming it is the only way off
  * the list.
  */
-import type { BillApplied, BillParseExtras } from '@/lib/parse/contract'
+import type { BillApplied, BillParseExtras, BillRole } from '@/lib/parse/contract'
 import type { BillFuel, BillParse } from '@/lib/parse/types'
 import { reannualiseWithFills } from '@/lib/parse/plausibility'
 
@@ -77,6 +77,14 @@ export function spaceHeatingUnits(annual: number, baseload: number | null | unde
   return remainder > 0 ? remainder : annual
 }
 
+export function confirmCopy(outstanding: readonly CheckField[]): { button: string; summary: string | null } {
+  if (outstanding.length === 0) return { button: 'Use these numbers', summary: null }
+  return {
+    button: `Use these numbers (${outstanding.length} to check)`,
+    summary: `Check before you use them: ${outstanding.join(', ')}`,
+  }
+}
+
 export interface Evaluation {
   /** Fields a person must edit or confirm before applying. */
   checks: CheckField[]
@@ -132,6 +140,12 @@ export interface AppliedInput {
 
 function toNumber(text: string): number {
   return Number(text.replace(/,/g, ''))
+}
+
+/** Every number the form needs is present and positive. The click on "Use these numbers" is the confirmation. */
+export function canUseNumbers({ role, fuel, units, price }: { role: BillRole; fuel: BillFuel | ''; units: string; price: string }): boolean {
+  if (!(toNumber(price) > 0)) return false
+  return role === 'electricity' || (fuel !== '' && toNumber(units) > 0)
 }
 
 /** The one object the form receives, or null while a required number is missing. */

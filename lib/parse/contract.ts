@@ -4,7 +4,7 @@
  * Three modules meet here and none may redefine these shapes:
  *   lib/parse        produces `BillParseExtras` (BillParse extends it)
  *   bill-upload.tsx  turns a parse into one `BillApplied`
- *   intake-form.tsx  consumes `BillApplied` and carries it to /verdict
+ *   onboarding-wizard.tsx  consumes `BillApplied` and carries it to /verdict
  *
  * Everything the bill printed and the advice can use travels in this object.
  * A field the document did not show is `null`, never a default.

@@ -15,7 +15,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { demoFromLocation } from '@/lib/demo'
 import { ALL_TOWNS } from '@/lib/utility'
 import { displayTown } from '@/lib/geo'
-import { intakeHrefForAddress } from '@/lib/intake/params'
+import { onboardingHref } from '@/lib/intake/params'
 import { isZip, lookupZip } from '@/lib/map/zip'
 
 export type SearchResult =
@@ -271,7 +271,7 @@ export function Search({ knownTown, initialQuery = '', townAt, onResult, onUseHo
             )}
             {found.kind === 'address' ? (
               <a
-                href={intakeHrefForAddress(found.town, found.address)}
+                href={onboardingHref(demoFromLocation())}
                 className="ml-2 rounded-md border border-rule-strong bg-surface px-2 py-0.5 text-ink hover:bg-paper-sunk"
               >
                 Open in the calculator

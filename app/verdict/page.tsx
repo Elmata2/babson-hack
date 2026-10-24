@@ -25,6 +25,7 @@ import { getPrices } from '@/lib/prices'
 import { buildSwitchModel } from '@/lib/switch/model'
 import { buildOptionInput } from '@/lib/switch/option-input'
 import { loadProviders, outreachPlan } from '@/lib/switch/providers'
+import { contactUtilityFor, contactsBlock, isCapeLightTown } from '@/lib/verdict/contacts'
 import { recommend } from '@/lib/verdict/recommendation'
 import { verdictPath } from '@/lib/verdict/share-query'
 import { SPONSOR_NAME } from '@/lib/utility'
@@ -124,7 +125,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
             missing number would become an invented one.
           </p>
           <Link
-            href="/start"
+            href="/onboarding"
             className="mt-5 inline-block rounded-card bg-ink px-4 py-2.5 text-small font-medium text-paper"
           >
             Start with your bill
@@ -143,7 +144,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
 
   const provenance = provenanceLine((first(params.mn) ?? '').slice(0, 160) || null, number(params.mc))
   const buildingUnits = number(params.bu)
-  const changeHref = `/start?${queryString(params)}`
+  const changeHref = '/onboarding'
 
   const result = computeVerdict(heating, upgrade)
   const refusal = result ? null : refusalFor(heating, upgrade)
@@ -253,6 +254,16 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const optionInput = buildOptionInput(switchModel, providers, outreachPlan(providers))
   const recommendation = optionInput
     ? recommend({ option: optionInput, choices: switchModel.choices, query: queryString(params) })
+    : null
+  const contacts = recommendation
+    ? contactsBlock({
+        fuel,
+        dealer: null,
+        utility: contactUtilityFor(billUtility, utility.sponsors),
+        capeLight: isCapeLightTown(utility.sponsors),
+        recommendation: recommendation.kind === 'quotes' ? 'switch' : 'stay',
+        supplyShoppable: switchModel.choices.includes('SHOP_SUPPLY'),
+      })
     : null
   const figure = (id: FigureId): ProvenanceEntry | null => entryFor(entries, id)
 
@@ -381,6 +392,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 demo={demo}
                 mapHref={mapHref}
                 mapLabel={`See ${townName} on the map →`}
+                contacts={contacts}
               />
             </div>
           ) : null}

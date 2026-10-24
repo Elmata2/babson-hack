@@ -10,6 +10,9 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  async redirects() {
+    return [{ source: '/start', destination: '/onboarding', permanent: false }]
+  },
   // Bill images are parsed in memory. Nothing is written, so nothing is stored.
   experimental: {
     serverActions: { bodySizeLimit: '12mb' },

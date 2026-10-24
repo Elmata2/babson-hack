@@ -13,6 +13,7 @@
 import { DEFAULT_INSTALL_COST_USD } from '../calc/constants'
 import type { AnnualMethod, BillFuel } from '../parse/types'
 import type { BillUtility } from '../parse/contract'
+import { withDemo } from '../demo'
 
 export type Scope = 'whole' | 'partial'
 export type Income = 'yes' | 'no' | 'unsure'
@@ -271,19 +272,9 @@ export function withInstallCost(query: string, value: number): string {
   return next.toString()
 }
 
-/**
- * A link from a place on the map to the intake form, with that address already in it.
- *
- * R10.6: picking an address on the map prefills the address form. `src=map` says
- * where the value came from, and the address itself is only ever a form value —
- * `fromSearchParams` reads it, the engine never sees it.
- */
-export function intakeHrefForAddress(town: string, address?: string | null): string {
-  const p = new URLSearchParams()
-  if (town.trim()) p.set('town', town.trim())
-  if (address && address.trim()) p.set('addr', address.trim().slice(0, ADDRESS_MAX))
-  p.set('src', 'map')
-  return `/start?${p.toString()}`
+/** The map's way into the wizard. The address is never put in the URL. */
+export function onboardingHref(demo: boolean): string {
+  return withDemo('/onboarding', demo)
 }
 
 /** Plain-English provenance for the verdict's assumptions area. */

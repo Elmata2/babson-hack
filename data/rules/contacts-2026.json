@@ -1,0 +1,90 @@
+{
+  "contacts": [
+    {
+      "id": "masssave-assessment",
+      "org": "Mass Save",
+      "purpose": "Book a no-cost Home Energy Assessment",
+      "phone": "866-527-7283",
+      "url": "https://www.masssave.com/en/residential/rebates-offers-services/home-energy-assessments",
+      "source": "masssave.com/residential: \"schedule... or call 866-527-SAVE (7283)\"",
+      "readOn": "2026-10-24"
+    },
+    {
+      "id": "masssave-installers",
+      "org": "Mass Save",
+      "purpose": "Find a Mass Save Heat Pump Installer Network contractor",
+      "url": "https://www.masssave.com/en/residential/find-a-contractor/find-a-heat-pump-installer",
+      "source": "masssave.com air-source heat pump page, Heat Pump Installer Finder link",
+      "readOn": "2026-10-24"
+    },
+    {
+      "id": "masssave-heat-pump-line",
+      "org": "Mass Save",
+      "purpose": "Heat pump rebate questions",
+      "phone": "888-855-0340",
+      "url": "https://www.masssave.com/en/residential/rebates-offers-services/heating-and-cooling/heat-pumps/air-source-heat-pumps",
+      "source": "masssave.com air-source heat pump page, Eligibility: \"please call 1-888-855-0340\"",
+      "readOn": "2026-10-24"
+    },
+    {
+      "id": "masssave-heat-loan",
+      "org": "Mass Save",
+      "purpose": "Finance it with a 0% HEAT Loan",
+      "url": "https://www.masssave.com/en/saving/residential-rebates/heat-loan-program",
+      "source": "masssave.com Mass Save HEAT Loan Program page (no general loan phone listed)",
+      "readOn": "2026-10-24"
+    },
+    {
+      "id": "masssave-income-eligible",
+      "org": "Mass Save",
+      "purpose": "Income verification for enhanced offers",
+      "phone": "888-714-3990",
+      "url": "https://www.masssave.com/en/residential/rebates-offers-services/income-based-offers/save-with-enhanced-incentives",
+      "source": "masssave.com Save with Enhanced Incentives: \"call 888-714-3990\"",
+      "readOn": "2026-10-24"
+    },
+    {
+      "id": "energy-switch-ma",
+      "org": "Energy Switch Massachusetts (MA DPU)",
+      "purpose": "Compare electricity supply offers",
+      "url": "https://www.energyswitchma.gov",
+      "source": "energyswitchma.gov, the Department of Public Utilities supply-shopping site (no phone on the page)",
+      "readOn": "2026-10-24"
+    },
+    {
+      "id": "eversource",
+      "org": "Eversource",
+      "purpose": "Customer service for your account and bill",
+      "url": "https://www.eversource.com/residential/contact-us",
+      "source": "eversource.com residential contact page: phone numbers show by town, hours Mon-Fri 8 a.m.-6 p.m. ET",
+      "readOn": "2026-10-24"
+    },
+    {
+      "id": "national-grid",
+      "org": "National Grid",
+      "purpose": "Billing, payments, and general inquiries (electricity customers, Mon-Fri 7am-7pm)",
+      "url": "https://www.nationalgrid.com/us/ma/contact-us",
+      "source": "nationalgrid.com Massachusetts contact page: \"Billing, payments, and general inquiries, Electricity customers, Monday-Friday 7:00am-7:00pm: 1-800-322-3223\" (read in a browser; page blocks automated fetches)",
+      "readOn": "2026-10-24",
+      "phone": "800-322-3223"
+    },
+    {
+      "id": "unitil",
+      "org": "Unitil",
+      "purpose": "Customer service for your account and bill",
+      "phone": "888-301-7700",
+      "url": "https://unitil.com/contact/contact-customer-service",
+      "source": "unitil.com contact page: \"If you need immediate assistance, please call 1-888-301-7700\"",
+      "readOn": "2026-10-24"
+    },
+    {
+      "id": "cape-light-compact",
+      "org": "Cape Light Compact",
+      "purpose": "Cape Light Compact general questions",
+      "phone": "508-375-6644",
+      "url": "https://www.capelightcompact.org/program/overview-rates/",
+      "source": "capelightcompact.org electricity supply page: \"For additional questions about Cape Light Compact... call (508) 375-6644\"",
+      "readOn": "2026-10-24"
+    }
+  ]
+}

@@ -84,12 +84,6 @@ export function DashboardView() {
             >
               Create a profile
             </Link>
-            <Link
-              href="/start"
-              className="rounded-pill border border-rule-strong px-5 py-2.5 text-small text-ink-muted hover:border-ink hover:text-ink"
-            >
-              Try it without an account
-            </Link>
           </div>
         </section>
       ) : null}
@@ -132,7 +126,7 @@ export function DashboardView() {
 
           {!request && profile ? (
             <Link
-              href="/start"
+              href="/onboarding"
               className="mt-4 inline-block rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
             >
               Enter a bill
@@ -271,8 +265,7 @@ export function DashboardView() {
           </>
         ) : (
           <p className="mt-2 text-small text-ink-muted">
-            No profile in this browser. <Link href="/onboarding" className="underline">Create one</Link> or use{' '}
-            <Link href="/start" className="underline">the anonymous route</Link>.
+            No profile in this browser. <Link href="/onboarding" className="underline">Create one</Link> to get started.
           </p>
         )}
       </section>

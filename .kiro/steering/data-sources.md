@@ -217,6 +217,6 @@ the portal. We only go elsewhere when the portal's dataset is wrong for the job
 | EIA down / no key | `prices: snapshot 2026-10-19` badge | computes from snapshot |
 | Utility lookup misses the town | "which utility bills you?" | asks, never guesses |
 | Geocoder down | manual address fields | computes without parcel prefill |
-| OCR low confidence | amber confirm chips | blocks verdict until confirmed |
+| OCR low confidence | flagged fields listed by name | one "Use these numbers" click confirms all |
 | Map tiles blocked | static PNG + table view | verdict intact |
 | Judging wifi dead | nothing | `?demo=1` reads baked JSON only |

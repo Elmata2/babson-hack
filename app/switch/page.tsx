@@ -71,10 +71,10 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
                 Dashboard
               </Link>
               <Link
-                href={withDemo('/start', demo)}
+                href={withDemo('/onboarding', demo)}
                 className="underline decoration-rule-strong underline-offset-4 hover:text-ink"
               >
-                Change the numbers
+                Update your bills
               </Link>
             </div>
           </div>
@@ -109,14 +109,8 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
-                    href={withDemo(model.query ? `/start?${model.query}` : '/start', demo)}
+                    href={withDemo('/onboarding', demo)}
                     className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
-                  >
-                    Enter the numbers
-                  </Link>
-                  <Link
-                    href={withDemo('/start', demo)}
-                    className="text-small text-ink-muted underline underline-offset-4"
                   >
                     Start from a bill
                   </Link>

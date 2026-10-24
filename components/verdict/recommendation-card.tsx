@@ -1,7 +1,9 @@
 import Link from 'next/link'
 
+import { ContactsList } from '@/components/verdict/contacts-list'
 import { ReminderButton } from '@/components/verdict/reminder-button'
 import { withDemo } from '@/lib/demo'
+import type { ContactsBlock } from '@/lib/verdict/contacts'
 import type { Recommendation } from '@/lib/verdict/recommendation'
 
 const PRIMARY = 'inline-block rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper'
@@ -12,11 +14,13 @@ export function RecommendationCard({
   demo,
   mapHref,
   mapLabel,
+  contacts,
 }: {
   recommendation: Recommendation
   demo: boolean
   mapHref?: string
   mapLabel?: string
+  contacts?: ContactsBlock | null
 }) {
   return (
     <section className="rounded-card border border-rule bg-surface p-5 sm:p-6">
@@ -50,6 +54,8 @@ export function RecommendationCard({
           </Link>
         </p>
       ) : null}
+
+      {contacts ? <ContactsList block={contacts} /> : null}
 
       {recommendation.others.length ? (
         <p className="mt-4 text-micro text-ink-faint">
