@@ -212,6 +212,14 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
   const allPhoneSelected =
     selectedProviders.length > 0 && selectedProviders.every((provider) => channelOf(provider) === 'phone')
   const callAllowed = call.mode !== 'off' || demoNow
+  /**
+   * In demo mode the deployment's configuration is not the reader's business: the
+   * conversation is a fixture, so a missing vendor id is not a failure to explain.
+   * The line still says, plainly, that nothing is dialled — the demo is honest about
+   * being a replay, not quiet about it.
+   */
+  const demoNotice =
+    'Demo mode: the agent beat is replayed from a fixture in this tab. Nothing is dialled, no vendor key or phone number is needed, and no installer hears anything.'
   const kitSupply = {
     basicCents: model.supply.basic?.centsPerKwh ?? null,
     basicSource: model.supply.basic
@@ -451,10 +459,13 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
             </p>
           </div>
 
-          {plan.mode === 'allowlist' && plan.notice ? (
+          {!demoNow && plan.mode === 'allowlist' && plan.notice ? (
             <p className="rounded-card border border-deadline-edge bg-deadline-tint p-3 text-small text-ink">
               {plan.notice}
             </p>
+          ) : null}
+          {demoNow ? (
+            <p className="rounded-card border border-switch-edge bg-switch-tint p-3 text-small text-ink">{demoNotice}</p>
           ) : null}
 
           <div className="rounded-card border border-rule bg-paper-sunk/50 p-4">
@@ -573,10 +584,16 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
             <p className="text-small font-medium">Who we would contact</p>
             {contactable.length === 0 ? (
               <p className="mt-1 max-w-[64ch] rounded-card border border-dashed border-rule-strong bg-paper-sunk/60 p-3 text-small text-ink-muted">
-                {call.reason ?? plan.reason ?? 'No provider list is configured.'}{' '}
-                {selectedKind === 'fuel'
-                  ? 'The switch kit below has the exact question to ask a dealer you choose.'
-                  : 'The switch kit below has the exact question to ask a Mass Save contractor.'}
+                {demoNow ? (
+                  demoNotice
+                ) : (
+                  <>
+                    {call.reason ?? plan.reason ?? 'No provider list is configured.'}{' '}
+                    {selectedKind === 'fuel'
+                      ? 'The switch kit below has the exact question to ask a dealer you choose.'
+                      : 'The switch kit below has the exact question to ask a Mass Save contractor.'}
+                  </>
+                )}
               </p>
             ) : (
               <ul className="mt-2 grid gap-2">

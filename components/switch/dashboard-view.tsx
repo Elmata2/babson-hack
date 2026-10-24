@@ -14,7 +14,7 @@ import {
   writeProfile,
 } from '@/lib/onboarding/flow'
 import { defaultInstallYear } from '@/lib/intake/params'
-import { readinessLine, type VoiceReadiness } from '@/lib/calls/readiness'
+import { readinessLine, type PublicVoiceReadiness } from '@/lib/calls/readiness'
 import { readCompleted } from '@/lib/profile/completion'
 import { kitPlan } from '@/lib/switch/kit-steps'
 import {
@@ -47,7 +47,7 @@ const TONE: Record<string, string> = {
   plain: 'border-rule bg-surface',
 }
 
-export function DashboardView({ demo = false, voice = null }: { demo?: boolean; voice?: VoiceReadiness | null }) {
+export function DashboardView({ demo = false, voice = null }: { demo?: boolean; voice?: PublicVoiceReadiness | null }) {
   const profileRaw = useSyncExternalStore(subscribeProfile, profileSnapshot, serverProfileSnapshot)
   const switchRaw = useSyncExternalStore(subscribeSwitch, switchSnapshot, serverSwitchSnapshot)
   const profile = readStoredProfile(profileRaw)
@@ -410,7 +410,7 @@ function QuotePath({
   demo,
 }: {
   request: StoredSwitch | null
-  voice: VoiceReadiness
+  voice: PublicVoiceReadiness
   demo: boolean
 }) {
   // The plan is written for the choice the household actually made. With no request
@@ -424,7 +424,7 @@ function QuotePath({
         facts: request?.facts ?? null,
         // `canDial` is the server's read of the same three values the call route
         // checks, so the dashboard cannot offer a path the route would refuse.
-        mode: voice.canDial ? 'live' : 'off',
+        mode: demo ? 'demo' : voice.canDial ? 'live' : 'off',
         providers: [],
       })
     : null
@@ -435,15 +435,15 @@ function QuotePath({
 
   return (
     <section
-      className={`rounded-card border p-5 ${voice.canDial ? 'border-switch-edge bg-switch-tint' : 'border-rule bg-surface'}`}
+      className={`rounded-card border p-5 ${voice.canDial || demo ? 'border-switch-edge bg-switch-tint' : 'border-rule bg-surface'}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-eyebrow uppercase text-ink-muted">The quote path</p>
         <p className="text-micro text-ink-faint">{plan ? (plan.path === 'agent' ? 'The agent calls' : 'You call') : null}</p>
       </div>
-      <p className="mt-2 max-w-[66ch] text-small text-ink">{readinessLine(voice)}</p>
+      <p className="mt-2 max-w-[66ch] text-small text-ink">{readinessLine(voice, { demo })}</p>
 
-      {voice.missing.length ? (
+      {voice.missing.length && !demo ? (
         <p className="mt-2 flex flex-wrap items-center gap-1.5 text-micro text-ink-muted">
           Not set:
           {voice.missing.map((name) => (

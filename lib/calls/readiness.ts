@@ -46,8 +46,24 @@ export function voiceReadiness(env: NodeJS.ProcessEnv = process.env): VoiceReadi
   }
 }
 
-/** The one sentence a screen shows. No key, no id, no endpoint. */
-export function readinessLine(readiness: VoiceReadiness): string {
+/**
+ * What a client component may receive. Same rule as `publicPlan`: a server component
+ * serializes its props into the page, so the deployer's variable names are only sent
+ * to a screen that shows them. In demo mode they are not sent at all.
+ */
+export interface PublicVoiceReadiness {
+  canDial: boolean
+  missing: string[]
+}
+
+export function publicReadiness(readiness: VoiceReadiness, options: { demo?: boolean } = {}): PublicVoiceReadiness {
+  return { canDial: readiness.canDial, missing: options.demo ? [] : readiness.missing }
+}
+
+/** The one sentence a screen shows. No key, no id, no endpoint. */export function readinessLine(readiness: PublicVoiceReadiness, options: { demo?: boolean } = {}): string {
+  if (options.demo) {
+    return 'Demo mode: the agent beat is replayed from a fixture in this tab. Nothing is dialled, no vendor key or phone number is needed, and no installer hears anything.'
+  }
   if (readiness.canDial) {
     return 'The agent is configured on this deployment, so a confirmed request can be dialled. Nothing is dialled until you approve the facts.'
   }

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { buildBoard, fuelQuoteFrom } from '../board'
 import { demoDurationMs, demoRecords, fixtureRecord, isDemoConversationId } from '../fixtures'
+import { voiceReadiness } from '../readiness'
 import { parseConversation } from '../parse'
 import { agentReady, callPlan, dialable, isE164 } from '../plan'
 import { callVariables, parseRefs } from '../route-model'
@@ -239,12 +240,16 @@ describe('the call plan', () => {
     expect(callPlan([line, real], env).mode).toBe('live')
   })
 
-  it('names the missing variables instead of saying "no agent"', () => {
+  it('names nothing a household cannot act on, and leaves the variable names to the operator tools', () => {
     const plan = callPlan([line], { ELEVENLABS_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv)
     expect(plan.mode).toBe('off')
-    expect(plan.reason).toContain('ELEVENLABS_AGENT_ID')
-    expect(plan.reason).toContain('ELEVENLABS_PHONE_NUMBER_ID')
-    expect(plan.reason).not.toContain('ELEVENLABS_API_KEY,')
+    expect(plan.reason).toContain('switch kit')
+    expect(plan.reason).not.toContain('ELEVENLABS')
+    expect(voiceReadiness({ ELEVENLABS_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv).missing).toEqual([
+      'ELEVENLABS_AGENT_ID',
+      'ELEVENLABS_PHONE_NUMBER_ID',
+      'PROVIDER_OUTREACH_ENABLED',
+    ])
   })
 
   it('refuses a row with no phone, and a number that is not E.164', () => {

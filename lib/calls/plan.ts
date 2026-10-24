@@ -45,6 +45,24 @@ export function agentReady(agent: CallAgent): boolean {
 }
 
 /**
+ * What a client component is allowed to receive. The plan's `agent` holds the API
+ * key, and a React server component hands its props to the browser inside the RSC
+ * payload — so passing the plan itself put `"apiKey":"sk_…"` into the page HTML.
+ * `mode`, `reason` and `notice` are the only three fields any screen reads.
+ *
+ * In demo mode the reason is dropped as well: it is written for a deployer
+ * ("no voice agent is configured"), and a reader of the demo is told the truth
+ * about the replay instead (`demoNotice` in the switch flow). The same applies to
+ * a serialized payload nobody reads.
+ */
+export type PublicCallPlan = Pick<CallPlan, 'mode' | 'reason' | 'notice'>
+
+export function publicPlan(plan: CallPlan, options: { demo?: boolean } = {}): PublicCallPlan {
+  if (options.demo) return { mode: plan.mode, reason: null, notice: null }
+  return { mode: plan.mode, reason: plan.reason, notice: plan.notice }
+}
+
+/**
  * R19.8. `PROVIDER_OUTREACH_ENABLED=true` is the only way a real business is dialled.
  *
  * The documented switch is `PROVIDER_OUTREACH_ENABLED` (design §onboarding-switch says
@@ -60,12 +78,12 @@ export function callPlan(providers: readonly SwitchProvider[], env: NodeJS.Proce
   const agent = agentFrom(env)
 
   if (!agentReady(agent)) {
-    const missing = (['apiKey', 'agentId', 'phoneNumberId'] as const)
-      .filter((key) => !agent[key])
-      .map((key) => ({ apiKey: 'ELEVENLABS_API_KEY', agentId: 'ELEVENLABS_AGENT_ID', phoneNumberId: 'ELEVENLABS_PHONE_NUMBER_ID' })[key])
     return {
       mode: 'off',
-      reason: `Calling is off here: no ElevenLabs agent is configured on this deployment (${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not set), so no number is dialled. The switch kit below has the exact question and the number to call yourself.`,
+      // Household-facing words. Which variable is missing is an operator fact, and
+      // `npm run voice:check` (plus the dashboard's readiness card) names it.
+      reason:
+        'Calling is off here: no voice agent is configured on this deployment, so no number is dialled. The switch kit below has the exact question and the number to call yourself.',
       notice: null,
       agent,
     }

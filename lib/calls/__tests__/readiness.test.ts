@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { readinessLine, voiceReadiness } from '../readiness'
+import { publicReadiness, readinessLine, voiceReadiness } from '../readiness'
+import { callPlan, publicPlan } from '../plan'
 
 const FULL = {
   ELEVENLABS_API_KEY: 'k',
@@ -42,5 +43,41 @@ describe('voiceReadiness', () => {
     expect(line).toContain('ELEVENLABS_AGENT_ID')
     expect(line).toContain('switch kit')
     expect(readinessLine(voiceReadiness(FULL))).toContain('Nothing is dialled until you approve')
+  })
+
+  it('in demo mode never shows a deployment’s configuration gap', () => {
+    const line = readinessLine(voiceReadiness({} as unknown as NodeJS.ProcessEnv), { demo: true })
+    expect(line).toContain('Demo mode')
+    expect(line).toContain('Nothing is dialled')
+    expect(line).not.toContain('ELEVENLABS')
+  })
+
+  it('sends no variable names to a client component in demo mode', () => {
+    const readiness = voiceReadiness({} as unknown as NodeJS.ProcessEnv)
+    expect(publicReadiness(readiness).missing.length).toBe(4)
+    expect(publicReadiness(readiness, { demo: true })).toEqual({ canDial: false, missing: [] })
+  })
+})
+
+describe('publicPlan', () => {
+  const ENV = {
+    ELEVENLABS_API_KEY: 'sk_secret_value',
+    ELEVENLABS_AGENT_ID: 'agent_x',
+    ELEVENLABS_PHONE_NUMBER_ID: 'phnum_x',
+    PROVIDER_OUTREACH_ENABLED: 'true',
+  } as unknown as NodeJS.ProcessEnv
+
+  it('strips the agent, so the API key cannot reach the browser RSC payload', () => {
+    const shared = publicPlan(callPlan([], ENV))
+    expect(Object.keys(shared).sort()).toEqual(['mode', 'notice', 'reason'])
+    expect(JSON.stringify(shared)).not.toContain('sk_secret_value')
+    expect(JSON.stringify(shared)).not.toContain('agent_x')
+  })
+
+  it('drops the deployer-facing reason in demo mode', () => {
+    const ready = publicPlan(callPlan([], ENV), { demo: true })
+    expect(ready.reason).toBeNull()
+    expect(ready.notice).toBeNull()
+    expect(publicPlan(callPlan([], {} as unknown as NodeJS.ProcessEnv), { demo: true }).reason).toBeNull()
   })
 })

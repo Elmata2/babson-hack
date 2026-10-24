@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { DashboardView } from '@/components/switch/dashboard-view'
-import { voiceReadiness } from '@/lib/calls/readiness'
+import { publicReadiness, voiceReadiness } from '@/lib/calls/readiness'
 import { demoFromParams } from '@/lib/demo'
 
 /**
@@ -35,7 +35,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <SiteHeader demo={demo} showDashboard={false} />
       <main id="main" className="flex-1">
         <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8 sm:py-16">
-          <DashboardView demo={demo} voice={voiceReadiness()} />
+          <DashboardView demo={demo} voice={publicReadiness(voiceReadiness(), { demo })} />
         </div>
       </main>
       <SiteFooter />

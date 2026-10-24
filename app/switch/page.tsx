@@ -9,7 +9,7 @@ import { demoFromParams, withDemo } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
 import { buildSwitchModel } from '@/lib/switch/model'
 import { buildOptionInput } from '@/lib/switch/option-input'
-import { callPlan } from '@/lib/calls/plan'
+import { callPlan, publicPlan } from '@/lib/calls/plan'
 import { kindOf } from '@/lib/switch/choices'
 import { directoryFor, directoryForKind } from '@/lib/switch/directory'
 import { outreachPlan } from '@/lib/switch/providers'
@@ -57,7 +57,10 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
   // (R19.8's outreach switch) and what may be dialled (the agent's own switch).
   const providers = directoryFor(model.town)
   const plan = outreachPlan(providers)
-  const call = callPlan(providers)
+  // `publicPlan` strips the agent (and its API key) before this crosses into a
+  // client component, where it would otherwise sit in the page's RSC payload, and
+  // drops the deployer-facing reason in demo mode.
+  const call = publicPlan(callPlan(providers), { demo })
   const choice = parseSwitchChoice(first(params.choice))
   const entryChoice = choice && model.choices.includes(choice) ? choice : null
   const optionInput = buildOptionInput(model, providers, plan, call, demo)
