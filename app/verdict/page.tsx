@@ -9,6 +9,7 @@ import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { AssumptionsStrip } from '@/components/verdict/assumptions-strip'
 import { paybackView, rebateCapNote, rejectedQuote } from '@/lib/verdict/money'
+import { moneySummary } from '@/lib/verdict/money-summary'
 import { CashFlow } from '@/components/verdict/cash-flow'
 import { EnhancedOfferLine } from '@/components/verdict/enhanced-offer'
 import { NumberFlip } from '@/components/verdict/number-flip'
@@ -16,7 +17,7 @@ import { PlainSummary } from '@/components/verdict/plain-summary'
 import { ProvenanceFigure } from '@/components/verdict/provenance-figure'
 import { VerdictDial } from '@/components/verdict/verdict-dial'
 import { computeVerdict, refusalFor } from '@/lib/calc'
-import type { Fuel } from '@/lib/calc/types'
+import type { Fuel, VerdictResult } from '@/lib/calc/types'
 import { formatDateShort } from '@/lib/freshness'
 import { GEO_META, countyOfTown, displayTown } from '@/lib/geo'
 import { provenanceLine, queryString } from '@/lib/intake/params'
@@ -271,6 +272,8 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
       })
     : null
   const figure = (id: FigureId): ProvenanceEntry | null => entryFor(entries, id)
+  const utilityName =
+    utility.sponsors.length === 1 ? SPONSOR_NAME[utility.sponsors[0] as keyof typeof SPONSOR_NAME] : null
 
   return (
     <Chrome>
@@ -408,34 +411,11 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
             </div>
           ) : null}
 
-          <h2 className="mt-10 text-title font-medium">The money</h2>
-          <section className="mt-4 grid gap-3 sm:grid-cols-3">
-            <Stat
-              label={`Rebate, ${result.installYear} install`}
-              value={noMassSave ? 'not available' : usd(result.totalRebate)}
-              note={
-                noMassSave
-                  ? 'municipal light plant'
-                  : `${rebateCapNote(result) ? `${rebateCapNote(result)} · ` : ''}2027: ${usd(result.rebate2027)}`
-              }
-              muted={noMassSave}
-              entry={noMassSave ? null : figure('rebate')}
-            />
-            <Stat
-              label="Net cost after rebate"
-              value={noMassSave ? 'not quoted' : usd(result.netCost)}
-              note={noMassSave ? 'rebate does not exist here' : `on ${usd(result.installCost)} installed`}
-              muted={noMassSave}
-              entry={noMassSave ? null : figure('netCost')}
-            />
-            <Stat
-              label="Payback"
-              value={noMassSave ? 'not quoted' : paybackView(result).value}
-              note={noMassSave ? 'depends on a rebate' : paybackView(result).note}
-              muted={noMassSave}
-              entry={noMassSave ? null : figure('payback')}
-            />
-          </section>
+          <div className="mt-10 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-title font-medium">The money</h2>
+            <p className="text-micro text-ink-faint">Each line says what the number means · the eye shows the working</p>
+          </div>
+          <MoneyCards result={result} noMassSave={noMassSave} utilityName={utilityName} figure={figure} />
 
           {noMassSave ? null : (
             <section className="mt-4 rounded-card border border-rule bg-surface p-5 sm:p-6">
@@ -643,26 +623,93 @@ function Parts({ entries, parts }: { entries: readonly ProvenanceEntry[]; parts:
   )
 }
 
+/**
+ * @built F-36 the three money cards — a figure, what it means in one sentence, and
+ * the eye that opens the working
+ *
+ * The sentences come from `moneySummary` (pure, tested); this component only places
+ * them. The eye is the same dialog as the dotted underline on the figure, so a
+ * reader who does not know a number is clickable still finds the formula, the
+ * substituted values and the source date behind it.
+ */
+function MoneyCards({
+  result,
+  noMassSave,
+  utilityName,
+  figure,
+}: {
+  result: NonNullable<VerdictResult>
+  noMassSave: boolean
+  utilityName: string | null
+  figure: (id: FigureId) => ProvenanceEntry | null
+}) {
+  const money = moneySummary(result, { noMassSave, utilityName })
+  return (
+    <section className="mt-4 grid gap-3 sm:grid-cols-3">
+      <Stat
+        label={`Rebate, ${result.installYear} install`}
+        value={noMassSave ? 'not available' : usd(result.totalRebate)}
+        summary={money.rebate}
+        note={
+          noMassSave
+            ? 'municipal light plant'
+            : `${rebateCapNote(result) ? `${rebateCapNote(result)} · ` : ''}2027: ${usd(result.rebate2027)}`
+        }
+        muted={noMassSave}
+        entry={noMassSave ? null : figure('rebate')}
+      />
+      <Stat
+        label="Net cost after rebate"
+        value={noMassSave ? 'not quoted' : usd(result.netCost)}
+        summary={money.netCost}
+        note={noMassSave ? 'rebate does not exist here' : `on ${usd(result.installCost)} installed`}
+        muted={noMassSave}
+        entry={noMassSave ? null : figure('netCost')}
+      />
+      <Stat
+        label="Payback"
+        value={noMassSave ? 'not quoted' : paybackView(result).value}
+        summary={money.payback}
+        note={noMassSave ? 'depends on a rebate' : paybackView(result).note}
+        muted={noMassSave}
+        entry={noMassSave ? null : figure('payback')}
+      />
+    </section>
+  )
+}
+
 function Stat({
   label,
   value,
+  summary,
   note,
   muted = false,
   entry = null,
 }: {
   label: string
   value: string
+  /** One sentence saying what the figure means, with its own numbers in it. */
+  summary: string
   note: string
   muted?: boolean
   entry?: ProvenanceEntry | null
 }) {
   return (
-    <div className="rounded-card border border-rule bg-surface p-4">
-      <p className="text-eyebrow uppercase text-ink-faint">{label}</p>
+    <div className="relative rounded-card border border-rule bg-surface p-4">
+      {/* The eye sits in the corner of the card, not on the number: a reader who
+          does not know the number is clickable still finds the working. */}
+      <p className="pr-10 text-eyebrow uppercase text-ink-faint">{label}</p>
       <p className={`mt-2 text-title font-medium tabular-nums ${muted ? 'text-ink-faint' : 'text-ink'}`}>
-        {entry ? <ProvenanceFigure entry={entry}>{value}</ProvenanceFigure> : value}
+        {entry ? (
+          <ProvenanceFigure entry={entry} corner>
+            {value}
+          </ProvenanceFigure>
+        ) : (
+          value
+        )}
       </p>
-      <p className="mt-1 text-micro text-ink-muted">{note}</p>
+      <p className={`mt-2 text-small ${muted ? 'text-ink-faint' : 'text-ink'}`}>{summary}</p>
+      <p className="mt-1.5 text-micro text-ink-faint">{note}</p>
     </div>
   )
 }

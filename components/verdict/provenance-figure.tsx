@@ -2,6 +2,9 @@
 
 /**
  * @built F-36 provenance drawer — click any figure, get the formula, the values and the date
+ * @built F-36b the eye in the corner — the same drawer, for a figure that is not
+ *   obviously clickable. A number on a summary card reads as text; an eye reads as
+ *   "there is more here", which is the whole point of provenance being visible.
  * @built F-50 R14.2 keyboard path — the drawer opens with focus on its close button
  * and gives focus back to the figure it came from, because it is a native `<dialog>`
  *
@@ -24,10 +27,17 @@ export function ProvenanceFigure({
   entry,
   children,
   className = '',
+  corner = false,
 }: {
   entry: ProvenanceEntry
   children: React.ReactNode
   className?: string
+  /**
+   * Render a small eye in the top-right of the nearest positioned ancestor as well
+   * as the clickable figure. Both share this component's one `<dialog>`, so the
+   * heading id exists once and focus goes back to whichever button opened it.
+   */
+  corner?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -63,6 +73,19 @@ export function ProvenanceFigure({
       >
         {children}
       </button>
+
+      {corner ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`How we calculated ${entry.label}`}
+          aria-haspopup="dialog"
+          title={`How we calculated ${entry.label}`}
+          className="absolute right-2.5 top-2.5 rounded-full border border-rule bg-surface p-1.5 text-ink-faint transition-colors hover:border-ink hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          <EyeIcon />
+        </button>
+      ) : null}
 
       <dialog
         ref={dialog}
@@ -119,5 +142,15 @@ export function ProvenanceFigure({
         ) : null}
       </dialog>
     </>
+  )
+}
+
+/** A 16px eye. Inline so the figure does not pull an icon dependency for one glyph. */
+function EyeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+      <path d="M2.2 12s3.6-6.4 9.8-6.4S21.8 12 21.8 12s-3.6 6.4-9.8 6.4S2.2 12 2.2 12Z" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="2.6" />
+    </svg>
   )
 }

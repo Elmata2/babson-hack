@@ -14,6 +14,18 @@ because that is when the hackathon clock runs.
 
 ### Added
 
+- **The money cards explain themselves.** Rebate, net cost and payback each carry one
+  plain sentence with the numbers already substituted — `$22,000 install − $11,500
+  rebate = $10,500 you pay`, `$10,500 ÷ $2,723 a year = 3.9 years to break even` — so
+  the reader does not have to reverse-engineer which figure came from which. An eye
+  in the corner of every card opens the same provenance drawer as the dotted
+  underline on the figure: formula, substituted values, publisher, document and as-of
+  date. The sentences come from `moneySummary()` in `lib/verdict/money-summary.ts`,
+  which is pure and tested against the four shapes the engine can return: a loss is
+  called a loss, a missing payback is never rendered as a year, and a municipal light
+  plant town says *why* the rebate is missing rather than printing zero.
+
+
 - **F-120–F-131 — the agent beat: decide, consent, call, compare.** The verdict
   told a household whether to switch; it did not help them act. This adds the half
   of Addendum A that was still a slide. `lib/calls/` holds the wire vocabulary

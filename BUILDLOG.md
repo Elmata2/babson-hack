@@ -7,13 +7,13 @@
 
 **Built:** 117 / 117 features · ████████████████████████████ **100%**
 
-**Last event:** 2026-10-24T20:17:07.263Z (16:17 ET) · **commit:** `9ca6f82`
+**Last event:** 2026-10-24T20:33:45.698Z (16:33 ET) · **commit:** `c217ffe`
 
 ## Now
 
+- `16:33` ✔ **F-36** Provenance drawer — formula, substituted values, source date · `lib/verdict/money-summary.ts`
+- `16:33` ✔ **F-36** Provenance drawer — formula, substituted values, source date · `lib/verdict/__tests__/money-summary.test.ts`
 - `16:17` ✔ **F-54** Final `BUILDLOG.md` + `git log` review · `scripts/submission/check.mjs`
-- `16:17` ✔ **F-53** Submission checklist: repo public, `.kiro` present, track selected · `scripts/submission/check.mjs`
-- `16:17` ✔ **F-52** Demo video, < 3 min, uploaded and public · `scripts/demo/record.mjs`
 
 ## Next up
 
@@ -38,6 +38,8 @@ _Every feature in the spec is logged._
 
 ## Timeline
 
+- `16:33` ✔ **F-36** — Provenance drawer — formula, substituted values, source date · `lib/verdict/money-summary.ts` · `c217ffe`
+- `16:33` ✔ **F-36** — Provenance drawer — formula, substituted values, source date · `lib/verdict/__tests__/money-summary.test.ts` · `c217ffe`
 - `16:17` ✔ **F-54** — Final `BUILDLOG.md` + `git log` review · `scripts/submission/check.mjs` · `55a7d68`
 - `16:17` ✔ **F-53** — Submission checklist: repo public, `.kiro` present, track selected · `scripts/submission/check.mjs` · `55a7d68`
 - `16:17` ✔ **F-52** — Demo video, < 3 min, uploaded and public · `scripts/demo/record.mjs` · `55a7d68`
