@@ -71,7 +71,7 @@ Copy the numbers the bill prints; do not calculate any. Never divide, multiply o
 
 Gas may be billed in CCF with a conversion line such as "126 x Therm factor of 1.0303 = 130 Therms". Report the quantity and unit as printed ("CCF") and copy the factor into "therm_factor".
 
-Report the service period as "period_start" and "period_end" (YYYY-MM-DD) and "days" when printed. Report "supplier_name" as printed in the supply section ("Basic Service", a competitive supplier, or a town aggregation name).
+Report the service period as "period_start" and "period_end" (YYYY-MM-DD) and "days" when printed. Tickets and bills print dates as M/D/YYYY; copy the printed digits into YYYY-MM-DD (10/20/2026 becomes 2026-10-20). Report "supplier_name" as printed in the supply section ("Basic Service", a competitive supplier, or a town aggregation name).
 
 "rate_class" is the Massachusetts residential class as printed. Gas: R-1 non-heat, R-2 low-income non-heat, R-3 heating, R-4 low-income heating. Electric: R-1 regular, R-2 low-income. Eversource prints a description such as "R-3 Residential Heating" or "...Heating Assistance"; map it to its class. Use "heat pump" for a heat-pump rate and "other" for anything else. Set "discount_line_present" true when a discount line is printed ("Assistance Rate Discount" on Eversource, "Discount 25%" on National Grid), else false. Set "read_type" to "actual" or "estimated" as the bill states it, and "budget_billing" true only when the bill says it is on budget or levelised billing.
 

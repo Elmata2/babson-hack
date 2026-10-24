@@ -120,6 +120,15 @@ because that is when the hackathon clock runs.
 
 ### Fixed
 
+- **F-142** — A date printed the way Massachusetts actually prints it
+  (`10/20/2026`) was thrown away, because `asDocumentDate` accepted only
+  `YYYY-MM-DD`. The model copies the printed digits, so the reader's own sample
+  oil ticket lost its delivery date, raised `document/out_of_range`, and blocked
+  auto-apply. The normalisation now happens in code — the same place `asUnit`
+  turns `gallon` into `gal` — with the year band unchanged and impossible dates
+  (`19/10/2026`, `4/31/2026`, two-digit years) still refused. The prompt also
+  says which way to copy. Verified against `g-chandler-oil-ticket.png`:
+  `documentDate: 2026-10-20`, `ready: true`, no flags.
 - The freshness badge printed its kind twice when the caller passed the same
   word as the label (`Assessor · Assessor`). Duplicate parts are collapsed.
 - `lib/geo.ts` asserted that every tract a town lists shares the town's county

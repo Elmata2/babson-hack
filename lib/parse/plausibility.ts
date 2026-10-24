@@ -209,15 +209,40 @@ function asRateClass(value: unknown): RateClass | null {
 }
 
 
-/** A date the document printed, or null. No dates from the future, none from 1970. */
+/**
+ * A date the document printed, or null. No dates from the future, none from 1970.
+ *
+ * The prompt asks for YYYY-MM-DD, but a Massachusetts ticket prints `10/20/2026`
+ * and the reader copies what it sees — as it should, since it is told never to
+ * transform a value. Choosing which printed number is the month is a format
+ * decision, so it happens here in code, like `asUnit`'s `gallon` → `gal`. An
+ * impossible date (`19/10/2026`, `4/31/2026`) is still refused, and two-digit
+ * years are refused too: the century would be a guess.
+ */
 export function asDocumentDate(value: unknown, now = Date.now()): string | null {
   if (typeof value !== 'string') return null
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
-  const parsed = Date.parse(`${value}T00:00:00Z`)
+  const iso = toIsoDate(value.trim())
+  if (iso === null) return null
+  const parsed = Date.parse(`${iso}T00:00:00Z`)
   if (!Number.isFinite(parsed)) return null
   const year = new Date(parsed).getUTCFullYear()
   if (year < 2000 || year > new Date(now).getUTCFullYear() + 1) return null
-  return value
+  return iso
+}
+
+/** The strict ISO shape the prompt asked for, or a US-printed M/D/YYYY. */
+function toIsoDate(raw: string): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw)
+  if (!us) return null
+  const month = Number(us[1])
+  const day = Number(us[2])
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  const padded = `${us[3]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  // 31 April would roll into May in Date, so read the calendar back.
+  const check = new Date(`${padded}T00:00:00Z`)
+  if (check.getUTCMonth() + 1 !== month || check.getUTCDate() !== day) return null
+  return padded
 }
 
 function confidenceOf(scores: number[]): Confidence {

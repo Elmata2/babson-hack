@@ -243,3 +243,5 @@ they need an account with a home on a server, which this build does not have.
 | F-139 | P11 | `bill` freshness kind — a number read from the household's own document says so | A | 10m | F-14 |
 | F-140 | P11 | Home hero + header "Create profile"; the anonymous `/start` path stays one click away | A | 15m | F-02 |
 | F-141 | P11 | `lib/onboarding/flow.ts` — profile validation, step machine, storage round-trip, 16 tests | A | 30m | — |
+
+| F-142 | P10 | `asDocumentDate` normalises the printed `M/D/YYYY` before validating (year band and impossible-date refusals unchanged); prompt says which way to copy | A | 15m | F-102 |

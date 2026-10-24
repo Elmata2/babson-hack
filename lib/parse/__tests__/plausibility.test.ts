@@ -56,6 +56,14 @@ describe('a clean annual bill', () => {
     expect(result.bill.flags).toHaveLength(0)
   })
 
+  it('keeps a ticket\'s printed 10/20/2026 and does not block on it', () => {
+    const result = readBill(bill({ document_date: '10/20/2026' }), NOW)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.bill.documentDate).toBe('2026-10-20')
+    expect(result.bill.flags.map((flag) => flag.code)).not.toContain('out_of_range')
+  })
+
   it('marks a seasonal statement as annual without deriving anything', () => {
     const result = readBill(
       bill({ billing_period: 'season', period_start: '2025-10-01', period_end: '2026-09-30' }),
@@ -162,6 +170,20 @@ describe('confidence and dates', () => {
     expect(asDocumentDate('1970-01-01', NOW)).toBeNull()
     expect(asDocumentDate('2099-01-01', NOW)).toBeNull()
     expect(asDocumentDate(20261019, NOW)).toBeNull()
+  })
+
+  it('reads the M/D/YYYY a Massachusetts ticket actually prints', () => {
+    expect(asDocumentDate('10/20/2026', NOW)).toBe('2026-10-20')
+    expect(asDocumentDate(' 1/4/2026 ', NOW)).toBe('2026-01-04')
+    expect(asDocumentDate('12/31/2025', NOW)).toBe('2025-12-31')
+  })
+
+  it('refuses a timestamp, a two-digit year and an impossible day', () => {
+    expect(asDocumentDate('2026-10-19T00:00:00Z', NOW)).toBeNull()
+    expect(asDocumentDate('10/20/26', NOW)).toBeNull()
+    expect(asDocumentDate('4/31/2026', NOW)).toBeNull()
+    expect(asDocumentDate('13/01/2026', NOW)).toBeNull()
+    expect(asDocumentDate('02/30/2026', NOW)).toBeNull()
   })
 })
 
