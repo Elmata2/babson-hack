@@ -3,10 +3,11 @@
 /**
  * @built F-36 provenance drawer — click any figure, get the formula, the values and the date
  *
- * A figure is a button with a dotted underline; the drawer is a labelled dialog
+ * A figure is a button with a dotted underline; the drawer is a native `<dialog>`
  * with the formula, every substituted value, and the publisher/document/date the
- * number came from (R9.1–9.2). It closes on Escape or a click outside, and focus
- * returns to the figure it came from.
+ * number came from (R9.1–9.2). The platform supplies what a hand-rolled overlay
+ * has to remember: modal focus trap, Escape, and focus restored to the trigger.
+ * It closes on Escape, the close button, or a click outside.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -23,30 +24,20 @@ export function ProvenanceFigure({
   className?: string
 }) {
   const [open, setOpen] = useState(false)
-  const trigger = useRef<HTMLButtonElement>(null)
-  const closeButton = useRef<HTMLButtonElement>(null)
+  const dialog = useRef<HTMLDialogElement>(null)
 
+  // Drive the platform dialog from state, so Escape, the close button and the
+  // backdrop all end in the same place — and focus returns to the figure.
   useEffect(() => {
-    if (!open) return
-    closeButton.current?.focus()
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setOpen(false)
-      trigger.current?.focus()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    const element = dialog.current
+    if (!element) return
+    if (open && !element.open) element.showModal()
+    else if (!open && element.open) element.close()
   }, [open])
-
-  function close() {
-    setOpen(false)
-    trigger.current?.focus()
-  }
 
   return (
     <>
       <button
-        ref={trigger}
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`${entry.label}: show how this figure was calculated`}
@@ -59,19 +50,18 @@ export function ProvenanceFigure({
         {children}
       </button>
 
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 flex justify-end bg-ink/25"
-          role="presentation"
-          onClick={close}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={`provenance-${entry.id}`}
-            className="h-dvh w-full max-w-[26rem] overflow-y-auto border-l border-rule bg-surface p-5 shadow-2xl sm:p-6"
-            onClick={(event) => event.stopPropagation()}
-          >
+      <dialog
+        ref={dialog}
+        onClose={() => setOpen(false)}
+        onClick={(event) => {
+          // A click on the backdrop targets the dialog element itself.
+          if (event.target === dialog.current) setOpen(false)
+        }}
+        aria-labelledby={`provenance-${entry.id}`}
+        className="provenance-dialog m-auto w-[min(26rem,calc(100vw-2rem))] rounded-card border border-rule bg-surface p-0 text-ink shadow-2xl"
+      >
+        {open ? (
+          <div className="max-h-[min(85dvh,44rem)] overflow-y-auto p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-eyebrow uppercase text-ink-faint">Provenance</p>
@@ -80,9 +70,8 @@ export function ProvenanceFigure({
                 </h2>
               </div>
               <button
-                ref={closeButton}
                 type="button"
-                onClick={close}
+                onClick={() => setOpen(false)}
                 aria-label="Close provenance"
                 className="rounded-card border border-rule-strong px-2.5 py-1 text-small leading-none text-ink-muted hover:border-ink hover:text-ink"
               >
@@ -112,8 +101,8 @@ export function ProvenanceFigure({
 
             {entry.note ? <p className="mt-5 border-t border-rule pt-4 text-micro text-ink-muted">{entry.note}</p> : null}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </dialog>
     </>
   )
 }

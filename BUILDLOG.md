@@ -7,13 +7,13 @@
 
 **Built:** 79 / 117 features · ███████████████████░░░░░░░░░ **68%**
 
-**Last event:** 2026-10-24T17:27:43.442Z (13:27 ET) · **commit:** `87b2972`
+**Last event:** 2026-10-24T17:35:46.860Z (13:35 ET) · **commit:** `c016786`
 
 ## Now
 
-- `13:27` ✔ **F-153** Install cost editable on the verdict screen and the form, default $22,000 badged as Mass Save program data, carried in the link as `ic`; `monthlyCashFlow` computed once in the engine · `components/install-cost-field.tsx`
-- `13:27` ✔ **F-153** Install cost editable on the verdict screen and the form, default $22,000 badged as Mass Save program data, carried in the link as `ic`; `monthlyCashFlow` computed once in the engine · `app/verdict/page.tsx`
-- `13:27` ✔ **F-153** Install cost editable on the verdict screen and the form, default $22,000 badged as Mass Save program data, carried in the link as `ic`; `monthlyCashFlow` computed once in the engine · `lib/intake/params.ts`
+- `13:35` ✔ **F-75** bake real per-town energy figures and zonal hourly load for the Energy lens · `scripts/bake-town-energy.mjs`
+- `13:35` ✔ **F-75** Energy lens on real usage, solar and zonal load data · `components/map/map-view.tsx`
+- `13:35` ✔ **F-75** real zonal load, residential use, solar capacity and their sources · `components/map/grid-panel.tsx`
 
 ## Next up
 
@@ -42,6 +42,10 @@
 
 ## Timeline
 
+- `13:35` ✔ **F-75** — bake real per-town energy figures and zonal hourly load for the Energy lens · `scripts/bake-town-energy.mjs` · `c016786`
+- `13:35` ✔ **F-75** — Energy lens on real usage, solar and zonal load data · `components/map/map-view.tsx` · `c016786`
+- `13:35` ✔ **F-75** — real zonal load, residential use, solar capacity and their sources · `components/map/grid-panel.tsx` · `c016786`
+- `13:35` ✔ **F-75** — real figures: Mass Save usage, MassCEC solar, ISO-NE zonal load · `lib/map/energy-model.ts` · `c016786`
 - `13:27` ✔ **F-153** — Install cost editable on the verdict screen and the form, default $22,000 badged as Mass Save program data, carried in the link as `ic`; `monthlyCashFlow` computed once in the engine · `components/install-cost-field.tsx` · `87b2972`
 - `13:27` ✔ **F-153** — Install cost editable on the verdict screen and the form, default $22,000 badged as Mass Save program data, carried in the link as `ic`; `monthlyCashFlow` computed once in the engine · `app/verdict/page.tsx` · `87b2972`
 - `13:27` ✔ **F-153** — Install cost editable on the verdict screen and the form, default $22,000 badged as Mass Save program data, carried in the link as `ic`; `monthlyCashFlow` computed once in the engine · `lib/intake/params.ts` · `87b2972`
