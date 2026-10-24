@@ -1,0 +1,19 @@
+{
+  "document_type": "oil_delivery",
+  "utility": "oil_dealer",
+  "fuel": "oil",
+  "service_zip": "02790",
+  "service_town": "Westport",
+  "quantity": 140,
+  "unit": "gal",
+  "total_charge": 872.2,
+  "price_per_unit": 6.23,
+  "billing_period": "delivery",
+  "document_date": "2026-10-20",
+  "rate_class": null,
+  "discount_line_present": false,
+  "usage_history": null,
+  "degree_days": 886,
+  "tank_size_gal": 275,
+  "confidence": "high"
+}

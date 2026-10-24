@@ -1,0 +1,319 @@
+{
+  "note": "Synthetic scenario bills. Not real bills. Regenerate with: node scripts/demo-bills/scenarios.mjs",
+  "scenarios": [
+    {
+      "id": "oil-enhanced-income",
+      "title": "Oil, income-qualified, enhanced rebate",
+      "town": "Framingham",
+      "dir": "scenarios/oil-enhanced-income",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "oil-standard-income-2027",
+      "title": "Oil, standard income, install in 2027",
+      "town": "Framingham",
+      "dir": "scenarios/oil-standard-income-2027",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "oil-standard-before-dec31",
+      "title": "Oil, standard income, install in 2026",
+      "town": "Framingham",
+      "dir": "scenarios/oil-standard-before-dec31",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "propane-national-grid",
+      "title": "Propane, National Grid, standard income",
+      "town": "Worcester",
+      "dir": "scenarios/propane-national-grid",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "gas-do-not-switch",
+      "title": "Natural gas, standard rate",
+      "town": "Cambridge",
+      "dir": "scenarios/gas-do-not-switch",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "gas-discount-rate",
+      "title": "Natural gas on a discount rate (R-4)",
+      "town": "Boston",
+      "dir": "scenarios/gas-discount-rate",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "electric-resistance",
+      "title": "Electric resistance heat",
+      "town": "Springfield",
+      "dir": "scenarios/electric-resistance",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        }
+      }
+    },
+    {
+      "id": "municipal-light-plant",
+      "title": "Municipal light plant town (Wellesley)",
+      "town": "Wellesley",
+      "dir": "scenarios/municipal-light-plant",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "mixed-town-bill-says-eversource",
+      "title": "Mixed-utility town, bill names Eversource",
+      "town": "Westport",
+      "dir": "scenarios/mixed-town-bill-says-eversource",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "mixed-town-bill-says-municipal",
+      "title": "Mixed-utility town, bill names the light plant",
+      "town": "Lakeville",
+      "dir": "scenarios/mixed-town-bill-says-municipal",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "competitive-supplier",
+      "title": "Competitive supplier above Basic Service",
+      "town": "Boston",
+      "dir": "scenarios/competitive-supplier",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "high-quote-over-loan-cap",
+      "title": "High install quote, above the $25,000 loan cap",
+      "town": "Framingham",
+      "dir": "scenarios/high-quote-over-loan-cap",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "very-high-quote-payback-fails",
+      "title": "Very high install quote, payback past 15 years",
+      "town": "Framingham",
+      "dir": "scenarios/very-high-quote-payback-fails",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "low-quote-rebate-covers",
+      "title": "Very low install quote, rebate covers it",
+      "town": "Framingham",
+      "dir": "scenarios/low-quote-rebate-covers",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "unitil-oil",
+      "title": "Unitil town (Fitchburg), oil",
+      "town": "Fitchburg",
+      "dir": "scenarios/unitil-oil",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    },
+    {
+      "id": "cape-light-oil",
+      "title": "Cape Light Compact town (Truro), oil",
+      "town": "Truro",
+      "dir": "scenarios/cape-light-oil",
+      "files": {
+        "electric": {
+          "html": "electric.html",
+          "expected": "expected/electric.json",
+          "png": "electric.png",
+          "pdf": "electric.pdf"
+        },
+        "heating": {
+          "html": "heating.html",
+          "expected": "expected/heating.json",
+          "png": "heating.png",
+          "pdf": "heating.pdf"
+        }
+      }
+    }
+  ]
+}
