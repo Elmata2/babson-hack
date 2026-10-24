@@ -1,0 +1,16 @@
+{
+  "name": "steering-guard",
+  "version": "1",
+  "description": "After an edit to the rule data or the steering files, check every changed figure has a source URL and read date and that data/rules and steering agree.",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "data/rules/**/*.json",
+      ".kiro/steering/**/*.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A file under data/rules or .kiro/steering changed. For every figure that changed in the diff, confirm it carries a source URL and a read date, as .kiro/steering/product.md and .kiro/steering/data-sources.md require. Then confirm data/rules/*.json and the tables in .kiro/steering/mass-save-rules.md (and units-and-conventions.md, supply-market.md where relevant) state the same numbers. List each figure with a missing source or date, and each place where the two disagree, with file and line. Do not invent a figure or a URL to close a gap: if the source is unknown, say so. Do not change code in this run."
+  }
+}

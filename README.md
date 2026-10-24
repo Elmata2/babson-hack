@@ -93,7 +93,8 @@ npm run watch:log
 | Steering — the program rules as a hard constraint | `.kiro/steering/mass-save-rules.md` |
 | Steering — units, constants, conventions | `.kiro/steering/units-and-conventions.md` |
 | Steering — data providers, ADRs, failure behaviour | `.kiro/steering/data-sources.md` |
-| Hooks — build log, PBT guard, spec drift | `.kiro/hooks/` |
+| Hooks — build log, PBT guard, spec drift, scenario check, steering guard, pre-commit guard | `.kiro/hooks/` |
+| Build log from `@built F-NN` markers, CI guard, 16-scenario pack as the acceptance check | `BUILDLOG.md`, `scripts/ci-guard.mjs`, `lib/scenarios/` |
 | Property-based tests for the calc engine | `lib/calc/__tests__/properties.test.ts` |
 
 The short version: **the policy document is steering, so the model cannot invent
@@ -112,11 +113,25 @@ edit is accepted. That is why a change to the engine had to change the tests in
 the same pass: the suite (`lib/calc/__tests__/properties.test.ts`) is the thing
 that refuses a plausible-looking wrong number.
 
-**Honest caveat.** Kiro's hook file schema has moved between releases
-(`when.type` / `then.type`, pattern globs). `.kiro/hooks/README.md` says so, and
-the hook body is always the same command you can run by hand — `npm run log`,
-`npm run status`. We do not claim a hook fired on an install where it did not.
-The build log reads the same markers either way.
+`scenario-check` fires on edits to `lib/verdict`, `lib/calc`, `lib/switch` and
+`data/rules`. It asks the agent to run `npx vitest run lib/scenarios` and, when a
+server is up, `scripts/scenarios-report.mjs`, then report any scenario that no
+longer matches. `steering-guard` fires on edits to `data/rules` and
+`.kiro/steering` and asks the agent to check that each changed figure has a source
+and read date, and that the rules data and the steering tables agree.
+`pre-commit-guard` is manual and runs `node scripts/ci-guard.mjs` and
+`npm run check`.
+
+The scenario pack in `lib/scenarios` is the acceptance check: it runs as tests and
+as a review page of what `/verdict` shows for each scenario. The
+[CI guard](scripts/ci-guard.mjs) fails when `BUILDLOG.md` has drifted from the
+markers or `/.kiro` is not committed.
+
+**Honest caveat.** We have not seen these hooks fire inside Kiro, and Kiro's hook
+file schema has moved between releases. The hook body is always a command you can
+run by hand: `npm run log`, `npm run status`, `npm run guard`, `npm run check`,
+`npx vitest run lib/scenarios`. We do not claim a hook fired on an install where it
+did not. The build log reads the same markers either way.
 
 ## Why not Zillow
 

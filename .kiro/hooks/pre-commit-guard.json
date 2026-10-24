@@ -1,0 +1,12 @@
+{
+  "name": "pre-commit-guard",
+  "version": "1",
+  "description": "Manual check before committing: the CI guard and the full check, the same two commands CI runs.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run `node scripts/ci-guard.mjs`, then `npm run check`. Report each command's exit status and, for any failure, the first failing file and message. Do not commit and do not edit files to make a check pass without saying what you changed."
+  }
+}
