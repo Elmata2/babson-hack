@@ -104,6 +104,21 @@ function fail(label, detail) {
 function checkBuildlog() {
   const label = 'build-log drift — BUILDLOG.md matches the @built markers'
 
+  // A hand edit never reaches the content comparison below, because the
+  // regeneration overwrites it first. Catch it before regenerating.
+  const dirty = git(['status', '--porcelain', '--', BUILDLOG])
+  if (dirty.status === 0 && dirty.stdout.trim()) {
+    fail(label, [
+      'BUILDLOG.md has uncommitted changes. It is generated, so an edit to it is',
+      'either a marker that was never logged or a change a human made by hand;',
+      'neither belongs in the diff.',
+      '',
+      '  fix: node scripts/buildlog.mjs hook && git add BUILDLOG.md .buildlog/events.jsonl',
+      '       (or `git checkout -- BUILDLOG.md` to discard the hand edit)',
+    ].join('\n'))
+    return
+  }
+
   const regenerated = node('scripts/buildlog.mjs', ['hook'])
   if (regenerated.status !== 0) {
     fail(label, [
@@ -166,9 +181,13 @@ function checkKiro() {
     return
   }
 
-  const ignored = git(['check-ignore', '-q', '.kiro'])
+  // `--no-index` is the whole point. `git check-ignore .kiro` consults the
+  // index, so once the directory is committed it reports "not ignored" even
+  // when a `.kiro/` line sits in .gitignore — a false pass in exactly the case
+  // this guard exists for. `--no-index` judges the rule, not the tracking.
+  const ignored = git(['check-ignore', '-q', '--no-index', '.kiro'])
   if (ignored.status === 0) {
-    const rule = git(['check-ignore', '-v', '.kiro'])
+    const rule = git(['check-ignore', '-v', '--no-index', '.kiro'])
     fail(label, [
       '/.kiro is gitignored. The hackathon rules disqualify a submission whose',
       '/.kiro directory is not in the repository (R12.1).',
@@ -181,8 +200,9 @@ function checkKiro() {
   }
   if (ignored.status !== 1) {
     fail(label, [
-      '`git check-ignore .kiro` could not answer (git is missing, or .kiro is not a',
-      'git repository). The guard cannot certify what it cannot inspect.',
+      '`git check-ignore --no-index .kiro` could not answer (git is missing, or',
+      '.kiro is not a git repository). The guard cannot certify what it cannot',
+      'inspect.',
       '',
       `  git said: ${(ignored.stderr || '').trim() || `exit ${ignored.status}`}`,
     ].join('\n'))

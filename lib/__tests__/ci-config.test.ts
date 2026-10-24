@@ -122,9 +122,15 @@ describe('ci guard script', () => {
     expect(guard).toContain("scripts/buildlog.mjs")
     expect(guard).toContain("'hook'")
     expect(guard).toContain('HEAD:')
-    // R25.3 — the exact check the spec names.
+    // R25.3 — the check the spec names, done the way that actually catches a
+    // rule: `--no-index`, because the plain form reports "not ignored" for a
+    // committed directory and would pass with `.kiro/` in .gitignore.
     expect(guard).toContain("'check-ignore'")
+    expect(guard).toContain("'--no-index'")
     expect(guard).toContain('.kiro/specs/switchpoint/requirements.md')
+    // A hand edit to BUILDLOG.md would be wiped by the regeneration before it
+    // could be diffed, so the working tree is inspected first.
+    expect(guard).toContain("'--porcelain'")
     // A failure has to tell the reader the command that fixes it.
     expect(guard).toContain('node scripts/buildlog.mjs hook')
   })
