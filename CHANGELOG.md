@@ -23,6 +23,41 @@ because that is when the hackathon clock runs.
   `monthlyCashFlow` once — property-tested — and the cash-flow module reads that
   difference instead of dividing again. Provenance follows the source: the average
   cites Mass Save, a typed quote cites the household.
+- **F-143–F-152 — the switch flow (Addendum B steps 5–6).** `/switch` shows four
+  best-case rows (supply, fuel, heat pump, programs) derived from the verdict's own
+  numbers — never an invented disposition — and a decision gate where nothing is
+  preselected: staying is a button with the same weight. Choices are arithmetic, not
+  taste: a dealer exists for oil and propane, supply can only be shopped where an
+  investor-owned utility or Cape Light Compact delivers, and a heat pump is always on
+  the table. Consent is a closed fact list enforced in code, so a hand-crafted POST
+  cannot add a name, street or phone number to what an agent may say; calls are
+  clocked to Eastern business hours; the six-provider cap holds. Quotes are ranked on
+  cash/COD only — prebuy and price-cap offers, out-of-band numbers and a dealer whose
+  minimum exceeds the delivery are flagged rather than ranked. `POST /api/switch` is
+  a gate, not an integration: with `PROVIDER_OUTREACH_ENABLED` unset it sends nothing
+  and says so, allowlist rows are staged and labelled as team test lines, and a phone
+  channel returns `unsupported` instead of a fake `ringing`. The request lives in
+  `sessionStorage` with its consent snapshot, so `/dashboard` can show the stage
+  timeline in this tab and "forget this tab" really forgets. The verdict's own link
+  carries the whole query into `/switch`. R8.3 is now enforced at the display edge:
+  `verdictNotes()` floors every rendered verdict at two reasons and one caveat instead
+  of slicing a raw array.
+- **F-75 — the Energy lens reads real data.** `public/data/ma-town-energy.json` joins
+  three public datasets to the 351 town polygons the map already draws: Mass Save's
+  town-by-town residential MWh, MassCEC's installed solar DC MW (as of 2025-01-14),
+  and ISO-NE zonal demand via EIA-930 (three zones × 24 hours, hour ending 1 AM
+  local). Each figure carries its source and date in `_meta`; a town without a
+  reported residential number says why — `municipal`, `suppressed` — instead of
+  receiving an estimate. The bake fails if a drawn town is missing from a CSV or a
+  load day is not 3 × 24.
+- **F-80/F-81 — sample bills and an eval harness.** `npm run bills` renders the
+  synthetic documents in `public/demo-bills/` from the parse fixtures, so the picture
+  the vision route reads and the JSON the tests assert cannot drift: oil tickets,
+  Eversource-layout electric and gas bills with the sample's own line items and meter
+  table, the 106 Chandler demo pair, a not-a-bill that must be refused, and fixture B
+  photographed on a table. `npm run bills:eval` posts every sample to
+  `/api/parse-bill` and diffs what the model read (fuel, document type, date, rate
+  class, price) against the manifest, exiting non-zero on a mismatch.
 - **F-32–F-40 — the verdict screen is the product now.** The answer renders as a
   three-stop dial (icon, label, colour; the active stop marked) and the household's
   old annual cost turns over into the heat-pump cost in 900ms — or instantly under
@@ -131,6 +166,11 @@ because that is when the hackathon clock runs.
 
 ### Changed
 
+- **F-36** — the provenance drawer is a native `<dialog>`. The figure button keeps
+  its formula, its substituted values and its publisher/date, but focus, Escape and
+  the backdrop now come from the platform rather than a hand-rolled trap, and a
+  coverage test asserts every headline figure has an entry instead of trusting the
+  page to keep them in sync.
 - The bill panel no longer hard-codes "annualised from a monthly bill". There are
   five named methods now, and the panel reads the method, note, assumptions and
   confidence off the parse instead of guessing. The copy also stopped saying "six
@@ -163,6 +203,11 @@ because that is when the hackathon clock runs.
 
 ### Fixed
 
+- **Build log** — a marker that named two features (`F-148 / F-149`, `F-13/F-61`)
+  only ever logged the first, so F-149 and F-151 were built, tested and shipped but
+  never counted. The scanner now reads every id on the line, and the `(?=\s|$)`
+  guard stops a malformed id like `F-26a` from being logged as `F-26`. F-75's four
+  map markers were also still unsynced: the ledger and `BUILDLOG.md` now carry them.
 - **F-142** — A date printed the way Massachusetts actually prints it
   (`10/20/2026`) was thrown away, because `asDocumentDate` accepted only
   `YYYY-MM-DD`. The model copies the printed digits, so the reader's own sample
