@@ -10,12 +10,14 @@ import { displayTown, hdd65ForTown } from '@/lib/geo'
 import { plausibleElectricRate, provenanceLine, queryString } from '@/lib/intake/params'
 import { getPrices } from '@/lib/prices'
 import { resolveUtility, SPONSOR_NAME, seasonalHeatPumpRate } from '@/lib/utility'
+import { verdictNotes } from '@/lib/verdict-notes'
 import { VERDICT_META } from '@/lib/verdicts'
 
 /**
  * @built F-106 round-trip + provenance: the change link carries the whole query; the bill's
  * method, note and confidence, and a household electricity rate (`er`), show up here
  * @built F-32 verdict screen shell — one number, big, unmissable
+ * @built F-143 R8.3 — the reasons and the caveat are on the screen, not in a drawer
  *
  * Server-rendered from the URL and `lib/calc`. No client JavaScript is needed to
  * see the answer, no API route is involved, and the same link recomputes the same
@@ -23,7 +25,8 @@ import { VERDICT_META } from '@/lib/verdicts'
  *
  * What is deliberately not here yet: the dial (F-34), the number flip (F-33), the
  * provenance drawer (F-36) and the explanation (F-39). This is the shell those
- * hang on.
+ * hang on. The reasons and caveats are not a drawer: R8.3 requires them beside
+ * the answer, so they render above the arithmetic.
  *
  * The municipal-light-plant gate is applied here in its minimal honest form: if
  * the town is served by a municipal department, Mass Save electric rebates do not
@@ -144,6 +147,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const result = computeVerdict(heating, upgrade)
   const refusal = result ? null : refusalFor(heating, upgrade)
   const meta = result ? VERDICT_META[result.verdict] : null
+  // R8.3: the page never asks for the raw arrays; `verdictNotes` enforces the floor
+  // of two reasons and one caveat even if a future result arrives without them.
+  const notes = result ? verdictNotes(result) : null
   // The bill's own sender settles a mixed town: a light-plant bill means no Mass Save rebate;
   // an investor-owned sender means the question is answered.
   const billSaysMunicipal = utilityKey === 'municipal'
@@ -251,6 +257,48 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
               ) : null}
             </section>
           )}
+
+          {!noMassSave && notes ? (
+            <section
+              aria-labelledby="why-this-answer"
+              className="mt-4 rounded-card border border-rule bg-surface p-5"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="why-this-answer" className="text-small font-medium">
+                  Why this answer
+                </h2>
+                <span className="text-micro text-ink-faint">{meta?.label}</span>
+              </div>
+
+              <ol className="mt-3 grid gap-3">
+                {notes.reasons.map((reason, index) => (
+                  <li key={reason} className="flex gap-3 text-small text-ink">
+                    <span
+                      aria-hidden
+                      className="num mt-0.5 shrink-0 text-micro tabular-nums text-ink-faint"
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="max-w-[72ch]">{reason}</span>
+                  </li>
+                ))}
+              </ol>
+
+              <h3 className="mt-5 border-t border-rule pt-4 text-eyebrow uppercase text-ink-faint">
+                What this does not know
+              </h3>
+              <ul className="mt-2 grid gap-2 text-micro text-ink-muted">
+                {notes.caveats.map((caveat) => (
+                  <li key={caveat} className="flex gap-3">
+                    <span aria-hidden className="shrink-0">
+                      —
+                    </span>
+                    <span className="max-w-[72ch]">{caveat}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat
@@ -371,13 +419,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
               ))}
             </dl>
 
-            {result.caveats.length ? (
-              <ul className="mt-4 grid gap-2 text-micro text-ink-muted">
-                {result.caveats.map((caveat) => (
-                  <li key={caveat}>{caveat}</li>
-                ))}
-              </ul>
-            ) : null}
+            {/* The caveats are not repeated here: R8.3 puts them beside the answer. */}
 
             <ul className="mt-4 grid gap-1 border-t border-rule pt-4 text-micro text-ink-faint">
               {result.rebateBreakdown.map((line) => (

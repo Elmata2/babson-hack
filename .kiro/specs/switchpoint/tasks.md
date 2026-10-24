@@ -245,3 +245,15 @@ they need an account with a home on a server, which this build does not have.
 | F-141 | P11 | `lib/onboarding/flow.ts` — profile validation, step machine, storage round-trip, 16 tests | A | 30m | — |
 
 | F-142 | P10 | `asDocumentDate` normalises the printed `M/D/YYYY` before validating (year band and impossible-date refusals unchanged); prompt says which way to copy | A | 15m | F-102 |
+
+---
+
+# R8 verdict on screen — tasks (2026-10-24)
+
+Spec: `.kiro/specs/switchpoint/requirements.md` R8. The engine (F-22/F-23) already
+honours 8.1, 8.2 and 8.4; the screen did not honour 8.3, because the reasons were
+never rendered and the caveats sat inside a collapsed drawer.
+
+| ID | Phase | Task | Owner | Est | Depends |
+| --- | --- | --- | --- | --- | --- |
+| F-143 | P4 | R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; reasons and caveats sit beside the answer, not in a drawer; explicit rule-order, closed-set, reasons/caveats and determinism tests | A | 20m | F-23 |
