@@ -85,7 +85,8 @@ npm run watch:log
 
 <!-- @built F-51 the README and the Kiro write-up: spec, steering, hooks, PBT, and the one number rule -->
 <!-- @built F-59 challenge C2 quoted, and every organiser dataset named with its endpoint -->
-<!-- @built F-158 seven v1 hooks: build log, property guard, rules regression, kiro guard, quality gate, drift, status -->
+<!-- @built F-158 ten v1 hooks: build log, property guard, rules regression, scenarios, steering, kiro guard, drift, status -->
+<!-- @built F-164 hooks in one v1 format, with a pre-commit guard that runs before git commit -->
 <!-- @built F-159 steering in all four inclusion modes with file references to the rule JSON -->
 <!-- @built F-160 specs split by feature: onboarding-switch and voice-quotes beside the engine spec -->
 <!-- @built F-161 an authored Kiro Power wrapping the MCP server and two steering guides -->
@@ -98,7 +99,7 @@ The full write-up, with a file to open for every claim, is **[`docs/KIRO.md`](do
 | --- | --- | --- |
 | Specs | Three feature specs (engine, onboarding and switch, voice quotes): EARS requirements, correctness properties, F-numbered tasks | `.kiro/specs/` |
 | Steering | Ten files in all four inclusion modes; program rules as a hard constraint, machine-readable rules pulled in by file reference | `.kiro/steering/` |
-| Hooks | Seven v1 hooks: build log on save, property suite on engine edits, rules regression, a guard that blocks gitignoring `/.kiro`, a quality gate and a drift check after each task, build status at session start | `.kiro/hooks/` |
+| Hooks | Ten v1 hooks: build log on save, property suite on engine edits, rules regression, scenario pack, steering sources, a guard that blocks gitignoring `/.kiro`, a pre-commit guard, a quality gate and a drift check after each task, build status at session start | `.kiro/hooks/` |
 | MCP | A read-only server exposing the real engine, the sponsor gate and the rule tables as four tools | `mcp/` |
 | Property-based testing | 22 named properties, plus a mutation check that plants ten bugs and shows which test style catches each | `lib/**/__tests__/*properties*`, `scripts/pbt-mutation-check.mjs` |
 | Powers | One authored power wrapping the MCP server and two steering guides | `power/switchpoint-ma-heat-pump/` |
@@ -111,6 +112,10 @@ never produces a number that reaches the screen.
 To register the MCP server in Kiro, copy the `switchpoint` entry from
 [`mcp/kiro-mcp.json`](mcp/kiro-mcp.json) into `.kiro/settings/mcp.json`, then ask Kiro
 whether Wellesley gets Mass Save rebates.
+
+The 16-scenario pack in `lib/scenarios` is the acceptance check: it runs as tests and as a review page of what `/verdict` shows for each scenario. The [CI guard](scripts/ci-guard.mjs) fails when `BUILDLOG.md` has drifted from the markers or `/.kiro` is not committed.
+
+**Honest caveat.** We have not yet observed these hooks firing inside Kiro. Each hook runs a command you can also run by hand: `npm run log`, `npm run status`, `npm run guard`, `npm run check`, `npx vitest run lib/scenarios`.
 
 ## Why not Zillow
 

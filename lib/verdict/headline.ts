@@ -39,6 +39,21 @@ function years(value: number): Part {
   return fig('payback', `${one(value)} years`)
 }
 
+export function cashFlowLine(result: VerdictResult): Part[] {
+  return result.cashFlowPositive
+    ? []
+    : [
+        `On the ${HEAT_LOAN_APR === 0 ? '0% ' : ''}HEAT Loan the payment (`,
+        fig('monthlyLoan', `${usd(result.monthlyLoan)}/mo`),
+        ') is more than you’d save (',
+        fig('monthlySavings', `${usd(result.monthlySavings)}/mo`),
+        `) until it’s repaid (assuming the ${HEAT_LOAN_MONTHS}-month term).`,
+        ...(result.netCost > result.loanAmount
+          ? [` The loan covers the first ${usd(HEAT_LOAN_MAX_USD)}; the other ${usd(result.netCost - result.loanAmount)} is paid up front.`]
+          : []),
+      ]
+}
+
 export function verdictHeadline(result: VerdictResult): VerdictHeadline {
   const savings = Number.isFinite(result.annualSavings) ? result.annualSavings : 0
   const kind = caseOf(result, savings)
@@ -93,18 +108,7 @@ export function verdictHeadline(result: VerdictResult): VerdictHeadline {
       ]
     : ['No rebate applies here, so the net cost is ', fig('netCost', usd(result.netCost)), '.']
 
-  const negativeCashFlow: Part[] = result.cashFlowPositive
-    ? []
-    : [
-        `On the ${HEAT_LOAN_APR === 0 ? '0% ' : ''}HEAT Loan the payment (`,
-        fig('monthlyLoan', `${usd(result.monthlyLoan)}/mo`),
-        ') is more than you’d save (',
-        fig('monthlySavings', `${usd(result.monthlySavings)}/mo`),
-        `) until it’s repaid (assuming the ${HEAT_LOAN_MONTHS}-month term).`,
-        ...(result.netCost > result.loanAmount
-          ? [` The loan covers the first ${usd(HEAT_LOAN_MAX_USD)}; the other ${usd(result.netCost - result.loanAmount)} is paid up front.`]
-          : []),
-      ]
+  const negativeCashFlow = cashFlowLine(result)
 
   let why: Part[][]
   if (kind === 'save_before_deadline') {

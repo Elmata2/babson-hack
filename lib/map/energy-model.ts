@@ -236,6 +236,7 @@ export const SEASONAL_KWH_PER_MONTH = 1000
 
 /** "You use roughly 20% more than the average home in Worcester." */
 export function compareSentence(youKwh: number, avgKwh: number, town: string): string {
+  if (!(avgKwh > 0)) return `There is no average home to compare with in ${town}.`
   const pct = Math.round((youKwh / avgKwh - 1) * 100)
   if (Math.abs(pct) < 3) return `You use about the same as the average home in ${town}.`
   return `You use roughly ${Math.abs(pct)}% ${pct > 0 ? 'more' : 'less'} than the average home in ${town}.`

@@ -142,7 +142,7 @@ export function TownPanel({
             <Stat label="Estimated oil spend" value={`${money(row.oilSpendUsd)}/yr`} />
             <Stat
               label={year === 2027 ? 'Most lost on Jan 1, 2027' : 'Most lost if you wait for 2027'}
-              value={money(row.cliffDollars)}
+              value={money(year === 2027 ? row.cliffDollars : 0)}
             />
           </dl>
           <p className="mt-2 text-micro text-ink-muted">{oilSpendSentence(row)}.</p>

@@ -50,6 +50,8 @@ export interface HeatingInput {
   unitPrice: number
   /** Overrides the AFUE table default. */
   afue?: number
+  /** The town as typed. Only read to tell "no town" from "a town we could not match". */
+  town?: string
   /** deg F heating degree days, base 65. Defaults to the Boston zone. */
   hdd65?: number
   /** deg F, 99% design condition. Defaults to 7. */
@@ -68,6 +70,8 @@ export interface UpgradeInput {
   tons?: number
   /** Defaults to the Mass Save average, $22,000. */
   installCost?: number
+  /** True when `installCost` is the program average the caller filled in, not a quote. */
+  installCostAssumed?: boolean
   weatherizationBonus?: boolean
   sizingBonus?: boolean
   /** $/kWh, seasonal heat pump rate (Nov 1 – Apr 30). */

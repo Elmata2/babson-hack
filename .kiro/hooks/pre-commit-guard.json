@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "pre-commit-guard",
+      "trigger": "PreToolUse",
+      "description": "Before a git commit: run the /.kiro guard, and remind the agent to run the full check the way CI does.",
+      "matcher": "execute_bash",
+      "action": {
+        "type": "command",
+        "command": "node scripts/hooks/pre-commit-guard.mjs",
+        "timeout": 60
+      }
+    }
+  ]
+}

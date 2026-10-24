@@ -18,7 +18,7 @@ const page = readSource('app/verdict/page.tsx')
 describe('the verdict screen — R14.3, R14.4, R15.2', () => {
   it('renders the deterministic plain summary inside the verdict section', () => {
     expect(page).toContain("import { PlainSummary } from '@/components/verdict/plain-summary'")
-    expect(page).toMatch(/<PlainSummary result=\{result\} \/>/)
+    expect(page).toMatch(/<PlainSummary result=\{result\} entries=\{entries\}>/)
     // The summary sits after the dial, before the first figure row: near the answer.
     const dial = page.indexOf('<VerdictDial')
     const summary = page.indexOf('<PlainSummary')
@@ -26,6 +26,17 @@ describe('the verdict screen — R14.3, R14.4, R15.2', () => {
     expect(dial).toBeGreaterThan(-1)
     expect(summary).toBeGreaterThan(dial)
     expect(figures).toBeGreaterThan(summary)
+  })
+
+  it('carries the cash-flow line, the caveat and the hedge inside the summary, not below it', () => {
+    const open = page.indexOf('<PlainSummary')
+    const close = page.indexOf('</PlainSummary>')
+    const body = page.slice(open, close)
+    expect(body).toContain('cashFlow')
+    expect(body).toContain('What could change it')
+    expect(body).toContain('headline.parts.hedge')
+    expect(page).toContain('cashFlowLine(result)')
+    expect(page).not.toContain('headline.parts.why')
   })
 
   it('renders the enhanced-path line when the offer applies', () => {

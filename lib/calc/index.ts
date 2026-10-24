@@ -38,6 +38,8 @@ import { breakEvenElectricPrice, cashFlow, payback } from './finance'
 import { deliveredHeat, designLoad, isOversized, resolveAfue, sizeTons } from './heat'
 import { FUEL_SNAPSHOT_2026_10_19, HEAT_PUMP_RULES_2026, isFuel, isTier, rulesForYear, TIER_LABEL } from './rules'
 import { rebate } from './rebate'
+import { cents, one } from '../verdict/format'
+import { INSTALL_COST_CAVEAT_PREFIX } from '../verdict/lead-caveat'
 import { verdictOf } from './verdict'
 import type { Assumption, HeatingInput, Refusal, Tier, UpgradeInput, Verdict, VerdictResult } from './types'
 
@@ -58,16 +60,6 @@ function usd(amount: number): string {
   const sign = amount < 0 ? '-' : ''
   if (abs >= 100) return `${sign}$${Math.round(abs).toLocaleString('en-US')}`
   return `${sign}$${abs.toFixed(2)}`
-}
-
-/** A $/kWh rate as cents, the way the bill writes it. */
-function cents(ratePerKWh: number): string {
-  return `${(ratePerKWh * 100).toFixed(1)}¢`
-}
-
-/** One decimal place, for tons and years. */
-function one(value: number): string {
-  return value.toFixed(1)
 }
 
 function refuse(code: Refusal['code'], field: string, message: string): Refusal {
@@ -178,14 +170,16 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
   // ---- climate assumptions -------------------------------------------------
   const hdd65 = heating.hdd65 ?? HDD65_DEFAULT
   if (heating.hdd65 === undefined) {
+    const townGiven = heating.town !== undefined && heating.town.trim() !== ''
     assumptions.push({
       field: 'hdd65',
       value: `${hdd65.toLocaleString('en-US')} HDD65`,
-      reason:
-        'No town was supplied, so the Boston zone is used. Worcester runs 6,500 and Springfield 6,200 degree days, which changes the design load but not the annual cost.',
+      reason: `${townGiven ? "We couldn't match that town, so the Boston zone is used." : 'No town was supplied, so the Boston zone is used.'} Worcester runs 6,500 and Springfield 6,200 degree days, which changes the design load but not the annual cost.`,
     })
     caveats.push(
-      `No town supplied: ${hdd65.toLocaleString('en-US')} HDD65 and a ${DESIGN_TEMP_F_DEFAULT}°F design temperature are Boston values.`,
+      townGiven
+        ? `We couldn't match that town, so Boston's climate was used: ${hdd65.toLocaleString('en-US')} HDD65 and a ${DESIGN_TEMP_F_DEFAULT}°F design temperature.`
+        : `No town supplied: ${hdd65.toLocaleString('en-US')} HDD65 and a ${DESIGN_TEMP_F_DEFAULT}°F design temperature are Boston values.`,
     )
   }
   const designTempF = heating.designTempF ?? DESIGN_TEMP_F_DEFAULT
@@ -239,14 +233,13 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
     })
   }
   const installCost = upgrade.installCost ?? DEFAULT_INSTALL_COST_USD
-  if (upgrade.installCost === undefined) {
+  if (upgrade.installCost === undefined || upgrade.installCostAssumed) {
     assumptions.push({
       field: 'installCost',
       value: usd(installCost),
       reason:
-        'No quote supplied, so the Mass Save published average for a whole-home install is used. Your contractor quote is the real number.',
+        'No quote supplied, so the Mass Save average installed cost we use is applied. Your contractor quote is the real number.',
     })
-    caveats.push(`Install cost is the Mass Save average of ${usd(installCost)}, not a quote for this house.`)
   }
 
   // ---- annual energy -------------------------------------------------------
@@ -320,6 +313,9 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
       `No ${upgrade.installYear} ${tierLabel} rebate is available here, so the full ${usd(installCost)} is your cost.`,
     )
     caveats.push(activeRebate.reason ?? 'The selected rebate tier is not available for this fuel.')
+  }
+  if (upgrade.installCost === undefined || upgrade.installCostAssumed) {
+    caveats.push(`${INSTALL_COST_CAVEAT_PREFIX} of ${usd(installCost)}, not a quote for this house.`)
   }
 
   const draft: VerdictResult = {

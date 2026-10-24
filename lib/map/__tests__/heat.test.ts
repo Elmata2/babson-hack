@@ -166,6 +166,20 @@ describe('metric selection', () => {
     }
   })
 
+  it('gives an oil-heated tract a coloured class on every metric and year', () => {
+    const props = heatProps(ROW)
+    for (const metric of HEAT_METRICS) {
+      for (const year of [2026, 2027] as const) {
+        const scale = heatScale(metric, year)
+        const value = props[scale.property]
+        expect(value, `${metric} ${year}`).toBeGreaterThan(0)
+        expect(scale.breaks.filter((b) => value >= b).length, `${metric} ${year}`).toBeGreaterThan(0)
+      }
+    }
+    expect(props.cliffHomes2026).toBe(ROW.cliffHomes)
+    expect(props.cliffDollars2026).toBe(0)
+  })
+
   it('keeps every equity percentage out of the heat properties', () => {
     const keys = Object.keys(heatProps(ROW)).join(' ')
     expect(keys).not.toMatch(/minority|english|ej/i)
@@ -331,6 +345,11 @@ describe('formatting', () => {
     expect(formatMillions(377_000)).toBe('$377k')
     expect(formatMillions(0)).toBe('$0')
     expect(formatMillions(-1_000)).toBe('-$1k')
+    expect(formatMillions(999_999)).toBe('$1M')
+    expect(formatMillions(999_950_000)).toBe('$1B')
+    expect(formatMillions(999_400)).toBe('$999k')
+    expect(formatMillions(-999_999)).toBe('-$1M')
+    expect(formatMillions(-999_950_000)).toBe('-$1B')
     expect(money(8500)).toBe('$8,500')
     expect(price(OIL_PRICE_USD_PER_GAL)).toBe('$6.23')
     expect(money(3278.4)).toBe('$3,278')

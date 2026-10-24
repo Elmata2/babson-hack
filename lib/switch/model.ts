@@ -17,7 +17,7 @@ import { queryString } from '../intake/params'
 import type { PricePoint, Prices } from '../prices'
 import { basicServiceRate, SUPPLY_LINKS, type BasicServiceRate } from '../supply'
 import { SPONSOR_NAME, sponsorFromBill, type SponsorKey } from '../utility'
-import { resolveVerdictInputs, type Raw } from '../verdict/inputs'
+import { resolveVerdictInputs, type Raw, type VerdictInputs } from '../verdict/inputs'
 import { bestCase, type BestCaseRow } from './best-case'
 import { choicesFor, supplyChoiceAvailable } from './choices'
 import type { SwitchChoice } from './types'
@@ -70,10 +70,14 @@ export interface SwitchModel {
  * Guarantee: identical query + identical prices → identical model; a missing or
  * out-of-range input yields `ready: false` with a plain sentence, never a NaN.
  */
-export function buildSwitchModel(params: Raw, prices: Prices): SwitchModel {
+export function buildSwitchModel(
+  params: Raw,
+  prices: Prices,
+  computed?: { inputs: VerdictInputs; result: VerdictResult | null },
+): SwitchModel {
   const query = queryString(params)
   const claimedIncome = Array.isArray(params.inc) ? params.inc[0] : params.inc
-  const inputs = resolveVerdictInputs(params, prices)
+  const inputs = computed?.inputs ?? resolveVerdictInputs(params, prices)
   const { fuel, units, unitPrice, sqft, billUtility, income, utility, standardRate, seasonal, heating, upgrade } = inputs
   const town = inputs.town.trim()
 
@@ -138,7 +142,7 @@ export function buildSwitchModel(params: Raw, prices: Prices): SwitchModel {
     }
   }
 
-  const result = computeVerdict(heating, upgrade)
+  const result = computed ? computed.result : computeVerdict(heating, upgrade)
   const refusal = result ? null : refusalFor(heating, upgrade)
 
   const rows = bestCase({

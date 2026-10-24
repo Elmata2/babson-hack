@@ -160,6 +160,7 @@ describe('energy model', () => {
   it('words the comparison plainly', () => {
     expect(compareSentence(600, 500, 'Worcester')).toBe('You use roughly 20% more than the average home in Worcester.')
     expect(compareSentence(400, 500, 'Worcester')).toBe('You use roughly 20% less than the average home in Worcester.')
+    expect(compareSentence(400, 0, 'Hull')).not.toMatch(/Infinity|NaN/)
     expect(compareSentence(505, 500, 'Worcester')).toBe('You use about the same as the average home in Worcester.')
   })
 

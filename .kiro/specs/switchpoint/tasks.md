@@ -17,6 +17,53 @@ marked ✂ until P4 is green.
 
 ---
 
+## Status — 2026-10-24
+
+Source of truth is `BUILDLOG.md` (generated from `@built F-NN` markers; all 117
+table rows are logged) and `git log`. The tables below keep their ids. This section
+is the checklist view. A box is ticked only when the marker or the commit is in the repo.
+
+### Table phases
+
+- [x] P0 Foundation (5/5)
+- [x] P1 Data spine (12/12)
+- [x] P2 Calculation core (11/11)
+- [x] P3 Ingestion (15/15)
+- [x] P4 Verdict (11/11)
+- [x] P5 Map (8/8)
+- [x] P6 Ship (6/6). F-52 is the recorder script and F-53/F-54 the check script; the public video link is not in this repo
+- [x] P7 Organizer datasets (6/6)
+- [x] P8 Decide, call, compare (12/12)
+- [x] P9 Continuous integration (5/5)
+- [x] P10 One-photo intake (12/12)
+- [x] P11 Onboarding and switch (14/14)
+
+### Shipped in the 2026-10-24 walkthrough pass
+
+Sources: `docs/feedback/2026-10-24-walkthrough-notes.md`, `docs/feedback/2026-10-24-the-money.md`.
+
+- [x] Money-first verdict: payback in years, "pays for itself immediately" or "doesn't pay back"; HEAT Loan block only when there is something to finance; loan capped at $25,000 (R7.1, R7.3, R8; 68f109e, 2e4f06a)
+- [x] One recommendation under the verdict: stay re-checks in January 2027 with an .ics reminder, switch opens the consent panel (no R-id; walkthrough 2026-10-24; `lib/verdict/recommendation.ts`, eee30ab)
+- [x] "Your current setup, and who to contact" block with official source and read date per item (no R-id; walkthrough 2026-10-24; `lib/verdict/contacts.ts`, `data/rules/contacts-2026.json`, 682b356)
+- [x] Two-bill onboarding: electric and heating bill both required, one-click "Use these numbers" (R2.4, R2.14, F-137; eee30ab, 682b356)
+- [x] Income from the bill's discount rate, else household size and yearly income against the official income table (R5; `data/rules/income-limits-2026.json`, 2e4f06a)
+- [x] Town tab "You vs your town": Mass Save 2023 use and incentives per household, hidden for light-plant, suppressed and mixed towns (no R-id; walkthrough 2026-10-24; eee30ab, 2e4f06a)
+- [x] Energy legend: column height is residential use or installed solar, ticks from the shared `heightShare()` (R10.2; 682b356)
+- [x] Energy lens on real data (F-75, R10.2; 7736e55)
+- [x] Heat lens year is a 2026 / 2027 toggle that states the cap drop from $8,500 to $7,500 (R5.1, R5.5, R10.5; 0492ac7)
+- [x] Home hero with the full-state map and a profile page (no R-id; walkthrough 2026-10-24; 55a7d68)
+- [x] 16-scenario pack with synthetic bills, `lib/scenarios` and the `scripts/scenarios-report.mjs` review page (R25 acceptance; F-80; dd69943, bb71e7b)
+- [x] Fixes: light-plant answer, mixed-town heat pump rate, cash-flow warning, Unitil Basic Service (no R-id; walkthrough 2026-10-24; c217ffe)
+- [x] Kiro hooks `scenario-check`, `steering-guard`, `pre-commit-guard` (R12; `.kiro/hooks/`)
+
+### Not built
+
+- [ ] R24 Watch and collective (roadmap in the requirements, not scheduled)
+- [ ] Live outbound calls against real providers. The repo tests the call flow on fixtures and the `?demo=1` replay (F-129, F-134); a live run needs an ElevenLabs key and a Twilio number
+- [ ] Public demo video link recorded in the repo (F-52 ships the recorder, not the upload)
+
+---
+
 ## P0 — Foundation
 
 | ID | Phase | Task | Owner | Est | Depends |
@@ -287,3 +334,4 @@ product: a marker in the commit that makes it true.
 | F-161 | P12 | `power/switchpoint-ma-heat-pump/`: an authored Kiro Power with keyword activation, MCP config and two steering guides | A | 20m | F-154 |
 | F-162 | P12 | `docs/KIRO.md`, `docs/ACCESSIBILITY.md` and the README judge sections: who benefits, how it scales, how to try it | A | 40m | F-157 |
 | F-163 | P12 | Submission check rows for Kiro depth: several specs, steering front matter, v1 hooks, MCP, power, write-up with no open TODO, a public video link | A | 25m | F-53 |
+| F-164 | P12 | Hooks audited into one v1 format: `scenario-check`, `steering-guard` rewritten, and `pre-commit-guard` made a real PreToolUse command that runs the `/.kiro` guard before a `git commit` | A | 20m | F-158 |

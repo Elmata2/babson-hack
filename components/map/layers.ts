@@ -118,39 +118,60 @@ function selectedFeature(state: LensState): FeatureCollection {
   return { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: entry.geometry as Geometry, properties: {} }] }
 }
 
-function energyData(state: LensState): { towns: FeatureCollection; points: FeatureCollection } | null {
-  const data = state.towns
-  if (!data) return null
+type EnergyData = { towns: FeatureCollection; points: FeatureCollection }
+
+let energyMemo: { towns: TownData; metric: Metric; region: LensState['region']; colourBy: LensState['colourBy']; dimKey: string; data: EnergyData } | null = null
+
+function energyData(state: LensState): EnergyData | null {
+  const source = state.towns
+  if (!source) return null
+  const dimKey = state.region === 'ALL' ? '' : (state.selectedKey ?? '')
+  const memo = energyMemo
+  if (memo && memo.towns === source && memo.metric === state.metric && memo.region === state.region && memo.colourBy === state.colourBy && memo.dimKey === dimKey) {
+    return memo.data
+  }
   const max = metricMax(
-    data.entries.map((e) => e.energy),
+    source.entries.map((e) => e.energy),
     state.metric,
   )
-  const ranked = data.entries
+  const ranked = source.entries
     .filter((e) => state.region === 'ALL' || e.energy.zone === state.region)
     .map((e) => ({ key: e.key, v: metricValue(e.energy, state.metric) ?? 0 }))
     .sort((a, b) => b.v - a.v)
   const rank = new Map(ranked.map((r, i) => [r.key, i]))
   const points: Feature[] = []
-  data.entries.forEach((e, i) => {
+  const features: Feature<Geometry, Record<string, unknown>>[] = []
+  source.entries.forEach((e, i) => {
     const t = e.energy
     const inRegion = state.region === 'ALL' || t.zone === state.region
-    const dim = !inRegion && e.key !== state.selectedKey
+    const dim = !inRegion && e.key !== dimKey
     const v = metricValue(t, state.metric)
-    const props = data.collection.features[i].properties as Record<string, unknown>
-    props.height = dim || v === null ? 0 : heightShare(v, max) * MAX_HEIGHT_M
-    props.colour =
-      dim || v === null
-        ? '#222c3d'
-        : state.colourBy === 'provider'
-          ? PROVIDER_COLOUR[t.provider]
-          : intensityColour(heightShare(v, max))
+    const base = source.collection.features[i]
+    features.push({
+      ...base,
+      properties: {
+        ...base.properties,
+        height: dim || v === null ? 0 : heightShare(v, max) * MAX_HEIGHT_M,
+        colour:
+          dim || v === null
+            ? '#222c3d'
+            : state.colourBy === 'provider'
+              ? PROVIDER_COLOUR[t.provider]
+              : intensityColour(heightShare(v, max)),
+      },
+    })
     points.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: t.centroid },
       properties: { name: e.name, rank: v === null ? 9999 : (rank.get(e.key) ?? 9999), solar: t.solarMW },
     })
   })
-  return { towns: data.collection, points: { type: 'FeatureCollection', features: points } }
+  const data: EnergyData = {
+    towns: { type: 'FeatureCollection', features },
+    points: { type: 'FeatureCollection', features: points },
+  }
+  energyMemo = { towns: source, metric: state.metric, region: state.region, colourBy: state.colourBy, dimKey, data }
+  return data
 }
 
 /** Bring the map's sources and layers in line with `state`. Safe to call any time the style is loaded. */
@@ -220,8 +241,8 @@ export function applyLens(map: MlMap, state: LensState): void {
   // Energy
   const data = energyData(state)
   if (!data) return
-  setSource(map, 'towns', data.towns)
-  setSource(map, 'points', data.points)
+  setSourceOnce(map, 'towns', data.towns)
+  setSourceOnce(map, 'points', data.points)
   const sel = state.selectedKey ?? ''
   addLayerOnce(map, { id: 'flat', type: 'fill', source: 'towns', paint: { 'fill-color': '#1a2740', 'fill-opacity': 0.55 } })
   addLayerOnce(map, {

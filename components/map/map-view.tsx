@@ -100,7 +100,7 @@ export default function MapView() {
   const [showSolar, setShowSolar] = useState(false)
   const [showLabels, setShowLabels] = useState(true)
   const [ejOn, setEjOn] = useState(false)
-  const [heatMetric, setHeatMetric] = useState<HeatMetric>('cliff_dollars')
+  const [heatMetric, setHeatMetric] = useState<HeatMetric>('cliff_homes')
   const [heatYear, setHeatYear] = useState<HeatYear>(2026)
   const [showTable, setShowTable] = useState(false)
   const [showStatic, setShowStatic] = useState(false)

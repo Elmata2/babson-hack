@@ -13,7 +13,6 @@ import {
   PROFILE_KEY,
   STEPS,
   anyDetailsNeeded,
-  billsReady,
   detailsNeeds,
   eyebrowFor,
   fuelFromBill,
@@ -205,15 +204,6 @@ describe('two bills', () => {
     ...over,
   })
   const electric = (over: Partial<BillApplied> = {}) => bill({ role: 'electricity', fuel: null, ...over })
-  const none = { heatingByHand: false, electricityByHand: false }
-
-  it('continues only when both bills are in, read or entered by hand', () => {
-    expect(billsReady({ heating: bill({}), electricity: null, ...none })).toBe(false)
-    expect(billsReady({ heating: null, electricity: electric(), ...none })).toBe(false)
-    expect(billsReady({ heating: bill({}), electricity: electric(), ...none })).toBe(true)
-    expect(billsReady({ heating: null, electricity: null, heatingByHand: true, electricityByHand: true })).toBe(true)
-  })
-
   it('reads the town from either bill and prefers the electric one', () => {
     const heating = bill({ serviceTown: 'Worcester' })
     expect(serviceTownFrom([electric({ serviceTown: 'boston' }), heating], TOWNS)).toBe('Boston')
@@ -265,14 +255,11 @@ describe('two bills', () => {
   })
 
   it('skips the house step when the bills answered everything', () => {
-    expect(anyDetailsNeeded(detailsNeeds({ townRead: true, heating: bill({}), incomeDetected: true, numbersReady: true }))).toBe(false)
-    expect(detailsNeeds({ townRead: true, heating: bill({ fuel: 'oil' }), incomeDetected: false, numbersReady: true }).income).toBe(true)
-    expect(detailsNeeds({ townRead: false, heating: bill({}), incomeDetected: true, numbersReady: true }).town).toBe(true)
-    expect(detailsNeeds({ townRead: true, heating: bill({ fuel: 'gas' }), incomeDetected: false, numbersReady: true }).income).toBe(false)
-    const unusable = detailsNeeds({ townRead: true, heating: bill({}), incomeDetected: true, numbersReady: false })
-    expect(anyDetailsNeeded(unusable)).toBe(true)
-    const byHand = detailsNeeds({ townRead: true, heating: null, incomeDetected: true, numbersReady: true })
-    expect(byHand.fuel && byHand.numbers).toBe(true)
+    expect(anyDetailsNeeded(detailsNeeds({ townRead: true, fuel: 'oil', incomeDetected: true }))).toBe(false)
+    expect(detailsNeeds({ townRead: true, fuel: 'oil', incomeDetected: false }).income).toBe(true)
+    expect(detailsNeeds({ townRead: false, fuel: 'oil', incomeDetected: true }).town).toBe(true)
+    expect(detailsNeeds({ townRead: true, fuel: 'gas', incomeDetected: false }).income).toBe(false)
+    expect(detailsNeeds({ townRead: true, fuel: null, incomeDetected: true }).fuel).toBe(true)
   })
 
   it('walks the visible steps only', () => {

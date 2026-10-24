@@ -20,7 +20,7 @@ import { computeVerdict, refusalFor } from '@/lib/calc'
 import type { Fuel, VerdictResult } from '@/lib/calc/types'
 import { formatDateShort } from '@/lib/freshness'
 import { GEO_META, countyOfTown, displayTown } from '@/lib/geo'
-import { provenanceLine, queryString } from '@/lib/intake/params'
+import { cleanNote, plausibleConfidence, provenanceLine, queryString } from '@/lib/intake/params'
 import { demoFromParams } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
 import { buildSwitchModel } from '@/lib/switch/model'
@@ -34,10 +34,12 @@ import { verdictPath } from '@/lib/verdict/share-query'
 import { SPONSOR_NAME, sponsorFromBill } from '@/lib/utility'
 import { refusalRunningCost } from '@/lib/verdict/running-cost'
 import { enhancedOffer } from '@/lib/verdict/enhanced-offer'
-import { isVerdictQueryComplete, resolveVerdictInputs } from '@/lib/verdict/inputs'
+import { leadCaveat } from '@/lib/verdict/lead-caveat'
+import { count, usd } from '@/lib/verdict/format'
+import { isVerdictQueryComplete, resolveVerdictInputs, verdictQueryIssue } from '@/lib/verdict/inputs'
 import { entryFor, provenanceFor, type FigureId, type ProvenanceEntry } from '@/lib/verdict/provenance'
-import { verdictHeadline, type Part } from '@/lib/verdict/headline'
-import { MIN_REASONS, verdictNotes } from '@/lib/verdict-notes'
+import { cashFlowLine, verdictHeadline, type Part } from '@/lib/verdict/headline'
+import { verdictNotes } from '@/lib/verdict-notes'
 import { VERDICT_META } from '@/lib/verdicts'
 
 /**
@@ -77,9 +79,6 @@ import { VERDICT_META } from '@/lib/verdicts'
  */
 
 
-const usd = (value: number): string =>
-  value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-
 const FUEL_LABEL: Record<Fuel, string> = {
   oil: 'heating oil',
   propane: 'propane',
@@ -109,16 +108,28 @@ function first(value: string | string[] | undefined): string | null {
   return value ?? null
 }
 
-function number(value: string | string[] | undefined): number | null {
-  const raw = first(value)
-  if (raw === null || raw.trim() === '') return null
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
 export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const params = await searchParams
   const demo = demoFromParams(params)
+
+  if (verdictQueryIssue(params) === 'year') {
+    return (
+      <Chrome>
+        <section className="rounded-card border border-rule bg-surface p-6">
+          <h1 className="text-title font-medium">That install year is not one we model.</h1>
+          <p className="mt-2 max-w-[52ch] text-small text-ink-muted">
+            The Mass Save rules on file cover installs in 2026 and 2027. Pick one of those and the verdict will compute.
+          </p>
+          <Link
+            href="/onboarding"
+            className="mt-5 inline-block rounded-card bg-ink px-4 py-2.5 text-small font-medium text-paper"
+          >
+            Start with your bill
+          </Link>
+        </section>
+      </Chrome>
+    )
+  }
 
   if (!isVerdictQueryComplete(params)) {
     return (
@@ -147,8 +158,8 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const { heating, upgrade } = inputs
   if (!heating || !upgrade || !fuel || !tier || !installYear) throw new Error('verdict inputs incomplete after the completeness check')
 
-  const provenance = provenanceLine((first(params.mn) ?? '').slice(0, 160) || null, number(params.mc))
-  const buildingUnits = number(params.bu)
+  const provenance = provenanceLine(cleanNote(first(params.mn)), plausibleConfidence(first(params.mc)))
+  const { buildingUnits } = inputs
   const changeHref = '/onboarding'
 
   const result = computeVerdict(heating, upgrade)
@@ -162,6 +173,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const billSaysMunicipal = billUtility === 'municipal'
   const billSaysInvestorOwned = billUtility === 'eversource' || billUtility === 'national_grid' || billUtility === 'unitil'
   const noMassSave = billSaysMunicipal || utility.eligibleForMassSave === false
+  const lead = notes ? leadCaveat(notes.caveats, noMassSave) : null
   const asksUtility = !billSaysMunicipal && !billSaysInvestorOwned && utility.eligibleForMassSave === null
   // R14.3: the income-qualified tier is offered in place when the rebate table says
   // this fuel can claim it and the household is not on it. `noMassSave` suppresses it:
@@ -247,8 +259,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const entries = result ? provenanceFor(result, provenanceContext) : []
   const headline = result ? verdictHeadline(result) : null
   const runningCost = result && noMassSave ? refusalRunningCost(result, billRate, billSaysMunicipal) : null
-  const extraReasons =
-    headline && notes ? notes.reasons.slice(0, Math.max(0, MIN_REASONS - headline.parts.why.length)) : []
+  const cashFlow = result ? cashFlowLine(result) : []
   const townName = displayTown(townRaw)
   const mapHref = `/map?${new URLSearchParams({
     town: townName,
@@ -257,7 +268,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
     save: String(Math.round(result?.annualSavings ?? 0)),
     back: verdictPath(queryString(params)),
   }).toString()}`
-  const switchModel = buildSwitchModel(params, prices)
+  const switchModel = buildSwitchModel(params, prices, { inputs, result })
   const providers = directoryFor(switchModel.town)
   const optionInput = buildOptionInput(
     switchModel,
@@ -354,30 +365,24 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 <VerdictDial verdict={result.verdict} className="w-full" />
               </div>
 
-              <PlainSummary result={result} />
-
-              <ul className="mt-6 grid gap-2 border-t border-rule pt-4 text-small text-ink">
-                {headline.parts.why.map((line, index) => (
-                  <li key={`${headline.case}-${index}`}>
-                    <Parts entries={entries} parts={line} />
-                  </li>
-                ))}
-                {extraReasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-              {notes?.caveats[0] ? (
-                <p className="mt-3 text-micro text-ink-muted">
-                  <span className="font-medium text-ink">What could change it: </span>
-                  {notes.caveats[0]}
-                </p>
-              ) : null}
-
-              {headline.parts.hedge.length ? (
-                <p className="mt-3 text-micro text-ink-muted">
-                  <Parts entries={entries} parts={headline.parts.hedge} />
-                </p>
-              ) : null}
+              <PlainSummary result={result} entries={entries}>
+                {cashFlow.length ? (
+                  <p>
+                    <Parts entries={entries} parts={cashFlow} />
+                  </p>
+                ) : null}
+                {lead ? (
+                  <p className="text-ink-muted">
+                    <span className="font-medium text-ink">What could change it: </span>
+                    {lead}
+                  </p>
+                ) : null}
+                {headline.parts.hedge.length ? (
+                  <p className="text-ink-muted">
+                    <Parts entries={entries} parts={headline.parts.hedge} />
+                  </p>
+                ) : null}
+              </PlainSummary>
 
               {/* R14.3: offered where it is true, with the cap read from the rebate table. */}
               {offer ? <EnhancedOfferLine offer={offer} /> : null}
@@ -513,7 +518,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                       <dt className="text-ink-faint">Bill used</dt>
                       <dd className="tabular-nums text-ink">
                         <Figure entries={entries} id="fuelUse">
-                          {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]}
+                          {count(result.annualUnits)} {UNIT_LABEL[result.fuel]}
                         </Figure>{' '}
                         at ${result.unitPrice.toFixed(2)} ·{' '}
                         <Figure entries={entries} id="scop">
@@ -534,9 +539,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                       <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
                         <dt className="text-micro text-ink-faint">Yearly {UNIT_LABEL[result.fuel] === 'kWh' ? 'electricity' : 'fuel'}</dt>
                         <dd className="text-small tabular-nums text-ink">
-                          {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]}
+                          {count(result.annualUnits)} {UNIT_LABEL[result.fuel]}
                         </dd>
-                        <dd className="text-micro text-ink-muted">{provenance}</dd>
+                        <dd className="text-micro text-ink-muted">Note from your bill reading: {provenance}</dd>
                       </div>
                     ) : null}
                     {billRate !== null ? (
@@ -544,7 +549,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                         <dt className="text-micro text-ink-faint">Electricity price</dt>
                         <dd className="text-small tabular-nums text-ink">${billRate.toFixed(3)}/kWh</dd>
                         <dd className="text-micro text-ink-muted">
-                          Read off your electric bill, used instead of the statewide average of $
+                          Your electricity rate, used instead of the statewide average of $
                           {prices.elec.usdPerUnit.toFixed(3)}/kWh.
                         </dd>
                       </div>
