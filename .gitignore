@@ -33,6 +33,9 @@ coverage/
 # tool scratch
 .gstack/
 
+# agent scratch — worktrees and session state, never source
+.claude/
+
 # Kiro: the .kiro directory MUST stay in the repo.
 # The hackathon rules disqualify a submission whose /.kiro is gitignored.
 !.kiro/
