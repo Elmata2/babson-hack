@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "source": ".kiro/steering/supply-market.md",
+    "readOn": "2026-10-24",
+    "note": "Supply-only Basic Service rates, residential. Never compare to all-in averages."
+  },
+  "basicService": {
+    "eversource": {
+      "centsPerKwh": 17.3,
+      "period": "Aug 1 2026 – Jan 2027",
+      "source": "Boston.com",
+      "sourceDate": "2026-07-29",
+      "url": "https://boston.com/news/local-news/2026/07/29/electric-utility-rates-are-going-up-aug-1-will-your-bill-actually-increase"
+    },
+    "nationalgrid": {
+      "centsPerKwh": 16.074,
+      "period": "Aug 1 2026 – Jan 2027",
+      "source": "Boston.com",
+      "sourceDate": "2026-07-29",
+      "url": "https://boston.com/news/local-news/2026/07/29/electric-utility-rates-are-going-up-aug-1-will-your-bill-actually-increase"
+    },
+    "unitil": {
+      "centsPerKwh": null,
+      "period": "Aug 2026 – Jan 2027",
+      "source": "Unitil Basic Service update (PDF)",
+      "sourceDate": "2026-07",
+      "url": "https://unitil.com/sites/default/files/2026-07/2026%20FGE%20Basic%20Service%20Update-Aug26-Jan27-0928.pdf"
+    }
+  },
+  "competitiveOverpayment": {
+    "usd": 738700000,
+    "period": "Jul 2024 – Jun 2025",
+    "source": "MA Attorney General, 2026 Competitive Supply Report",
+    "url": "https://www.mass.gov/doc/2026-competitive-supply-report/download"
+  },
+  "marketSplit": {
+    "asOf": "2026-03",
+    "aggregationPct": 51,
+    "basicServicePct": 26.6,
+    "competitivePctApprox": 22,
+    "source": "MA Attorney General, The Energy Advocate, summer 2026",
+    "url": "https://www.mass.gov/doc/era-newsletter-the-energy-advocate-summer-2026/download"
+  },
+  "links": {
+    "municipalAggregation": "https://www.mass.gov/info-details/municipal-aggregation",
+    "energySwitch": "https://www.energyswitchma.gov/"
+  }
+}

@@ -125,6 +125,56 @@ Tabs on the right panel: **Grid** | **Your bill**. Your bill has five blocks:
 
 Every figure carries a publisher · date badge (R3.5, R9).
 
+### 3.5 Two views: **Street** (find your home) and **Energy** (see the grid)
+
+One map, two basemaps, one toggle. Finding an address and reading energy data are
+different jobs, and one dark 3D style does both badly.
+
+| | **Street** view | **Energy** view (today's map) |
+|---|---|---|
+| Purpose | Find and confirm *your* address | Compare towns, utilities, load, solar |
+| Basemap | OpenStreetMap, light, street-level: roads, house numbers, building footprints | CARTO Dark Matter, no labels |
+| Camera | Flat to 30° pitch, zoom 15–18 | 3D, pitch up to 85°, zoom 7–11 |
+| Energy data | Light only: selected town outline + utility chip + pin | Full: columns, territories, solar, timeline, polar clock |
+| Right panel | **Your bill** tab opens by default | **Grid** tab by default |
+
+**Basemap:** OpenFreeMap (`tiles.openfreemap.org`, styles `liberty` / `positron`).
+It serves OSM data as vector tiles, needs no key, and works with MapLibre. Don't
+use `tile.openstreetmap.org` raster tiles; OSM's tile policy rules out app traffic.
+The team's design already names Positron for `/map` (F-41), so `positron` keeps that
+continuity. *Verify the style URLs and the attribution string before shipping.*
+
+**The whoosh (search → street):**
+1. The user submits an address or ZIP from the Energy view.
+2. `flyTo` from the current camera to the result: curve 1.4, about 1.6 s, pitch eases
+   to 30°, bearing to 0.
+3. When the flight passes zoom 12, the basemap crossfades from Dark Matter to OSM
+   (about 300 ms) and the energy columns fade out. Pin drops at the end.
+4. Under `prefers-reduced-motion`: `jumpTo` and an instant swap.
+
+**Back to energy:** the "Energy" toggle, or zooming out past 11, flies back to the
+town at pitch 55° and restores the columns. The selected town stays selected across
+both views.
+
+**Toggle:** a two-segment control, top-centre: `Street | Energy`. It's keyboard
+reachable, uses `aria-pressed`, and the current view is also shown in text.
+
+**Search inputs it accepts:**
+- Town name: local typeahead (351 towns), flies to the town in the Energy view.
+- Street address: `/api/geocode` → Street view at zoom 17.
+- **ZIP / postal code** (5 digits): local lookup against a baked table of MA ZIP
+  code tabulation area (ZCTA) centroids from the Census gazetteer (~540 rows, about 15 KB). It needs no
+  network call. ZIPs can span towns: fly to the centroid, then resolve the town by
+  point-in-polygon. If the centroid sits in a different town from the one the user
+  expects, show "This ZIP covers parts of more than one town. Pick yours."
+  The Census geocoder only matches full addresses, so it can't do ZIP-only search.
+
+**Implementation note:** MapLibre `setStyle` drops custom sources and layers.
+Either re-add the energy sources and layers on `style.load`, or keep both basemaps
+in one style and crossfade with `raster-opacity` / layer visibility. The second
+avoids a flash. Run the motion through `emil-design-eng` / `animate` before
+writing it.
+
 ---
 
 ## 4. Data
@@ -133,7 +183,9 @@ Every figure carries a publisher · date badge (R3.5, R9).
 |---|---|---|
 | Town boundaries (351) | **real**, baked | US Census 2023 cartographic county subdivisions, simplified with mapshaper |
 | Utility per town (351) | **real**, baked to `mvp/utilities.json` | MassGIS `AGOL/ElectricityProviders/MapServer/0` (organizer portal dataset) |
-| Address → coordinates | **live** | Census geocoder, JSONP from the browser (verified 2026-10-24) |
+| Address → coordinates | **live** | Team route `GET /api/geocode?q=` → `lib/geocode` (Census geographies endpoint). Prototype still calls Census via JSONP until it moves into the Next app |
+| ZIP → point | to bake | Census gazetteer ZCTA file, MA rows only |
+| Street basemap | live tiles | OpenFreeMap (OSM data), no key |
 | Basic Service rates | real, dated constants | see §2.2; refresh Feb 1 / Aug 1 |
 | Program numbers | real | `.kiro/steering/mass-save-rules.md` |
 | Hourly demand, solar per town | **mock** | to be replaced by Mass Save Data town usage, ISO-NE zonal load, DOER solar |
@@ -148,7 +200,34 @@ Utility counts from the live layer: 158 National Grid, 130 Eversource, 41 munici
 
 - `/map` uses this dashboard's camera, search and layers. The team's tract heat-
   exposure choropleth (R10.2) becomes another layer in the same gallery.
-- Search shares `app/api/geocode` in the Next app. The JSONP call is prototype only.
+- Search uses the team's `GET /api/geocode?q=` route. Its response already returns
+  `town`, `townKnown`, `tract` and `county`, so the client-side point-in-polygon
+  step becomes a fallback only. The JSONP call is prototype only.
+
+### 5.1 Hosting: one repo, one Vercel project
+
+Today there are two deployments: the team's Next app, deployed to Vercel as
+**`switchpoint-psi.vercel.app`** (F-01 build log), and this prototype
+(`switchpoint-map`, on Alexander's personal Vercel, deployed from the CLI). GitHub
+shows no deployment events for `Elmata2/babson-hack`, so `switchpoint-psi` is most
+likely deployed from the CLI too. Merge them:
+
+1. **Whoever owns `switchpoint-psi` connects it to the GitHub repo** (Vercel → Project →
+   Settings → Git). Only a repo admin (Elmata2) can install the Vercel GitHub app
+   on the repo. After that, every push to `master` deploys production and every PR
+   gets a preview. Invite the other builders to that Vercel team.
+2. **The map lives in the app as `/map`** (`app/map/page.tsx`, F-41…). It uses the
+   app's `/api/geocode`, `public/data/ma-towns.json`, the tract artefacts and
+   `lib/utility`, not its own copies. It ships with every app deploy.
+3. **Retire `switchpoint-map`** once `switchpoint-psi.vercel.app/map` serves the map.
+   The `mvp/` folder stays only until `/map` reaches parity, then it's deleted.
+
+Don't add a root `vercel.json` with `outputDirectory`, or a root `api/` folder:
+both would override the Next.js build.
+
+Privacy note for the team: `GET ?q=` with `s-maxage` puts the street address in the
+URL, the CDN cache key and request logs, which data-sources.md says to avoid.
+Consider `POST` with `cache-control: no-store`.
 - Profile fields map to `HeatingInput`: `town`, `utility` (`eversource | nationalgrid |
   unitil | mlp | mixed`), `fuel`, and `standardRate` from the selected supply option.
 - The utility parser follows data-sources.md: `{ sponsors[], hasMunicipal, mixed }`,
@@ -165,8 +244,11 @@ Utility counts from the live layer: 158 National Grid, 130 Eversource, 41 munici
 | 3 | Search | town typeahead + address → town for Boston, Worcester, Wellesley, Pittsfield |
 | 4 | Profile | persists across reload; works with storage blocked |
 | 5 | Your bill | Wellesley shows the MLP message; Worcester competitive shows a signed Δ$ |
-| 6 | Port into Next `/map` | shares geocode route and calc types |
-| 7 | Replace mock demand | Mass Save Data town totals + ISO-NE shapes |
+| 6 | One Vercel project | repo connected; `master` deploys; map reachable on the team URL (§5.1) |
+| 7 | Street / Energy views | address search whooshes into OSM street view; toggle returns to 3D energy (§3.5) |
+| 8 | ZIP search | ZCTA table baked; a ZIP lands in the right town; a split ZIP shows the pick-your-town prompt |
+| 9 | Port into Next `/map` | shares geocode route, towns data and calc types |
+| 10 | Replace mock demand | Mass Save Data town totals + ISO-NE shapes |
 
 ---
 

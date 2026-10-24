@@ -24,6 +24,12 @@ export function SiteHeader() {
             <span>Massachusetts towns</span>
           </span>
           <span aria-hidden className="hidden h-3 w-px bg-rule-strong sm:block" />
+          <Link
+            href="/map"
+            className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
+          >
+            Map
+          </Link>
           <a
             href="https://github.com/Elmata2/babson-hack"
             className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"

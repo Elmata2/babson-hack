@@ -1,0 +1,802 @@
+'use client'
+
+/**
+ * @built F-41 map shell: MapLibre canvas, left rail, right panel, state ownership
+ * @built F-42 tract choropleth (Heat lens; layers live in `layers.ts`)
+ * @built F-44 hover tooltip and click-a-tract → Town tab
+ * @built F-71 lenses (Street | Energy | Heat), whoosh, camera
+ * @built F-72 Energy lens: 3D town columns, timeline, polar clock, mock model
+ *
+ * One map instance, three lenses. A lens is a basemap plus the sources and layers
+ * in `layers.ts`; switching calls `setStyle(url, { diff: false })`, which drops every
+ * custom layer, and `applyLens` re-adds only the active lens's layers on `style.load`.
+ * The selected town, the pin and the profile live outside the style and survive it.
+ */
+
+import 'maplibre-gl/dist/maplibre-gl.css'
+import maplibregl, { type Map as MlMap, type MapMouseEvent } from 'maplibre-gl'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BillPanel } from './bill-panel'
+import { CameraControls, prefersReducedMotion, useCamera } from './camera-controls'
+import { GridPanel } from './grid-panel'
+import { applyLens, HIT_LAYERS, LENS_BG, STYLE_URL, type LensState } from './layers'
+import { loadEjTracts, loadTowns, loadTracts, markEj, townAtPoint, type TownData, type TractData } from './map-data'
+import { EJ_OPACITY, EJ_VIOLET, HEAT_LABELS, HEAT_RAMP, NO_DATA, PROVIDER_COLOUR } from './palette'
+import { ProfileDrawer } from './profile-drawer'
+import { Search, type SearchResult } from './search'
+import { TownPanel } from './town-panel'
+import type { Lens, Profile } from './types'
+import { useProfile } from './use-profile'
+import { townKey, type SponsorKey } from '@/lib/elec-label'
+import { GEO_META, displayTown, stateTotals, townsOfTract } from '@/lib/geo'
+import { SPONSOR_NAME } from '@/lib/utility'
+import {
+  LOAD_SHAPE,
+  ZONE_LABEL,
+  formatMW,
+  hourLabel,
+  valueAt,
+  type Metric,
+  type Zone,
+} from '@/lib/map/energy-model'
+
+type Tab = 'town' | 'bill' | 'grid'
+
+const STATE_CENTER: [number, number] = [-71.75, 42.2]
+const STATE_ZOOM = 7.2
+const DEFAULT_TAB: Record<Lens, Tab> = { street: 'bill', energy: 'grid', heat: 'town' }
+const VIEW: Record<Lens, { pitch: number; bearing: number }> = {
+  street: { pitch: 30, bearing: 0 },
+  energy: { pitch: 55, bearing: -12 },
+  heat: { pitch: 0, bearing: 0 },
+}
+const REGION_VIEW: Record<Zone | 'ALL', { center: [number, number]; zoom: number }> = {
+  ALL: { center: STATE_CENTER, zoom: STATE_ZOOM },
+  NEMA: { center: [-71.1, 42.48], zoom: 8.9 },
+  SEMA: { center: [-70.75, 41.85], zoom: 8.4 },
+  WCMA: { center: [-72.3, 42.35], zoom: 8.2 },
+}
+const LENSES: { id: Lens; label: string }[] = [
+  { id: 'street', label: 'Street' },
+  { id: 'energy', label: 'Energy' },
+  { id: 'heat', label: 'Heat' },
+]
+
+interface CameraTarget {
+  center: [number, number]
+  zoom: number
+  pitch: number
+  bearing: number
+}
+
+export default function MapView() {
+  const { profile, update, clear } = useProfile()
+
+  const [lens, setLens] = useState<Lens>('heat')
+  const [tab, setTab] = useState<Tab>(DEFAULT_TAB.heat)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [selectedTract, setSelectedTract] = useState<string | null>(null)
+  const [hour, setHour] = useState(18)
+  const [playing, setPlaying] = useState(false)
+  const [metric, setMetric] = useState<Metric>('demand')
+  const [colourBy, setColourBy] = useState<'provider' | 'intensity'>('provider')
+  const [region, setRegion] = useState<Zone | 'ALL'>('ALL')
+  const [showSolar, setShowSolar] = useState(false)
+  const [showLabels, setShowLabels] = useState(true)
+  const [ejOn, setEjOn] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [ready, setReady] = useState(false)
+  const [swapping, setSwapping] = useState(false)
+  const [towns, setTowns] = useState<TownData | null>(null)
+  const [tracts, setTracts] = useState<TractData | null>(null)
+  const [ejReady, setEjReady] = useState(false)
+  const [dataError, setDataError] = useState<string | null>(null)
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<MlMap | null>(null)
+  const pinRef = useRef<maplibregl.Marker | null>(null)
+  const popupRef = useRef<maplibregl.Popup | null>(null)
+  const styleLens = useRef<Lens | null>(null)
+  const pendingLens = useRef<Lens>('heat')
+  const lensStateRef = useRef<LensState | null>(null)
+  const handlersRef = useRef<{ click: (e: MapMouseEvent) => void; move: (e: MapMouseEvent) => void }>({
+    click: () => {},
+    move: () => {},
+  })
+  const hydratedHome = useRef(false)
+  const hoverKey = useRef<string | null>(null)
+  const hoverEvent = useRef<MapMouseEvent | null>(null)
+  const hoverFrame = useRef<number | null>(null)
+  const committedLens = useRef<Lens | null>(null)
+  const [mapError, setMapError] = useState<string | null>(null)
+
+  const getMap = useCallback(() => mapRef.current, [])
+  const camera = useCamera(getMap, ready)
+
+  const selectedEntry = selectedKey && towns ? (towns.byKey.get(selectedKey) ?? null) : null
+  const selectedName = selectedKey ? displayTown(selectedKey) : null
+
+  // ------------------------------------------------------------------ data
+  useEffect(() => {
+    let alive = true
+    loadTowns()
+      .then((d) => alive && setTowns(d))
+      .catch(() => alive && setDataError('Town boundaries did not load. Reload the page to try again.'))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (lens !== 'heat' || tracts) return
+    let alive = true
+    loadTracts()
+      .then((d) => alive && setTracts(d))
+      .catch(() => alive && setDataError('Tract boundaries did not load. Reload the page to try again.'))
+    return () => {
+      alive = false
+    }
+  }, [lens, tracts])
+
+  useEffect(() => {
+    if (!ejOn || ejReady || !tracts) return
+    let alive = true
+    loadEjTracts()
+      .then((set) => {
+        if (!alive) return
+        markEj(tracts, set)
+        setEjReady(true)
+      })
+      .catch(() => alive && setDataError('The environmental justice layer did not load.'))
+    return () => {
+      alive = false
+    }
+  }, [ejOn, ejReady, tracts])
+
+  // The saved home town is the selected town until the user picks another.
+  useEffect(() => {
+    if (hydratedHome.current || !profile.town) return
+    hydratedHome.current = true
+    setSelectedKey(townKey(profile.town))
+  }, [profile.town])
+
+  // ------------------------------------------------------------------ camera
+  const moveTo = useCallback((target: Partial<CameraTarget>, how: 'fly' | 'ease' = 'fly') => {
+    const map = mapRef.current
+    if (!map) return
+    if (prefersReducedMotion()) return void map.jumpTo(target)
+    if (how === 'fly') map.flyTo({ ...target, curve: 1.4, duration: 1600, essential: false })
+    else map.easeTo({ ...target, duration: 900 })
+  }, [])
+
+  const dropPin = useCallback((lngLat: [number, number]) => {
+    const map = mapRef.current
+    if (!map) return
+    if (!pinRef.current) {
+      const el = document.createElement('div')
+      el.className = 'size-3.5 rounded-full border-[3px] border-switch bg-white shadow-[0_0_0_3px_rgba(32,96,64,0.28)]'
+      pinRef.current = new maplibregl.Marker({ element: el })
+    }
+    pinRef.current.setLngLat(lngLat).addTo(map)
+  }, [])
+
+  const selectTown = useCallback((key: string | null, keepTract = false) => {
+    setSelectedKey(key)
+    if (!keepTract) setSelectedTract(null)
+  }, [])
+
+  const changeLens = useCallback(
+    (next: Lens, opts: { skipCamera?: boolean } = {}) => {
+      const map = mapRef.current
+      if (!map || next === lens) return
+      camera.stopOrbit()
+      popupRef.current?.remove()
+      hoverKey.current = null
+      setMapError(null)
+      styleLens.current = null
+      pendingLens.current = next
+      setSwapping(!prefersReducedMotion())
+      setLens(next)
+      setTab(DEFAULT_TAB[next])
+      map.setStyle(STYLE_URL[next], { diff: false })
+      if (opts.skipCamera) return
+      const view = VIEW[next]
+      if (selectedEntry) {
+        moveTo({ center: selectedEntry.anchor, zoom: next === 'energy' ? 9.5 : next === 'heat' ? 10.5 : 12, ...view })
+      } else if (next === 'street') moveTo({ ...view })
+      else moveTo({ center: STATE_CENTER, zoom: STATE_ZOOM, ...view })
+    },
+    [camera, lens, moveTo, selectedEntry],
+  )
+
+  // A style that never reports `style.load` must not leave the map invisible.
+  useEffect(() => {
+    if (!swapping) return
+    const t = setTimeout(() => setSwapping(false), 4000)
+    return () => clearTimeout(t)
+  }, [swapping])
+
+  const resetView = useCallback(() => {
+    camera.stopOrbit()
+    moveTo({ center: STATE_CENTER, zoom: lens === 'street' ? STATE_ZOOM : STATE_ZOOM, ...VIEW[lens] }, 'ease')
+  }, [camera, lens, moveTo])
+
+  const onResult = useCallback(
+    (r: SearchResult) => {
+      camera.stopOrbit()
+      selectTown(townKey(r.town))
+      const entry = towns?.byKey.get(townKey(r.town)) ?? null
+      if (r.kind === 'town') {
+        if (!entry) return
+        dropPin(entry.anchor)
+        moveTo({ center: entry.anchor, zoom: lens === 'energy' ? 10.5 : 12 })
+        return
+      }
+      // Address and ZIP: the whoosh. Street lens, flat-ish, north up.
+      const point: [number, number] = [r.lon, r.lat]
+      dropPin(point)
+      changeLens('street', { skipCamera: true })
+      setTab(r.kind === 'address' ? 'bill' : 'town')
+      moveTo({ center: point, zoom: r.kind === 'address' ? 17 : 14, pitch: 30, bearing: 0 })
+    },
+    [camera, changeLens, dropPin, lens, moveTo, selectTown, towns],
+  )
+
+  const onUseHome = useCallback(
+    (r: SearchResult) => {
+      const sameTown = r.town === profile.town
+      const patch: Partial<Profile> = { town: r.town }
+      // A ZIP or town result says nothing about the street: keep the saved address only if the town is unchanged.
+      if (r.kind === 'address') patch.address = r.address
+      else if (!sameTown) patch.address = ''
+      if (!sameTown) patch.utility = null
+      update(patch)
+    },
+    [profile.town, update],
+  )
+
+  const townAt = useCallback(
+    (lon: number, lat: number) => (towns ? (townAtPoint(towns, lon, lat)?.name ?? null) : null),
+    [towns],
+  )
+
+  // ------------------------------------------------------------------ map events
+  useEffect(() => {
+    handlersRef.current.click = (e) => {
+      const map = mapRef.current
+      if (!map) return
+      const ids = HIT_LAYERS[lens].filter((id) => map.getLayer(id))
+      const hit = ids.length ? map.queryRenderedFeatures(e.point, { layers: ids })[0] : undefined
+      if (lens === 'heat') {
+        const geoid = hit ? String(hit.properties?.geoid ?? '') : ''
+        if (!geoid) return
+        const here = towns ? townAtPoint(towns, e.lngLat.lng, e.lngLat.lat) : null
+        const touching = townsOfTract(geoid).map(townKey)
+        const key = here && touching.includes(here.key) ? here.key : (touching[0] ?? here?.key ?? null)
+        setSelectedTract(geoid)
+        if (key) selectTown(key, true)
+        setTab('town')
+      } else if (lens === 'energy') {
+        const key = hit ? String(hit.properties?.key ?? '') : ''
+        selectTown(key || null)
+      } else {
+        const here = towns ? townAtPoint(towns, e.lngLat.lng, e.lngLat.lat) : null
+        if (here) selectTown(here.key)
+      }
+    }
+    const run = (e: MapMouseEvent) => {
+      const map = mapRef.current
+      if (!map) return
+      const popup = popupRef.current
+      const ids = HIT_LAYERS[lens].filter((id) => map.getLayer(id))
+      const hit = ids.length ? map.queryRenderedFeatures(e.point, { layers: ids })[0] : undefined
+      map.getCanvas().style.cursor = hit ? 'pointer' : ''
+      if (!hit || !popup) {
+        hoverKey.current = null
+        return void popup?.remove()
+      }
+      const p = hit.properties ?? {}
+      const id = lens === 'heat' ? `t${String(p.geoid)}` : `k${String(p.key)}|${hour}|${metric}`
+      if (id === hoverKey.current) return void popup.setLngLat(e.lngLat)
+      const box = document.createElement('div')
+      const line = (text: string, strong = false) => {
+        const row = document.createElement('div')
+        row.textContent = text
+        if (strong) row.style.fontWeight = '600'
+        box.appendChild(row)
+      }
+      if (lens === 'heat') {
+        const share = typeof p.oilShare === 'number' && p.oilShare >= 0 ? `${(Math.round(p.oilShare * 1000) / 10).toLocaleString('en-US')}%` : 'no estimate'
+        line(`Tract ${String(p.geoid)}`, true)
+        line(`${Number(p.households).toLocaleString('en-US')} households · ${share} oil-heated`)
+        line(`${Number(p.oilHouseholds).toLocaleString('en-US')} oil-heated households`)
+      } else {
+        const entry = towns?.byKey.get(String(p.key))
+        if (!entry) return
+        const t = entry.energy
+        line(entry.name, true)
+        line(`${t.mixed ? t.sponsors.map((sp) => SPONSOR_NAME[sp]).join(' / ') : SPONSOR_NAME[t.sponsors[0]]}`)
+        line(`${formatMW(valueAt(t, hour, metric))} at ${hourLabel(hour)} (invented)`)
+      }
+      hoverKey.current = id
+      popup.setLngLat(e.lngLat).setDOMContent(box).addTo(map)
+    }
+    // At most one hit-test per animation frame, and the popup is rebuilt only when the hovered feature changes.
+    handlersRef.current.move = (e) => {
+      hoverEvent.current = e
+      if (hoverFrame.current !== null) return
+      hoverFrame.current = requestAnimationFrame(() => {
+        hoverFrame.current = null
+        if (hoverEvent.current) run(hoverEvent.current)
+      })
+    }
+  })
+
+  // ------------------------------------------------------------------ map lifecycle
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const map = new maplibregl.Map({
+      container,
+      style: STYLE_URL[pendingLens.current],
+      center: STATE_CENTER,
+      zoom: STATE_ZOOM,
+      pitch: VIEW[pendingLens.current].pitch,
+      bearing: VIEW[pendingLens.current].bearing,
+      maxPitch: 85,
+      attributionControl: { compact: true },
+      dragRotate: true,
+      touchPitch: true,
+    })
+    mapRef.current = map
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
+    map.touchZoomRotate.enableRotation()
+    const wide = window.matchMedia('(min-width: 1024px)')
+    const applyPadding = () => map.setPadding(wide.matches ? { left: 320, right: 360, top: 0, bottom: 0 } : { left: 0, right: 0, top: 0, bottom: 0 })
+    applyPadding()
+    wide.addEventListener('change', applyPadding)
+    popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8, className: 'switchpoint-popup' })
+    map.on('style.load', () => {
+      styleLens.current = pendingLens.current
+      committedLens.current = pendingLens.current
+      setMapError(null)
+      setSwapping(false)
+      if (lensStateRef.current) applyLens(map, lensStateRef.current)
+    })
+    const resizer = new ResizeObserver(() => map.resize())
+    resizer.observe(container)
+    map.on('load', () => setReady(true))
+    // A style that fails to load reverts to the lens that last worked; a basemap
+    // tile failure only says so. Panels keep working either way.
+    map.on('error', (e) => {
+      const err = e.error as { url?: string; status?: number } | undefined
+      const styleFailed = Boolean(err?.url) && Object.values(STYLE_URL).includes(err?.url ?? '')
+      const tileFailed = Boolean((e as { sourceId?: string }).sourceId) && (!err?.status || err.status >= 500)
+      if (!styleFailed && !tileFailed) return
+      setMapError("The map tiles didn't load. Try again or use another lens.")
+      if (!styleFailed) return
+      setSwapping(false)
+      const back = committedLens.current
+      if (back && back !== pendingLens.current) {
+        pendingLens.current = back
+        styleLens.current = null
+        setLens(back)
+        setTab(DEFAULT_TAB[back])
+        map.setStyle(STYLE_URL[back], { diff: false })
+      }
+    })
+    map.on('click', (e) => handlersRef.current.click(e))
+    map.on('mousemove', (e) => handlersRef.current.move(e))
+    map.on('mouseout', () => {
+      hoverKey.current = null
+      popupRef.current?.remove()
+    })
+    return () => {
+      resizer.disconnect()
+      wide.removeEventListener('change', applyPadding)
+      if (hoverFrame.current !== null) cancelAnimationFrame(hoverFrame.current)
+      hoverFrame.current = null
+      popupRef.current?.remove()
+      pinRef.current?.remove()
+      pinRef.current = null
+      map.remove()
+      mapRef.current = null
+      styleLens.current = null
+      committedLens.current = null
+      setReady(false)
+    }
+  }, [])
+
+  const lensState = useMemo<LensState>(
+    () => ({ lens, towns, tracts, hour, metric, colourBy, region, showSolar, showLabels, ejOn, selectedKey, selectedTract }),
+    [lens, towns, tracts, hour, metric, colourBy, region, showSolar, showLabels, ejOn, selectedKey, selectedTract],
+  )
+  // `ejReady` re-syncs after `markEj` stamps the tract properties.
+  useEffect(() => {
+    lensStateRef.current = lensState
+    const map = mapRef.current
+    if (map && ready && styleLens.current === lens) applyLens(map, lensState)
+  }, [lensState, ready, lens, ejReady])
+
+  // ------------------------------------------------------------------ timeline
+  useEffect(() => {
+    if (!playing || lens !== 'energy') return
+    const t = setInterval(() => setHour((h) => (h + 1) % 24), 600)
+    return () => clearInterval(t)
+  }, [playing, lens])
+
+  // ------------------------------------------------------------------ derived
+  const gridTowns = useMemo(() => {
+    if (!towns) return []
+    if (selectedEntry) return [selectedEntry.energy]
+    return towns.entries.map((e) => e.energy).filter((t) => region === 'ALL' || t.zone === region)
+  }, [towns, selectedEntry, region])
+
+  const energy = lens === 'energy'
+  const vars = { '--mb': energy ? '124px' : '36px', '--cb': energy ? '112px' : '40px' } as React.CSSProperties
+
+  return (
+    <div
+      className="absolute inset-0 overflow-hidden [&_.maplibregl-ctrl-top-right]:top-[11rem] lg:[&_.maplibregl-ctrl-top-right]:top-3 lg:[&_.maplibregl-ctrl-top-right]:right-[360px]"
+      style={{ background: LENS_BG[lens], ...vars }}
+    >
+      <div className={`absolute inset-0 transition-opacity duration-300 motion-reduce:transition-none ${swapping ? 'opacity-0' : 'opacity-100'}`}>
+        {/* MapLibre sets position: relative on its container, so size it with height/width, not inset. */}
+        <div ref={containerRef} className="h-full w-full" role="region" aria-label="Map of Massachusetts" />
+      </div>
+
+      {/* Left rail */}
+      <div className="pointer-events-none absolute inset-x-3 top-3 z-10 max-h-[42%] lg:bottom-9 lg:max-h-none lg:w-[300px] lg:right-auto lg:inset-x-auto lg:left-3">
+        <div className="pointer-events-auto flex max-h-full flex-col gap-3 overflow-y-auto rounded-card border border-rule bg-surface/95 p-4 shadow-sm backdrop-blur-sm lg:max-h-full">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-haspopup="dialog"
+            className="h-9 rounded-md border border-ink bg-ink px-3 text-small font-medium text-paper transition-colors hover:bg-ink-muted"
+          >
+            My home{profile.town ? ` · ${profile.town}` : ''}
+          </button>
+
+          <Search knownTown={selectedName ?? (profile.town || null)} townAt={townAt} onResult={onResult} onUseHome={onUseHome} />
+
+          <div>
+            <p className="text-micro font-medium text-ink" id="lens-label">
+              Lens
+            </p>
+            <div role="group" aria-labelledby="lens-label" className="mt-1.5 grid grid-cols-3 rounded-md border border-rule-strong bg-paper p-0.5">
+              {LENSES.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  aria-pressed={lens === l.id}
+                  disabled={!ready}
+                  onClick={() => changeLens(l.id)}
+                  className="h-8 rounded text-small text-ink-muted transition-colors hover:text-ink disabled:opacity-50 aria-pressed:bg-ink aria-pressed:text-paper"
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {lens === 'street' ? (
+            <p className="text-micro text-ink-muted">
+              Streets, house numbers and building footprints from OpenStreetMap. Search an address to land on it; your town is outlined.
+            </p>
+          ) : null}
+
+          {lens === 'energy' ? (
+            <EnergyControls
+              region={region}
+              onRegion={(z) => {
+                setRegion(z)
+                camera.stopOrbit()
+                moveTo({ ...REGION_VIEW[z] }, 'ease')
+              }}
+              metric={metric}
+              onMetric={setMetric}
+              colourBy={colourBy}
+              onColourBy={setColourBy}
+              showSolar={showSolar}
+              onSolar={setShowSolar}
+              showLabels={showLabels}
+              onLabels={setShowLabels}
+              ready={ready}
+            />
+          ) : null}
+
+          {lens === 'heat' ? <HeatControls ejOn={ejOn} onEj={setEjOn} /> : null}
+
+          {dataError ? <p className="text-micro text-deadline" role="alert">{dataError}</p> : null}
+          {mapError ? <p className="text-micro text-deadline" role="alert">{mapError}</p> : null}
+        </div>
+      </div>
+
+      {/* Right panel */}
+      <div className="pointer-events-none absolute inset-x-3 bottom-[var(--mb)] z-10 max-h-[40%] lg:inset-x-auto lg:bottom-9 lg:right-3 lg:top-3 lg:max-h-none lg:w-[340px]">
+        <div className="pointer-events-auto flex max-h-full flex-col overflow-hidden rounded-card border border-rule bg-surface/95 shadow-sm backdrop-blur-sm">
+          <Tabs tab={tab} onTab={setTab} />
+          <div
+            role="tabpanel"
+            id="panel-town"
+            aria-labelledby="tab-town"
+            tabIndex={0}
+            hidden={tab !== 'town'}
+            className="min-h-0 flex-1 overflow-y-auto p-4"
+          >
+            {tab === 'town' ? (
+              <TownPanel town={selectedName} tract={selectedTract} onClearTract={() => setSelectedTract(null)} />
+            ) : null}
+          </div>
+          <div
+            role="tabpanel"
+            id="panel-bill"
+            aria-labelledby="tab-bill"
+            tabIndex={0}
+            hidden={tab !== 'bill'}
+            className="min-h-0 flex-1 overflow-y-auto p-4"
+          >
+            {tab === 'bill' ? (
+              <BillPanel town={selectedName} profile={profile} onEditProfile={() => setDrawerOpen(true)} />
+            ) : null}
+          </div>
+          <div
+            role="tabpanel"
+            id="panel-grid"
+            aria-labelledby="tab-grid"
+            tabIndex={0}
+            hidden={tab !== 'grid'}
+            className="min-h-0 flex-1 overflow-y-auto p-4"
+          >
+            {tab === 'grid' ? (
+              <GridPanel
+                towns={gridTowns}
+                scopeLabel={selectedName ?? 'Massachusetts'}
+                region={region}
+                hour={hour}
+                isTown={selectedEntry !== null}
+              />
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* Camera */}
+      <div className="pointer-events-none absolute bottom-[var(--cb)] left-1/2 z-10 hidden -translate-x-1/2 lg:block">
+        <CameraControls camera={camera} ready={ready} onReset={resetView} />
+      </div>
+
+      {/* Energy: note and timeline */}
+      {energy ? (
+        <>
+          <p className="absolute left-3 bottom-[88px] z-10 rounded-md bg-surface/95 px-2.5 py-1 text-micro font-medium text-deadline shadow-sm lg:bottom-auto lg:left-1/2 lg:top-3 lg:-translate-x-1/2">
+            Demand and solar figures are invented.
+          </p>
+          <Timeline hour={hour} playing={playing} onHour={(h) => { setPlaying(false); setHour(h) }} onPlay={() => setPlaying((p) => !p)} ready={ready} />
+        </>
+      ) : null}
+
+      <ProfileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} profile={profile} onChange={update} onClear={clear} />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------- pieces
+
+function Tabs({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'town', label: 'Town' },
+    { id: 'bill', label: 'Your bill' },
+    { id: 'grid', label: 'Grid' },
+  ]
+  return (
+    <div
+      role="tablist"
+      aria-label="Panel"
+      className="grid grid-cols-3 border-b border-rule"
+      onKeyDown={(e) => {
+        const i = tabs.findIndex((t) => t.id === tab)
+        const next =
+          e.key === 'ArrowRight' ? (i + 1) % 3 : e.key === 'ArrowLeft' ? (i + 2) % 3 : e.key === 'Home' ? 0 : e.key === 'End' ? 2 : -1
+        if (next < 0) return
+        e.preventDefault()
+        onTab(tabs[next].id)
+        requestAnimationFrame(() => document.getElementById(`tab-${tabs[next].id}`)?.focus())
+      }}
+    >
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          id={`tab-${t.id}`}
+          role="tab"
+          type="button"
+          aria-selected={tab === t.id}
+          aria-controls={`panel-${t.id}`}
+          tabIndex={tab === t.id ? 0 : -1}
+          onClick={() => onTab(t.id)}
+          className="h-10 border-b-2 border-transparent text-small text-ink-muted transition-colors hover:text-ink aria-selected:border-ink aria-selected:font-medium aria-selected:text-ink"
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+const CHIP =
+  'h-8 rounded-md border border-rule-strong bg-surface px-2.5 text-micro text-ink transition-colors hover:bg-paper-sunk aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-paper'
+
+function EnergyControls(props: {
+  region: Zone | 'ALL'
+  onRegion: (z: Zone | 'ALL') => void
+  metric: Metric
+  onMetric: (m: Metric) => void
+  colourBy: 'provider' | 'intensity'
+  onColourBy: (c: 'provider' | 'intensity') => void
+  showSolar: boolean
+  onSolar: (b: boolean) => void
+  showLabels: boolean
+  onLabels: (b: boolean) => void
+  ready: boolean
+}) {
+  const metrics: { id: Metric; label: string }[] = [
+    { id: 'demand', label: 'Demand' },
+    { id: 'solar', label: 'Solar output' },
+    { id: 'net', label: 'Net load' },
+  ]
+  const legend = (Object.keys(PROVIDER_COLOUR) as (SponsorKey | 'mixed')[]).filter((k) => k !== 'other' && k !== 'cape_light')
+  return (
+    <div className="flex flex-col gap-3 border-t border-rule pt-3">
+      <div>
+        <label htmlFor="region" className="text-micro font-medium text-ink">
+          Region (ISO-NE load zone)
+        </label>
+        <select
+          id="region"
+          value={props.region}
+          disabled={!props.ready}
+          onChange={(e) => props.onRegion(e.target.value as Zone | 'ALL')}
+          className="mt-1.5 h-9 w-full rounded-md border border-rule-strong bg-surface px-2 text-small text-ink"
+        >
+          {(Object.keys(ZONE_LABEL) as (Zone | 'ALL')[]).map((z) => (
+            <option key={z} value={z}>
+              {ZONE_LABEL[z]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <p className="text-micro font-medium text-ink">Metric</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {metrics.map((m) => (
+            <button key={m.id} type="button" className={CHIP} aria-pressed={props.metric === m.id} onClick={() => props.onMetric(m.id)}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="text-micro font-medium text-ink">Colour by</p>
+        <div className="mt-1.5 flex gap-1.5">
+          {(['provider', 'intensity'] as const).map((c) => (
+            <button key={c} type="button" className={CHIP} aria-pressed={props.colourBy === c} onClick={() => props.onColourBy(c)}>
+              {c === 'provider' ? 'Provider' : 'Intensity'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5 text-micro text-ink">
+        <label className="inline-flex items-center gap-2">
+          <input type="checkbox" checked={props.showSolar} onChange={(e) => props.onSolar(e.target.checked)} /> Solar sites
+        </label>
+        <label className="inline-flex items-center gap-2">
+          <input type="checkbox" checked={props.showLabels} onChange={(e) => props.onLabels(e.target.checked)} /> Town labels
+        </label>
+      </div>
+      {props.colourBy === 'provider' ? (
+        <ul className="flex flex-wrap gap-x-3 gap-y-1 text-micro text-ink-muted" aria-label="Provider colours">
+          {legend.map((k) => (
+            <li key={k} className="inline-flex items-center gap-1.5">
+              <i className="size-2 rounded-full" style={{ background: PROVIDER_COLOUR[k] }} />
+              {k === 'mixed' ? 'Mixed' : SPONSOR_NAME[k]}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-micro text-ink-muted">Brighter columns carry more load. Height is the square root of MW.</p>
+      )}
+      <p className="text-micro text-ink-faint">
+        Boundaries: US Census. Utilities: MassGIS Electricity Providers. Mixed towns split evenly.
+      </p>
+    </div>
+  )
+}
+
+function HeatControls({ ejOn, onEj }: { ejOn: boolean; onEj: (b: boolean) => void }) {
+  const totals = stateTotals()
+  const meta = GEO_META.tractStats
+  return (
+    <div className="flex flex-col gap-3 border-t border-rule pt-3">
+      <div>
+        <p className="text-micro font-medium text-ink">Homes heated with oil, by census tract</p>
+        <ul className="mt-2 flex flex-col gap-1" aria-label="Legend">
+          {HEAT_RAMP.map((colour, i) => (
+            <li key={colour} className="flex items-center gap-2 text-micro text-ink-muted">
+              <i className="h-3 w-6 rounded-sm border border-rule" style={{ background: colour }} />
+              {HEAT_LABELS[i]}
+            </li>
+          ))}
+          <li className="flex items-center gap-2 text-micro text-ink-muted">
+            <i className="h-3 w-6 rounded-sm border border-rule" style={{ background: NO_DATA }} />
+            No households or no estimate
+          </li>
+        </ul>
+        <p className="mt-2 text-micro text-ink-muted">
+          Statewide: <span className="num font-medium text-ink">{(Math.round(totals.oilShare * 1000) / 10).toLocaleString('en-US')}%</span> of{' '}
+          {totals.households.toLocaleString('en-US')} occupied homes.
+        </p>
+        <p className="mt-1 text-micro text-ink-faint">
+          {meta.source.split(' — ')[0]} · table B25040 · fetched {meta.fetchedAt.slice(0, 10)}
+        </p>
+      </div>
+      <div>
+        <label className="inline-flex items-center gap-2 text-micro text-ink">
+          <input type="checkbox" checked={ejOn} onChange={(e) => onEj(e.target.checked)} /> Environmental justice block groups
+        </label>
+        {ejOn ? (
+          <p className="mt-1.5 flex items-center gap-2 text-micro text-ink-muted">
+            <i className="h-3 w-6 rounded-sm border border-rule" style={{ background: EJ_VIOLET, opacity: EJ_OPACITY }} />
+            Tract holds an EJ block group (MassGIS EJ2020). Does not change the heat colours.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function Timeline({
+  hour,
+  playing,
+  onHour,
+  onPlay,
+  ready,
+}: {
+  hour: number
+  playing: boolean
+  onHour: (h: number) => void
+  onPlay: () => void
+  ready: boolean
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Hour of day"
+      className="absolute inset-x-3 bottom-9 z-10 flex items-center gap-0.5 rounded-card border border-rule bg-surface/95 p-2 shadow-sm backdrop-blur-sm lg:left-[324px] lg:right-[364px]"
+    >
+      <button
+        type="button"
+        onClick={onPlay}
+        disabled={!ready}
+        aria-label={playing ? 'Pause' : 'Play'}
+        className="h-8 w-9 shrink-0 rounded-md text-small text-ink transition-colors hover:bg-paper-sunk disabled:opacity-50"
+      >
+        {playing ? '❚❚' : '▶'}
+      </button>
+      {LOAD_SHAPE.map((_, h) => (
+        <button
+          key={h}
+          type="button"
+          aria-pressed={hour === h}
+          aria-label={hourLabel(h)}
+          title={hourLabel(h)}
+          onClick={() => onHour(h)}
+          className="flex h-9 min-w-0 flex-1 flex-col items-center justify-end gap-1 rounded-md pb-1 text-micro text-ink-muted transition-colors hover:bg-paper-sunk aria-pressed:bg-ink aria-pressed:text-paper"
+        >
+          <span className="h-3 leading-3">{h % 3 === 0 ? (h === 0 ? '12a' : h === 12 ? '12p' : h % 12) : ''}</span>
+          <i aria-hidden className={`block w-px bg-current opacity-50 ${h % 3 === 0 ? 'h-1.5' : 'h-1'}`} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
