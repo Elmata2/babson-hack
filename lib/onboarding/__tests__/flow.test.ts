@@ -20,6 +20,7 @@ import {
   previousStep,
   readStoredProfile,
   serializeProfile,
+  withoutProfile,
   stepIndex,
   validateProfile,
   type Profile,
@@ -164,5 +165,17 @@ describe('the step order', () => {
   it('counts from one for the progress text', () => {
     expect(stepIndex('account')).toBe(0)
     expect(stepIndex('review')).toBe(3)
+  })
+
+  it('keeps fields it does not own when it writes or forgets, so the map profile survives', () => {
+    const existing = JSON.stringify({ town: 'Worcester', fuel: 'oil', name: 'Old', email: 'old@example.com', phone: '', consentAt: '2026-01-01T00:00:00.000Z' })
+    const raw = serializeProfile(VALID, new Date('2026-10-24T12:00:00Z'), existing)
+    const stored = JSON.parse(raw as string)
+    expect(stored.town).toBe('Worcester')
+    expect(stored.fuel).toBe('oil')
+    expect(stored.name).toBe(VALID.name)
+    expect(JSON.parse(withoutProfile(existing) as string)).toEqual({ town: 'Worcester', fuel: 'oil' })
+    expect(withoutProfile(serializeProfile(VALID, new Date()))).toBeNull()
+    expect(withoutProfile(null)).toBeNull()
   })
 })

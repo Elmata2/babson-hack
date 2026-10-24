@@ -30,11 +30,11 @@ const csvRows = (path: string) => {
 const FIXTURE: BakedEnergy = {
   _meta: BAKED._meta,
   towns: {
-    ALPHA: { residentialMWh: 1000, usageStatus: 'reported', solarMW: 2, solarSystems: 10 },
-    BETA: { residentialMWh: 3000, usageStatus: 'reported', solarMW: 5, solarSystems: 30 },
-    GAMMA: { residentialMWh: null, usageStatus: 'municipal', solarMW: 1, solarSystems: 4 },
-    DELTA: { residentialMWh: null, usageStatus: 'suppressed', solarMW: 0.5, solarSystems: 2 },
-    EPSILON: { residentialMWh: 500, usageStatus: 'reported', solarMW: 0, solarSystems: 0 },
+    ALPHA: { residentialMWh: 1000, incentivesUsd: 50000, usageStatus: 'reported', solarMW: 2, solarSystems: 10 },
+    BETA: { residentialMWh: 3000, incentivesUsd: 90000, usageStatus: 'reported', solarMW: 5, solarSystems: 30 },
+    GAMMA: { residentialMWh: null, incentivesUsd: null, usageStatus: 'municipal', solarMW: 1, solarSystems: 4 },
+    DELTA: { residentialMWh: null, incentivesUsd: null, usageStatus: 'suppressed', solarMW: 0.5, solarSystems: 2 },
+    EPSILON: { residentialMWh: 500, incentivesUsd: null, usageStatus: 'reported', solarMW: 0, solarSystems: 0 },
   },
   load: {},
 }
@@ -82,6 +82,17 @@ describe('baked data joins the town geometry', () => {
     for (const t of Object.values(BAKED.towns)) expect(t.residentialMWh === null).toBe(t.usageStatus !== 'reported')
     expect(BAKED.towns.HAWLEY.usageStatus).toBe('suppressed')
     expect(BAKED.towns.WELLESLEY.usageStatus).toBe('municipal')
+  })
+
+  it('bakes Mass Save incentives: CSV sum matches, only reported towns carry a figure', () => {
+    const usage = csvRows('data/sources/energy/usage/towns.csv')
+    const csvTotal = usage.reduce((s, r) => s + (r.res_incentives_usd === '' ? 0 : Number(r.res_incentives_usd)), 0)
+    const baked = Object.values(BAKED.towns)
+    expect(baked.reduce((s, t) => s + (t.incentivesUsd ?? 0), 0)).toBe(csvTotal)
+    for (const t of baked) if (t.usageStatus !== 'reported') expect(t.incentivesUsd).toBeNull()
+    expect(BAKED.towns.WORCESTER.incentivesUsd).toBe(5915254)
+    expect(BAKED.towns.WELLESLEY.incentivesUsd).toBeNull()
+    expect(BAKED.towns.HAWLEY.incentivesUsd).toBeNull()
   })
 
   it('builds an EnergyTown for every town', () => {

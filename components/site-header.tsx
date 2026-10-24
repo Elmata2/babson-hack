@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { HeaderShell } from '@/components/motion/header-shell'
 import { withDemo } from '@/lib/demo'
 
 /*
@@ -11,9 +12,9 @@ import { withDemo } from '@/lib/demo'
  * return to the live price reader.
  */
 
-export function SiteHeader({ demo = false }: { demo?: boolean }) {
+export function SiteHeader({ demo = false, quietAtTop = false }: { demo?: boolean; quietAtTop?: boolean }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-rule bg-paper/85 backdrop-blur-sm">
+    <HeaderShell quietAtTop={quietAtTop}>
       <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between gap-6 px-5 sm:h-16 sm:px-8">
         <Link
           href={withDemo('/', demo)}
@@ -58,7 +59,7 @@ export function SiteHeader({ demo = false }: { demo?: boolean }) {
           </a>
         </div>
       </div>
-    </header>
+    </HeaderShell>
   )
 }
 

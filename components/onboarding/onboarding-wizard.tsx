@@ -31,6 +31,7 @@ import {
   stepIndex,
   subscribeProfile,
   validateProfile,
+  withoutProfile,
   writeProfile,
   type Profile,
   type Step,
@@ -179,13 +180,13 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
   function finishAccount() {
     setShowAccountErrors(true)
     if (!isProfileComplete(profile)) return
-    writeProfile(serializeProfile(profile, new Date()))
+    writeProfile(serializeProfile(profile, new Date(), profileSnapshot()))
     setDraft(null)
     goTo('bill')
   }
 
   function forgetProfile() {
-    writeProfile(null)
+    writeProfile(withoutProfile(profileSnapshot()))
     setDraft(null)
     setShowAccountErrors(false)
     goTo('account')

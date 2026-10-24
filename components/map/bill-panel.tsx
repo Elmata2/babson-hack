@@ -19,14 +19,11 @@ import {
   daysUntil,
   monthlyDifferenceUsd,
 } from '@/lib/supply'
+import { ASSESSMENT_PHONE, FEDERAL_25C_ENDED, HEAT_LOAN_MAX_USD, MASS_SAVE_READ, massSaveGate, rateSponsorFor } from '@/lib/mass-save'
 import type { BillPanelProps } from './types'
 
 // mass-save-rules.md §2 and §1 (income-based enhanced tier, verification number).
-const HEAT_LOAN_MAX_USD = 25_000
 const ENHANCED_CAP_USD = hp2026.tiers.enhanced.capUsd
-const ASSESSMENT_PHONE = '888-714-3990'
-const MASS_SAVE_READ = 'Mass Save · read 2026-10-24'
-const FEDERAL_25C_ENDED = '2025-12-31'
 
 const usd = (n: number) => `$${n.toLocaleString('en-US')}`
 const plural = (n: number) => (n === 1 ? '' : 's')
@@ -59,12 +56,6 @@ const Link = ({ href, children }: { href: string; children: ReactNode }) => (
     {children}
   </a>
 )
-
-function eligibility(sponsor: SponsorKey | null): boolean | null {
-  if (sponsor === 'eversource' || sponsor === 'nationalgrid' || sponsor === 'unitil') return true
-  if (sponsor === 'municipal') return false
-  return null
-}
 
 export function BillPanel({ town: townProp, profile, onEditProfile, today }: BillPanelProps) {
   const now = today ?? new Date()
@@ -114,7 +105,7 @@ export function BillPanel({ town: townProp, profile, onEditProfile, today }: Bil
   const municipal = sponsor === 'municipal'
   const capeLight = sponsor === 'cape_light'
   // Cape Light Compact: delivery is Eversource's. A number shows only when the town also lists Eversource.
-  const rateSponsor: SponsorKey = capeLight && res.sponsors.includes('eversource') ? 'eversource' : sponsor
+  const rateSponsor = rateSponsorFor(sponsor, res.sponsors)
   const basic = basicServiceRate(rateSponsor)
   const nantucket = res.town.toLowerCase() === 'nantucket'
   const basicCents = nantucket ? null : (basic?.centsPerKwh ?? null)
@@ -217,7 +208,7 @@ export function BillPanel({ town: townProp, profile, onEditProfile, today }: Bil
         </Section>
       )}
 
-      <HeatSection sponsor={sponsor} gate={isHome || !res.mixed ? eligibility(sponsor) : null} reason={res.reason} personal={personal} now={now} />
+      <HeatSection sponsor={sponsor} gate={isHome || !res.mixed ? massSaveGate(sponsor) : null} reason={res.reason} personal={personal} now={now} />
 
       <Section title="For context">
         <P>

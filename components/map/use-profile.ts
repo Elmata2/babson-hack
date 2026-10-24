@@ -56,10 +56,34 @@ function read(): Profile {
   }
 }
 
+/** Fields in storage that the map profile does not own (the onboarding wizard writes name, email, phone, consentAt there). */
+function foreignFields(raw: string | null): Record<string, unknown> {
+  if (!raw) return {}
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    const owned = new Set<string>(Object.keys(EMPTY_PROFILE))
+    return Object.fromEntries(Object.entries(parsed).filter(([k]) => !owned.has(k)))
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * The JSON to store for `profile` on top of whatever is already there, or null when nothing
+ * should be stored. Fields this store does not own survive; an empty profile removes only its own.
+ */
+export function mergeForStorage(existing: string | null, profile: Profile): string | null {
+  const foreign = foreignFields(existing)
+  const merged = isEmptyProfile(profile) ? foreign : { ...foreign, ...profile }
+  return Object.keys(merged).length === 0 ? null : JSON.stringify(merged)
+}
+
 function write(profile: Profile): void {
   try {
-    if (isEmptyProfile(profile)) window.localStorage.removeItem(PROFILE_KEY)
-    else window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
+    const next = mergeForStorage(window.localStorage.getItem(PROFILE_KEY), profile)
+    if (next === null) window.localStorage.removeItem(PROFILE_KEY)
+    else window.localStorage.setItem(PROFILE_KEY, next)
   } catch {
     // Storage blocked or full: the profile still works for this session.
   }
@@ -90,11 +114,7 @@ export function useProfile(): { profile: Profile; update: (patch: Partial<Profil
 
   const clear = useCallback(() => {
     setProfile({ ...EMPTY_PROFILE })
-    try {
-      window.localStorage.removeItem(PROFILE_KEY)
-    } catch {
-      // ignore
-    }
+    write({ ...EMPTY_PROFILE })
   }, [])
 
   return { profile, update, clear }

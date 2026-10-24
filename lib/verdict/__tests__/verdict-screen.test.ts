@@ -22,7 +22,7 @@ describe('the verdict screen — R14.3, R14.4, R15.2', () => {
     // The summary sits after the dial, before the first figure row: near the answer.
     const dial = page.indexOf('<VerdictDial')
     const summary = page.indexOf('<PlainSummary')
-    const figures = page.indexOf('A year, before and after')
+    const figures = page.indexOf('Heating cost a year, before and after')
     expect(dial).toBeGreaterThan(-1)
     expect(summary).toBeGreaterThan(dial)
     expect(figures).toBeGreaterThan(summary)

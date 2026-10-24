@@ -33,7 +33,8 @@ import { getPrices } from '@/lib/prices'
 import { resolveUtility, SPONSOR_NAME, seasonalHeatPumpRate } from '@/lib/utility'
 import { enhancedOffer } from '@/lib/verdict/enhanced-offer'
 import { entryFor, provenanceFor, type FigureId, type ProvenanceEntry } from '@/lib/verdict/provenance'
-import { verdictNotes } from '@/lib/verdict-notes'
+import { verdictHeadline, type Part } from '@/lib/verdict/headline'
+import { MIN_REASONS, verdictNotes } from '@/lib/verdict-notes'
 import { VERDICT_META } from '@/lib/verdicts'
 
 /**
@@ -77,8 +78,6 @@ const TIERS: readonly Tier[] = ['whole', 'partial', 'basic', 'enhanced']
 
 const usd = (value: number): string =>
   value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-
-const cents = (ratePerKWh: number): string => `${(ratePerKWh * 100).toFixed(1)}¢`
 
 const FUEL_LABEL: Record<Fuel, string> = {
   oil: 'heating oil',
@@ -294,6 +293,18 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   }
 
   const entries = result ? provenanceFor(result, provenanceContext) : []
+  const headline = result ? verdictHeadline(result) : null
+  const extraReasons =
+    headline && notes ? notes.reasons.slice(0, Math.max(0, MIN_REASONS - headline.parts.why.length)) : []
+  const townName = displayTown(townRaw)
+  const switchHref = `/switch?${queryString(params)}`
+  const mapHref = `/map?${new URLSearchParams({
+    town: townName,
+    next: '1',
+    fuel,
+    save: String(Math.round(result?.annualSavings ?? 0)),
+    back: `/verdict?${queryString(params)}`,
+  }).toString()}`
   const figure = (id: FigureId): ProvenanceEntry | null => entryFor(entries, id)
 
   return (
@@ -344,7 +355,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 print a rebate, a net cost or a payback you cannot receive.
               </p>
             </section>
-          ) : (
+          ) : headline === null ? null : (
             <section
               data-tone={meta?.tone ?? 'hold'}
               className="mt-6 rounded-card border border-rule border-l-4 border-l-(--tone) bg-(--tone-tint) p-6 sm:p-8"
@@ -352,95 +363,68 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
               <div className="mt-2 grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end">
                 <div>
                   <p className="text-eyebrow uppercase text-ink-muted">The verdict</p>
-                  <h1 className="mt-2 text-display font-medium">{meta?.headline}</h1>
-                  <p className="mt-2 max-w-[46ch] text-small text-ink-muted">{meta?.detail}</p>
+                  <h1 className="mt-2 max-w-[22ch] text-display font-medium">
+                    <Parts entries={entries} parts={headline.parts.sentence} />
+                  </h1>
+                  {headline.parts.monthly.length ? (
+                    <p className="mt-2 text-small tabular-nums text-ink-muted">
+                      <Parts entries={entries} parts={headline.parts.monthly} />
+                    </p>
+                  ) : null}
+                  <p className="mt-4 text-title font-medium text-(--tone)">{headline.action}</p>
                 </div>
                 <VerdictDial verdict={result.verdict} className="w-full" />
               </div>
 
-              {/* R14.4: the short version, beside the dial, in the first paint. */}
               <PlainSummary result={result} />
 
-              <div className="mt-8 flex flex-wrap items-end gap-x-8 gap-y-5">
-                <div>
-                  <p className="text-eyebrow uppercase text-ink-faint">A year, before and after</p>
-                  <NumberFlip
-                    from={usd(result.oldAnnualCost)}
-                    to={usd(result.newAnnualCostHeatPumpRate)}
-                    fromLabel={`${FUEL_LABEL[result.fuel]} today`}
-                    toLabel="Heat pump, seasonal rate"
-                  />
-                </div>
-                <div className="sm:ml-auto">
-                  {result.annualSavings > 0 ? (
-                    <>
-                      <p className="text-eyebrow uppercase text-ink-faint">Saved a year</p>
-                      <p className="text-title font-medium tabular-nums text-(--tone)">
-                        <Figure entries={entries} id="savings">
-                          {usd(result.annualSavings)}
-                        </Figure>
-                      </p>
-                      <p className="mt-1 max-w-[26ch] text-micro text-ink-muted">
-                        at the seasonal rate. The standard rate is the harder test, below.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-eyebrow uppercase text-ink-faint">Break-even electricity price</p>
-                      <p className="text-title font-medium tabular-nums text-ink">
-                        <Figure entries={entries} id="breakEven">
-                          {result.breakEvenElectricPrice === null ? '—' : cents(result.breakEvenElectricPrice)}
-                        </Figure>
-                      </p>
-                      <p className="mt-1 max-w-[30ch] text-micro text-ink-muted">
-                        Above it, the heat pump costs you money.
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <p className="mt-6 text-small text-ink-muted">
-                You spend{' '}
-                <Figure entries={entries} id="oldCost">
-                  <span className="tabular-nums text-ink">{usd(result.oldAnnualCost)}</span>
-                </Figure>{' '}
-                a year on {FUEL_LABEL[result.fuel]}. The same heat from a heat pump:{' '}
-                <Figure entries={entries} id="newCostSeasonal">
-                  <span className="tabular-nums text-ink">{usd(result.newAnnualCostHeatPumpRate)}</span>
-                </Figure>{' '}
-                at the seasonal rate,{' '}
-                <Figure entries={entries} id="newCostStandard">
-                  <span className="tabular-nums text-ink">{usd(result.newAnnualCostStandard)}</span>
-                </Figure>{' '}
-                at the standard rate.
-              </p>
-
-              <ul className="mt-5 grid gap-2 border-t border-rule pt-4 text-small text-ink">
-                {notes ? notes.reasons.slice(0, 2).map((reason) => <li key={reason}>{reason}</li>) : null}
+              <ul className="mt-6 grid gap-2 border-t border-rule pt-4 text-small text-ink">
+                {headline.parts.why.map((line, index) => (
+                  <li key={`${headline.case}-${index}`}>
+                    <Parts entries={entries} parts={line} />
+                  </li>
+                ))}
+                {extraReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
               </ul>
               {notes?.caveats[0] ? (
-                <p className="mt-2 text-micro text-ink-muted">
+                <p className="mt-3 text-micro text-ink-muted">
                   <span className="font-medium text-ink">What could change it: </span>
                   {notes.caveats[0]}
                 </p>
               ) : null}
 
-              {result.annualSavings <= 0 ? (
-                <p className="mt-4 max-w-[62ch] border-t border-rule pt-4 text-small text-ink">
-                  Neither rate saves money: {usd(result.annualSavings)} at the seasonal rate,{' '}
-                  {usd(result.annualSavingsAtStandardRate)} at the standard rate. The break-even price above is
-                  where this house would turn.
-                </p>
-              ) : result.annualSavingsAtStandardRate <= 0 ? (
-                <p className="mt-4 max-w-[62ch] border-t border-rule pt-4 text-small text-ink">
-                  At the standard rate this does not save money. The only view that works is the winter rate, so
-                  treat {usd(result.annualSavings)} as the optimistic half of the answer.
+              {headline.parts.hedge.length ? (
+                <p className="mt-3 text-micro text-ink-muted">
+                  <Parts entries={entries} parts={headline.parts.hedge} />
                 </p>
               ) : null}
 
               {/* R14.3: offered where it is true, with the cap read from the rebate table. */}
               {offer ? <EnhancedOfferLine offer={offer} /> : null}
+
+              {result.annualSavings > 0 && result.annualSavingsAtStandardRate <= 0 ? (
+                <p className="mt-4 max-w-[62ch] border-t border-rule pt-4 text-small text-ink">
+                  At the standard rate this does not save money. The only view that works is the winter rate, so
+                  treat{' '}
+                  <Figure entries={entries} id="savings">
+                    {usd(result.annualSavings)}
+                  </Figure>{' '}
+                  as the optimistic half of the answer.
+                </p>
+              ) : null}
+
+              <div className="mt-6 border-t border-rule pt-4">
+                <p className="text-eyebrow uppercase text-ink-faint">Heating cost a year, before and after</p>
+                <NumberFlip
+                  className="[&_.text-number]:text-[2rem]"
+                  from={usd(result.oldAnnualCost)}
+                  to={usd(result.newAnnualCostHeatPumpRate)}
+                  fromLabel={`${FUEL_LABEL[result.fuel]} today`}
+                  toLabel="Heat pump, seasonal rate"
+                />
+              </div>
             </section>
           )}
 
@@ -494,12 +478,20 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 facts a provider would hear before anything is sent.
               </p>
             </div>
-            <Link
-              href={`/switch?${queryString(params)}`}
-              className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
-            >
-              Decide what to do next →
-            </Link>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+              <Link
+                href={switchHref}
+                className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
+              >
+                Decide what to do next →
+              </Link>
+              <Link
+                href={mapHref}
+                className="text-small text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
+              >
+                See {townName} on the map →
+              </Link>
+            </div>
           </section>
 
           <ExplainPanel result={result} />
@@ -651,6 +643,22 @@ function Figure({
 }) {
   const entry = entryFor(entries, id)
   return entry ? <ProvenanceFigure entry={entry}>{children}</ProvenanceFigure> : <>{children}</>
+}
+
+function Parts({ entries, parts }: { entries: readonly ProvenanceEntry[]; parts: readonly Part[] }) {
+  return (
+    <>
+      {parts.map((part, index) =>
+        typeof part === 'string' ? (
+          part
+        ) : (
+          <Figure key={`${part.id}-${index}`} entries={entries} id={part.id}>
+            {part.text}
+          </Figure>
+        ),
+      )}
+    </>
+  )
 }
 
 function Stat({

@@ -163,8 +163,31 @@ export function readStoredProfile(raw: string | null): StoredProfile | null {
   }
 }
 
-/** The JSON to store, or null when the profile is not yet usable. `now` is injected so tests do not sleep. */
-export function serializeProfile(profile: Profile, now: Date): string | null {
+const OWNED_FIELDS = ['name', 'email', 'phone', 'consentAt']
+
+/** Stored fields this module does not own (the map profile shares the key). */
+function foreignFields(existing: string | null): Record<string, unknown> {
+  if (!existing) return {}
+  try {
+    const parsed: unknown = JSON.parse(existing)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    return Object.fromEntries(Object.entries(parsed).filter(([k]) => !OWNED_FIELDS.includes(k)))
+  } catch {
+    return {}
+  }
+}
+
+/** What stays in storage after the user forgets the onboarding profile: fields it does not own, or null. */
+export function withoutProfile(existing: string | null): string | null {
+  const foreign = foreignFields(existing)
+  return Object.keys(foreign).length === 0 ? null : JSON.stringify(foreign)
+}
+
+/**
+ * The JSON to store, or null when the profile is not yet usable. `now` is injected so tests do not sleep.
+ * `existing` is what storage holds now; fields this module does not own are carried over.
+ */
+export function serializeProfile(profile: Profile, now: Date, existing: string | null = null): string | null {
   if (!isProfileComplete(profile)) return null
   const stored: StoredProfile = {
     name: profile.name.trim(),
@@ -172,7 +195,7 @@ export function serializeProfile(profile: Profile, now: Date): string | null {
     phone: profile.phone.trim(),
     consentAt: now.toISOString(),
   }
-  return JSON.stringify(stored)
+  return JSON.stringify({ ...foreignFields(existing), ...stored })
 }
 
 // ------------------------------------------------------------- browser store

@@ -98,6 +98,28 @@
   /* Rhythm */
   --radius-card: 0.75rem;
   --radius-pill: 999px;
+
+  /* Motion and depth — one curve, one shadow */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-soft: 0 30px 80px -36px oklch(0.21 0.02 60 / 0.22);
+  --shadow-lift: 0 18px 44px -26px oklch(0.21 0.02 60 / 0.3);
+
+  /* Washes — the palette at low alpha, for surfaces behind type */
+  --background-image-wash-warm: radial-gradient(
+    ellipse 70% 90% at 82% 0%,
+    oklch(0.786 0.104 65 / 0.16),
+    transparent 70%
+  );
+  --background-image-wash-heat: radial-gradient(
+    ellipse 55% 70% at 100% 100%,
+    oklch(0.664 0.135 52 / 0.1),
+    transparent 72%
+  );
+  --background-image-wash-switch: radial-gradient(
+    ellipse 50% 80% at 0% 100%,
+    oklch(0.44 0.085 158 / 0.07),
+    transparent 70%
+  );
 }
 
 @layer base {
@@ -228,3 +250,108 @@
   }
 }
 
+
+/*
+ * Entrance and reveal. `rise` is the hero's page-load sequence: --i sets the
+ * stagger step. `reveal` is one-shot on scroll and a transition, so a fast
+ * scroll retargets instead of restarting. Content is visible by default; the
+ * hidden state is only applied by script to blocks that start below the fold.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
+  to {
+    transform: translate3d(-16px, 10px, 0) scale(1.05);
+  }
+}
+
+@layer components {
+  .rise {
+    animation: rise 680ms var(--ease-out-expo) both;
+    animation-delay: calc(var(--i, 0) * 80ms);
+  }
+
+  .reveal {
+    transition:
+      opacity 700ms var(--ease-out-expo),
+      transform 700ms var(--ease-out-expo);
+    transition-delay: calc(var(--i, 0) * 80ms);
+  }
+
+  .reveal[data-reveal='pending'] {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  .hero-map {
+    -webkit-mask-image: radial-gradient(
+      ellipse 60% 64% at 64% 48%,
+      #000 28%,
+      transparent 100%
+    );
+    mask-image: radial-gradient(ellipse 60% 64% at 64% 48%, #000 28%, transparent 100%);
+  }
+
+  .hero-map > div {
+    animation: drift 70s ease-in-out infinite alternate;
+  }
+
+  .glass {
+    background-color: color-mix(in oklch, var(--color-surface) 78%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    backdrop-filter: blur(14px) saturate(1.15);
+  }
+
+  .header-shell {
+    transition:
+      background-color 300ms var(--ease-out-expo),
+      border-color 300ms var(--ease-out-expo),
+      backdrop-filter 300ms var(--ease-out-expo);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .lift-cards li {
+      transition:
+        transform 200ms var(--ease-out-expo),
+        box-shadow 200ms var(--ease-out-expo);
+    }
+
+    .lift-cards li:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-lift);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rise {
+      animation: none;
+    }
+
+    .reveal,
+    .reveal[data-reveal='pending'] {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+
+    .hero-map > div {
+      animation: none;
+    }
+
+    .lift-cards li:hover {
+      transform: none;
+    }
+  }
+}

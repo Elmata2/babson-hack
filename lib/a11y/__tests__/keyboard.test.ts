@@ -77,13 +77,19 @@ describe('R14.2 — the figures are buttons and the drawer is a modal dialog', (
 describe('R14.2 — the verdict numbers are reachable', () => {
   it('every headline figure on the verdict screen goes through the drawer', () => {
     const page = readSource('app/verdict/page.tsx')
+    // The money-first verdict moved oldCost / newCost / breakEven into the
+    // headline's parts; those parts render through `Figure`, so the id can live
+    // in the headline module rather than in the page.
+    const headline = readSource('lib/verdict/headline.ts')
     for (const id of ['savings', 'breakEven', 'oldCost', 'newCostSeasonal', 'newCostStandard', 'hdd', 'tons', 'fuelUse', 'scop']) {
-      expect(page, `figure "${id}" is not wrapped in <Figure>`).toContain(`id="${id}"`)
+      const wired = page.includes(`id="${id}"`) || headline.includes(`fig('${id}'`)
+      expect(wired, `figure "${id}" is not wrapped in <Figure>`).toBe(true)
     }
     for (const id of ['rebate', 'netCost', 'payback']) {
       expect(page, `stat "${id}" has no provenance entry`).toContain(`figure('${id}')`)
     }
     expect(page).toMatch(/<Figure\s+entries=\{entries\}/)
+    expect(page).toMatch(/<Parts entries=\{entries\} parts=\{headline\.parts/)
   })
 
   it('the dial is described in words, not only drawn', () => {
