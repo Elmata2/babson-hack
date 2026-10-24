@@ -281,8 +281,7 @@ export function CallBoard({
   if (mode === 'off' && !replay) {
     return (
       <p className="rounded-card border border-dashed border-rule-strong bg-paper-sunk/60 p-3 text-small text-ink-muted">
-        Calling is off on this deployment, so no number is dialled. The switch kit below has the exact question and the
-        number to call yourself.
+        The switch kit below has the exact question and the number to call yourself.
       </p>
     )
   }

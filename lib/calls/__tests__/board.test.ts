@@ -210,7 +210,7 @@ describe('the call plan', () => {
   it('is off with no agent configured, and says so', () => {
     const plan = callPlan([line], {} as unknown as NodeJS.ProcessEnv)
     expect(plan.mode).toBe('off')
-    expect(plan.reason).toContain('Calling is off here')
+    expect(plan.reason).toContain('switch kit')
     expect(agentReady(plan.agent)).toBe(false)
   })
 

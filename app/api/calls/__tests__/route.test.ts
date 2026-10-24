@@ -134,7 +134,7 @@ describe('POST /api/calls', () => {
     const response = await POST(request(body(), ''))
     const payload = (await response.json()) as { mode: string; notice: string; records: unknown[] }
     expect(payload.mode).toBe('off')
-    expect(payload.notice).toContain('Calling is off here')
+    expect(payload.notice).toContain('switch kit')
     expect(payload.records).toEqual([])
   })
 

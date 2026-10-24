@@ -37,11 +37,11 @@ describe('voiceReadiness', () => {
     expect(Object.values(readiness).every((value) => typeof value !== 'string' || value.startsWith('ELEVEN') || value === 'PROVIDER_OUTREACH_ENABLED')).toBe(true)
   })
 
-  it('says what is missing rather than that "there is no agent"', () => {
+  it('points at the kit instead of narrating a missing value', () => {
     const readiness = voiceReadiness({ ELEVENLABS_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv)
     const line = readinessLine(readiness)
-    expect(line).toContain('ELEVENLABS_AGENT_ID')
     expect(line).toContain('switch kit')
+    expect(line).not.toContain('ELEVENLABS')
     expect(readinessLine(voiceReadiness(FULL))).toContain('Nothing is dialled until you approve')
   })
 
@@ -52,10 +52,11 @@ describe('voiceReadiness', () => {
     expect(line).not.toContain('ELEVENLABS')
   })
 
-  it('sends no variable names to a client component in demo mode', () => {
+  it('sends variable names only to a caller that asked for them', () => {
     const readiness = voiceReadiness({} as unknown as NodeJS.ProcessEnv)
-    expect(publicReadiness(readiness).missing.length).toBe(4)
-    expect(publicReadiness(readiness, { demo: true })).toEqual({ canDial: false, missing: [] })
+    expect(publicReadiness(readiness).missing).toEqual([])
+    expect(publicReadiness(readiness, { debug: true }).missing.length).toBe(4)
+    expect(publicReadiness(readiness, { demo: true, debug: true })).toEqual({ canDial: false, missing: [] })
   })
 })
 

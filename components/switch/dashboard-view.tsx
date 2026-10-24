@@ -154,7 +154,9 @@ export function DashboardView({ demo = false, voice = null }: { demo?: boolean; 
         </div>
       </section>
 
-      {voice ? <QuotePath request={request} voice={voice} demo={demo} /> : null}
+      {voice && (voice.canDial || demo || voice.missing.length > 0) ? (
+        <QuotePath request={request} voice={voice} demo={demo} />
+      ) : null}
 
       {profile || request ? (
         <div className="grid gap-4 lg:grid-cols-2">

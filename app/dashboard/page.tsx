@@ -28,14 +28,17 @@ interface DashboardPageProps {
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const demo = demoFromParams(await searchParams)
+  const params = await searchParams
+  const demo = demoFromParams(params)
+  const raw = params.debug
+  const debug = (Array.isArray(raw) ? raw[0] : raw) === '1'
 
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader demo={demo} showDashboard={false} />
       <main id="main" className="flex-1">
         <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8 sm:py-16">
-          <DashboardView demo={demo} voice={publicReadiness(voiceReadiness(), { demo })} />
+          <DashboardView demo={demo} voice={publicReadiness(voiceReadiness(), { demo, debug })} />
         </div>
       </main>
       <SiteFooter />

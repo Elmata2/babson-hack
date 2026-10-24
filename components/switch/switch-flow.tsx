@@ -588,7 +588,6 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
                   demoNotice
                 ) : (
                   <>
-                    {call.reason ?? plan.reason ?? 'No provider list is configured.'}{' '}
                     {selectedKind === 'fuel'
                       ? 'The switch kit below has the exact question to ask a dealer you choose.'
                       : 'The switch kit below has the exact question to ask a Mass Save contractor.'}
@@ -726,7 +725,7 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
                 : allPhoneSelected && callAllowed
                   ? 'One confirm starts the calls. You can still use the kit instead.'
                   : plan.mode === 'off' && call.mode === 'off'
-                    ? 'Outreach is off in this build, so nothing can be sent. The kit still works.'
+                    ? 'The switch kit below is the complete path.'
                     : 'You can still use the kit instead of contacting anyone.'}
             </p>
           </div>

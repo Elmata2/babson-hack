@@ -49,26 +49,29 @@ export function voiceReadiness(env: NodeJS.ProcessEnv = process.env): VoiceReadi
 /**
  * What a client component may receive. Same rule as `publicPlan`: a server component
  * serializes its props into the page, so the deployer's variable names are only sent
- * to a screen that shows them. In demo mode they are not sent at all.
+ * to a screen that asks for them.
  */
 export interface PublicVoiceReadiness {
   canDial: boolean
   missing: string[]
 }
 
-export function publicReadiness(readiness: VoiceReadiness, options: { demo?: boolean } = {}): PublicVoiceReadiness {
-  return { canDial: readiness.canDial, missing: options.demo ? [] : readiness.missing }
+export function publicReadiness(readiness: VoiceReadiness, options: { demo?: boolean; debug?: boolean } = {}): PublicVoiceReadiness {
+  const keep = options.debug === true && options.demo !== true
+  return { canDial: readiness.canDial, missing: keep ? readiness.missing : [] }
 }
 
-/** The one sentence a screen shows. No key, no id, no endpoint. */export function readinessLine(readiness: PublicVoiceReadiness, options: { demo?: boolean } = {}): string {
+/**
+ * The one sentence a screen shows, and only when calling is actually available.
+ * A deployment with no number does not advertise calling at all: the switch kit is
+ * the path, and the kit says so in its own words.
+ */
+export function readinessLine(readiness: PublicVoiceReadiness, options: { demo?: boolean } = {}): string {
   if (options.demo) {
-    return 'Demo mode: the agent beat is replayed from a fixture in this tab. Nothing is dialled, no vendor key or phone number is needed, and no installer hears anything.'
+    return 'Demo mode: the agent beat is replayed from a fixture in this tab. Nothing is dialled, no installer hears anything.'
   }
   if (readiness.canDial) {
-    return 'The agent is configured on this deployment, so a confirmed request can be dialled. Nothing is dialled until you approve the facts.'
+    return 'The agent is ready to call. Nothing is dialled until you approve the facts on the consent screen.'
   }
-  if (readiness.missing.length === 1) {
-    return `The agent cannot place a call here: ${readiness.missing[0]} is not set. The switch kit below is the complete path, with the exact question and the number to call yourself.`
-  }
-  return `The agent cannot place a call here: ${readiness.missing.join(', ')} are not set. The switch kit below is the complete path, with the exact question and the number to call yourself.`
+  return 'The switch kit below has the exact question and the number to call yourself.'
 }

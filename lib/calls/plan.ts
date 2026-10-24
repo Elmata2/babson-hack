@@ -80,10 +80,10 @@ export function callPlan(providers: readonly SwitchProvider[], env: NodeJS.Proce
   if (!agentReady(agent)) {
     return {
       mode: 'off',
-      // Household-facing words. Which variable is missing is an operator fact, and
-      // `npm run voice:check` (plus the dashboard's readiness card) names it.
-      reason:
-        'Calling is off here: no voice agent is configured on this deployment, so no number is dialled. The switch kit below has the exact question and the number to call yourself.',
+      // The screen does not advertise calling it cannot do, and it does not narrate
+      // its own configuration: the kit is the path, and `npm run voice:check` is where
+      // a deployer reads which value is missing.
+      reason: 'The switch kit below has the exact question and the number to call yourself.',
       notice: null,
       agent,
     }
