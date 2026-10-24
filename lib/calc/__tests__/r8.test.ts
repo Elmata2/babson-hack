@@ -33,6 +33,7 @@ const BASE: VerdictResult = {
   paybackYears: 5.16,
   monthlyLoan: 167.26,
   monthlySavings: 226.91,
+  monthlyCashFlow: 226.91 - 167.26,
   cashFlowPositive: true,
   breakEvenElectricPrice: 0.4,
   rebate2026: 7_950,
