@@ -4,7 +4,7 @@ import { computeVerdict } from '@/lib/calc'
 import type { VerdictResult } from '@/lib/calc/types'
 
 import { cents, count, usd } from '../format'
-import { entryFor, provenanceFor, type ProvenanceContext } from '../provenance'
+import { entryFor, FIGURE_IDS, provenanceFor, type ProvenanceContext } from '../provenance'
 
 const result = computeVerdict(
   { fuel: 'oil', annualUnits: 800, unitPrice: 6.23, hdd65: 5_600 },
@@ -25,32 +25,15 @@ const ctx: ProvenanceContext = {
 }
 
 describe('provenance', () => {
-  it('covers every figure the screen displays', () => {
+  it('covers every figure the screen displays, exactly once', () => {
     const entries = provenanceFor(result, ctx)
     const ids = entries.map((entry) => entry.id)
     expect(new Set(ids).size).toBe(ids.length)
-    for (const id of [
-      'hdd',
-      'fuelUse',
-      'deliveredHeat',
-      'designLoad',
-      'tons',
-      'scop',
-      'annualKWh',
-      'oldCost',
-      'newCostSeasonal',
-      'newCostStandard',
-      'savings',
-      'rebate',
-      'netCost',
-      'payback',
-      'monthlyLoan',
-      'monthlySavings',
-      'breakEven',
-      'cliff',
-    ] as const) {
+    for (const id of FIGURE_IDS) {
       expect(entryFor(entries, id), `no provenance for ${id}`).not.toBeNull()
     }
+    // And nothing the drawer can open that the screen never shows.
+    for (const id of ids) expect(FIGURE_IDS).toContain(id)
   })
 
   it('never leaves a formula, a substituted value or a source date empty', () => {

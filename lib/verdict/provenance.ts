@@ -50,26 +50,37 @@ export interface ProvenanceEntry {
   note?: string
 }
 
-/** Every figure the verdict screen lets a reader click. */
-export type FigureId =
-  | 'hdd'
-  | 'fuelUse'
-  | 'deliveredHeat'
-  | 'designLoad'
-  | 'tons'
-  | 'scop'
-  | 'annualKWh'
-  | 'oldCost'
-  | 'newCostSeasonal'
-  | 'newCostStandard'
-  | 'savings'
-  | 'rebate'
-  | 'netCost'
-  | 'payback'
-  | 'monthlyLoan'
-  | 'monthlySavings'
-  | 'breakEven'
-  | 'cliff'
+/**
+ * Every figure the verdict screen lets a reader click.
+ *
+ * R9.1 is a coverage rule, so the list is data rather than a type alone: the test
+ * reads it, so a figure cannot join the type without also becoming an assertion
+ * that `provenanceFor` produces an entry for it — and that no entry exists for a
+ * figure the screen never shows.
+ */
+export const FIGURE_IDS = [
+  'hdd',
+  'fuelUse',
+  'deliveredHeat',
+  'designLoad',
+  'tons',
+  'scop',
+  'annualKWh',
+  'oldCost',
+  'newCostSeasonal',
+  'newCostStandard',
+  'savings',
+  'rebate',
+  'netCost',
+  'payback',
+  'monthlyLoan',
+  'monthlySavings',
+  'breakEven',
+  'cliff',
+] as const
+
+/** One of the figures on the verdict screen. */
+export type FigureId = (typeof FIGURE_IDS)[number]
 
 /** The sources the page already resolved; nothing here is looked up. */
 export interface ProvenanceContext {

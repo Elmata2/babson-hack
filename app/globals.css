@@ -196,3 +196,19 @@
   }
 }
 
+/*
+ * F-36 — the provenance drawer is a native dialog, so the backdrop is styled
+ * here rather than with a portal. Warm, translucent ink: the verdict page
+ * dimmed, never a black overlay.
+ */
+@layer components {
+  .provenance-dialog {
+    margin: auto;
+  }
+
+  .provenance-dialog::backdrop {
+    background-color: color-mix(in oklch, var(--color-ink) 42%, transparent);
+    backdrop-filter: blur(1.5px);
+  }
+}
+
