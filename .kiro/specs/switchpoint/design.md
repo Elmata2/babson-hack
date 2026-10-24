@@ -403,3 +403,29 @@ Accounts. Saved reports. Installer leads. Emails. Multi-state. Income
 verification. Any animation that costs more than 20 minutes.
 
 The demo path is sacred. Everything else is a slide.
+
+## 15. Addendum B — profile onboarding, best-case switch, dashboard (draft, pending team review)
+
+**Status:** proposal · 2026-10-24 · nothing built. Full design:
+[`docs/superpowers/specs/2026-10-24-onboarding-and-switch-design.md`](../../../docs/superpowers/specs/2026-10-24-onboarding-and-switch-design.md).
+Builds on Addendum A (branch `spec/agent-and-ci-addendum`, §12–§14, R17–R25).
+
+**What it proposes:** home CTA (header + hero) → `/onboarding` (account: name,
+email, phone, email one-time code → bill photo/PDF via `/api/parse-bill` or manual →
+verify the electricity profile → best case per category: supply, heating fuel, heat
+pump, programs, with "you're already on the best option" as a first-class answer →
+switch: agent-assisted with consent, published prices first, then email/phone quotes,
+user decides; or manual with a switch kit) → `/dashboard`, `/settings`
+(notifications on by default, opt-out), `/map` preselected on the user's town.
+
+**What it would change if approved:** §11 above ("Accounts… Emails" out today),
+product non-negotiable #4 ("no accounts, no PII") and ADR-003 ("no database") for
+signed-in users only. The anonymous `/start` → `/verdict` path keeps today's
+guarantees. Bill images remain never stored. Proposed stack: Supabase (auth + Postgres
++ RLS), Resend (email out/in), ElevenLabs + Twilio (calls, per `voice-agent-rules.md`).
+
+**Open questions for the team** (design doc §9): which accounts and keys exist and who
+holds them; the cut line and which outreach channel (phone or email) is the demo
+centrepiece; whether Addendum A is approved and who supplies real dealer and
+installer lists; whether a dated Energy Switch MA snapshot is an acceptable source
+for competitive offers.
