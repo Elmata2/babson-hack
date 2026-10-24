@@ -1,0 +1,15 @@
+{
+  "_synthetic": "SYNTHETIC FIXTURE B — invented, not a real bill. The document most Massachusetts oil households actually have: one delivery ticket, no degree days, no annual statement, 275 gal tank. The only honest way to a year is the household's fill count.",
+  "fuel": "oil",
+  "quantity": 190,
+  "unit": "gal",
+  "price_per_unit": 6.18,
+  "billing_period": "delivery",
+  "document_date": "2026-02-03",
+  "document_type": "oil_delivery",
+  "usage_history": null,
+  "degree_days": null,
+  "tank_size_gal": 275,
+  "rate_class": null,
+  "confidence": "high"
+}

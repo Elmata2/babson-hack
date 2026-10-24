@@ -3,12 +3,18 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { AddressCombobox } from './address-combobox'
+import { BillUpload } from './bill-upload'
 import { FreshnessBadge } from './freshness-badge'
+import { matchTown, type AddressSuggestion } from '@/lib/address/nominatim'
 import type { BillFuel } from '@/lib/parse/types'
 
 /**
  * @built F-30 manual entry — fuel and two numbers, the path that always works
  * @built F-31 address intake — geocode + assessor prefill, with per-field source
+ * @built F-64 the address field is a type-ahead over OpenStreetMap, so "106 Chandler"
+ * asks which one, instead of silently choosing
+ * @built F-65 bill upload sits beside the numbers and fills them only on request
  *
  * The rule from the design: every server route is an enrichment. Delete all of
  * them and this form still produces a verdict, because the form is the product
@@ -20,11 +26,11 @@ import type { BillFuel } from '@/lib/parse/types'
  * screen, which is the only state this app has.
  */
 
-const FUELS: { value: BillFuel; label: string; unit: string; hint: string }[] = [
-  { value: 'oil', label: 'Heating oil', unit: 'gallons a year', hint: 'Your delivery account shows a yearly total.' },
-  { value: 'propane', label: 'Propane', unit: 'gallons a year', hint: 'Summer fill plus winter deliveries.' },
-  { value: 'gas', label: 'Natural gas', unit: 'therms a year', hint: 'The annual summary on your gas bill.' },
-  { value: 'resistance', label: 'Electric baseboard', unit: 'kWh a year', hint: 'Twelve months of bills, or your account total.' },
+const FUELS: { value: BillFuel; label: string; unit: string; short: string; hint: string }[] = [
+  { value: 'oil', label: 'Heating oil', unit: 'gallons a year', short: 'gal', hint: 'Your delivery account shows a yearly total.' },
+  { value: 'propane', label: 'Propane', unit: 'gallons a year', short: 'gal', hint: 'Summer fill plus winter deliveries.' },
+  { value: 'gas', label: 'Natural gas', unit: 'therms a year', short: 'therms', hint: 'The annual summary on your gas bill.' },
+  { value: 'resistance', label: 'Electric baseboard', unit: 'kWh a year', short: 'kWh', hint: 'Twelve months of bills, or your account total.' },
 ]
 
 const TIERS: { value: string; label: string }[] = [
@@ -61,9 +67,7 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
     resistance: prices.elec,
   }
 
-  const [address, setAddress] = useState('')
   const [lookup, setLookup] = useState<AddressState>({ status: 'idle', message: null, matchedAddress: null })
-
   const [town, setTown] = useState('')
   const [fuel, setFuel] = useState<BillFuel>('oil')
   const [units, setUnits] = useState('')
@@ -87,17 +91,63 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
     }
   }
 
-  async function findAddress() {
-    const query = address.trim()
-    if (query.length < 6) {
-      setLookup({ status: 'error', message: 'Add a street and a town — a ZIP is enough to start.', matchedAddress: null })
-      return
+  /** Parcel prefill: year built and floor area, never a price. 4s abort inside the route. */
+  async function prefillFromParcel(lat: number, lon: number) {
+    try {
+      const response = await fetch(`/api/parcel?lat=${lat}&lon=${lon}`)
+      const payload = (await response.json()) as {
+        ok: boolean
+        parcel?: { yearBuilt: number | null; bldAreaSqft: number | null }
+      }
+      if (!payload.ok || !payload.parcel) return
+      if (payload.parcel.yearBuilt) {
+        setYearBuilt(String(payload.parcel.yearBuilt))
+        setEnvelopeSource('assessor')
+      }
+      if (payload.parcel.bldAreaSqft) setSqft(String(payload.parcel.bldAreaSqft))
+    } catch {
+      // The parcel record is a convenience. Its absence changes no number.
     }
+  }
 
+  /** A row from the OpenStreetMap dropdown: the house is already narrowed down. */
+  async function handleSuggestion(suggestion: AddressSuggestion) {
+    const local = matchTown(suggestion.town, towns)
+    if (local) setTown(local)
+    setLookup({ status: 'found', message: null, matchedAddress: suggestion.label })
+
+    const [geo, parcel] = await Promise.allSettled([
+      fetch(`/api/geocode?q=${encodeURIComponent(suggestion.label)}`).then((response) => response.json()),
+      prefillFromParcel(suggestion.lat, suggestion.lon),
+    ])
+
+    if (geo.status === 'fulfilled') {
+      const result = geo.value as { ok?: boolean; town?: string; townKnown?: boolean; matchedAddress?: string; message?: string }
+      if (result.ok && result.town && result.townKnown) {
+        setTown(result.town)
+        setLookup({ status: 'found', message: null, matchedAddress: result.matchedAddress ?? suggestion.label })
+      } else if (!local) {
+        setLookup({
+          status: 'error',
+          message: result.message ?? 'Matched, but the town is not a Massachusetts municipality. Pick it below.',
+          matchedAddress: suggestion.label,
+        })
+      }
+    }
+    if (parcel.status === 'rejected' && !local) {
+      setLookup((current) => ({
+        ...current,
+        message: 'Town unmatched — pick it from the list. Year built and area can be typed.',
+      }))
+    }
+  }
+
+  /** Typed address that the dropdown did not list: let the Census geocoder try it. */
+  async function handleTypedAddress(query: string) {
     setLookup({ status: 'loading', message: null, matchedAddress: null })
     try {
-      const geoResponse = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`)
-      const geo = (await geoResponse.json()) as {
+      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`)
+      const payload = (await response.json()) as {
         ok: boolean
         message?: string
         matchedAddress?: string
@@ -107,35 +157,22 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
         townKnown?: boolean
       }
 
-      if (!geo.ok || geo.lat === undefined || geo.lon === undefined) {
+      if (!payload.ok || payload.lat === undefined || payload.lon === undefined) {
         setLookup({
           status: 'error',
-          message: geo.message ?? 'That address did not match. Pick your town below instead.',
+          message: payload.message ?? 'That address did not match. Pick your town below instead.',
           matchedAddress: null,
         })
         return
       }
 
-      if (geo.town && geo.townKnown) setTown(geo.town)
+      if (payload.town && payload.townKnown) setTown(payload.town)
       setLookup({
         status: 'found',
-        message: geo.townKnown ? null : 'Matched, but the town is not a Massachusetts municipality. Pick it below.',
-        matchedAddress: geo.matchedAddress ?? null,
+        message: payload.townKnown ? null : 'Matched, but the town is not a Massachusetts municipality. Pick it below.',
+        matchedAddress: payload.matchedAddress ?? null,
       })
-
-      // Year built is a convenience, never a requirement: 4s abort, continue without it.
-      const parcelResponse = await fetch(`/api/parcel?lat=${geo.lat}&lon=${geo.lon}`)
-      const parcel = (await parcelResponse.json()) as {
-        ok: boolean
-        parcel?: { yearBuilt: number | null; bldAreaSqft: number | null }
-      }
-      if (parcel.ok && parcel.parcel) {
-        if (parcel.parcel.yearBuilt) {
-          setYearBuilt(String(parcel.parcel.yearBuilt))
-          setEnvelopeSource('assessor')
-        }
-        if (parcel.parcel.bldAreaSqft) setSqft(String(parcel.parcel.bldAreaSqft))
-      }
+      await prefillFromParcel(payload.lat, payload.lon)
     } catch {
       setLookup({
         status: 'error',
@@ -145,23 +182,44 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
     }
   }
 
+  function applyBill(values: { fuel: BillFuel; units: string; price: string }) {
+    setFuel(values.fuel)
+    setUnits(values.units)
+    setPrice(values.price)
+    setPriceEdited(true)
+  }
+
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!canSubmit) return
 
     const params = new URLSearchParams({
       fuel,
-      units: units.trim(),
-      price: price.trim(),
+      units: units.trim().replace(/,/g, ''),
+      price: price.trim().replace(/,/g, ''),
       town,
       tier,
       year: installYear,
     })
     if (yearBuilt.trim()) params.set('yb', yearBuilt.trim())
-    if (sqft.trim()) params.set('sqft', sqft.trim())
+    if (sqft.trim()) params.set('sqft', sqft.trim().replace(/,/g, ''))
     if (envelopeSource) params.set('src', envelopeSource)
     router.push(`/verdict?${params.toString()}`)
   }
+
+  const statusLine =
+    town === ''
+      ? 'Choose a town — the climate zone and the utility sponsor come from it.'
+      : !townsKnown
+        ? 'That town is not in the Massachusetts table. Pick it from the list.'
+        : canSubmit
+          ? 'Nothing is stored. The numbers travel in the link.'
+          : 'Add the yearly total and the price you pay.'
+
+  const summary =
+    units.trim() !== '' && price.trim() !== '' && town !== ''
+      ? `${units.trim()} ${fuelMeta.short} at $${price.trim()} · ${town}`
+      : 'Two numbers, one town'
 
   return (
     <form onSubmit={submit} className="grid gap-8">
@@ -172,34 +230,7 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
           <span className="text-micro text-ink-muted">Optional — but it sets the climate and the utility.</span>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <label className="sr-only" htmlFor="address">
-            Street address, town and ZIP
-          </label>
-          <input
-            id="address"
-            name="address"
-            value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                void findAddress()
-              }
-            }}
-            placeholder="e.g. 888 Washington St, Wellesley, 02482"
-            autoComplete="street-address"
-            className="w-full rounded-card border border-rule-strong bg-surface px-3 py-2.5 text-body placeholder:text-ink-faint"
-          />
-          <button
-            type="button"
-            onClick={() => void findAddress()}
-            disabled={lookup.status === 'loading'}
-            className="shrink-0 rounded-card border border-ink bg-ink px-4 py-2.5 text-small font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {lookup.status === 'loading' ? 'Looking up…' : 'Find my house'}
-          </button>
-        </div>
+        <AddressCombobox onSelect={(suggestion) => void handleSuggestion(suggestion)} onTyped={(value) => void handleTypedAddress(value)} />
 
         {lookup.matchedAddress ? (
           <p className="text-micro text-ink-muted">Census matched: {lookup.matchedAddress}</p>
@@ -226,7 +257,9 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
           <label className="grid gap-1.5 text-small">
             <span className="flex items-center justify-between gap-2 font-medium">
               Year built
-              {envelopeSource ? <FreshnessBadge kind={envelopeSource} label={envelopeSource === 'assessor' ? 'Assessor' : 'You'} /> : null}
+              {envelopeSource ? (
+                <FreshnessBadge kind={envelopeSource} label={envelopeSource === 'assessor' ? 'Assessor' : 'You'} />
+              ) : null}
             </span>
             <input
               value={yearBuilt}
@@ -263,6 +296,8 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
           <h2 className="text-title font-medium">2 · What do you burn, and how much?</h2>
           <FreshnessBadge kind={prices.mode === 'live' ? 'live' : 'snapshot'} date={prices.asOf} label="Prices" />
         </div>
+
+        <BillUpload onApply={applyBill} />
 
         <div role="radiogroup" aria-label="Heating fuel" className="flex flex-wrap gap-2">
           {FUELS.map((entry) => {
@@ -315,7 +350,6 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
                 setPrice(event.target.value)
                 setPriceEdited(true)
               }}
-              onBlur={() => setPriceEdited(price.trim() !== '')}
               inputMode="decimal"
               placeholder={fuel === 'gas' ? '1.62' : undefined}
               className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
@@ -382,24 +416,27 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
         </p>
       </section>
 
-      <div className="flex flex-wrap items-center gap-4 border-t border-rule pt-6">
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="rounded-card bg-ink px-5 py-3 text-small font-medium text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Get the verdict
-        </button>
-        <p className="text-micro text-ink-muted">
-          {town === ''
-            ? 'Choose a town — the climate zone and the utility sponsor come from it.'
-            : !townsKnown
-              ? 'That town is not in the Massachusetts table. Pick it from the list.'
-              : canSubmit
-                ? 'Nothing is stored. The numbers travel in the link.'
-                : 'Two numbers and you are done.'}
-        </p>
-      </div>
+      {/* -------------------------------------------------------------- cta */}
+      <section className="rounded-card border border-rule bg-surface p-5 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
+          <div className="min-w-0">
+            <p className="text-eyebrow uppercase text-ink-muted">Ready when you are</p>
+            <p className="mt-2 text-title font-medium tabular-nums">{summary}</p>
+            <p className="mt-1 max-w-[46ch] text-micro text-ink-muted">{statusLine}</p>
+          </div>
+
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className="group inline-flex items-center gap-3 rounded-pill bg-ink px-6 py-3.5 text-small font-medium text-paper transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.6)] disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none"
+          >
+            See the verdict
+            <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
+              →
+            </span>
+          </button>
+        </div>
+      </section>
     </form>
   )
 }

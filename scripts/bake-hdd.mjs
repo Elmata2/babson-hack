@@ -1,17 +1,25 @@
 /**
  * @built F-12 compute county HDD65 from ERA5 daily means, 2015–2024, all 14 counties
+ * @built F-26a monthly heating-year shares from the same cached daily means
  *
  * `HDD65 = Σ max(65 − T̄d, 0)`, averaged over the ten years, per county centroid.
  * Nothing here is guessed: a degree-day figure that is not computed from daily
  * temperatures is a fabricated number, and this table multiplies every design
  * load in the product.
  *
+ * The same pass also writes `hdd-monthly-weights.json`: each county's HDD65
+ * summed per calendar month over the same ten years, expressed as its share of
+ * that county's heating year. A January oil bill is 19.1% of a Boston heating
+ * year, not one twelfth of it, so `lib/parse/annualise.ts` divides by this share
+ * instead of multiplying by 12. One computation, two artefacts — they cannot
+ * drift apart.
+ *
  * Politeness: 14 sequential calls with a pause between them, one per county, and
  * a cache so a re-run asks nothing. Open-Meteo snaps to the 0.25° ERA5 grid, so
  * the snapped grid point and its elevation are recorded next to the value.
  *
  * Usage:
- *   node scripts/bake-hdd.mjs             # fetch (cached), write data/generated/hdd-by-county.json
+ *   node scripts/bake-hdd.mjs             # fetch (cached), write data/generated/hdd-*.json
  *   node scripts/bake-hdd.mjs --from-cache
  *   node scripts/bake-hdd.mjs --check
  */
@@ -21,6 +29,14 @@ import { cachePath, fetchJsonCached, kb, meta, reportSize, sizesOf, writeJson } 
 
 const OUT = 'data/generated/hdd-by-county.json'
 const BUDGET_BYTES = 3 * 1024
+/** Monthly shares are small; the whole table must stay inlineable. */
+const WEIGHTS_OUT = 'data/generated/hdd-monthly-weights.json'
+const WEIGHTS_BUDGET_BYTES = 8 * 1024
+/** The zone `lib/parse` uses when a caller names no county. Boston = Suffolk. */
+const DEFAULT_COUNTY = '25025'
+/** Shares are rounded to three decimals to match the design note; see the sum check. */
+const SHARE_DECIMALS = 3
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const START = '2015-01-01'
 const END = '2024-12-31'
 const BASE_F = 65
@@ -64,9 +80,15 @@ const checkOnly = process.argv.includes('--check')
 const useCache = process.argv.includes('--from-cache')
 
 if (checkOnly) {
-  const sizes = await sizesOf(OUT)
-  reportSize(relative(process.cwd(), OUT), sizes, BUDGET_BYTES)
-  process.exit(sizes.raw <= BUDGET_BYTES ? 0 : 1)
+  let ok = true
+  for (const [path, budget] of [
+    [OUT, BUDGET_BYTES],
+    [WEIGHTS_OUT, WEIGHTS_BUDGET_BYTES],
+  ]) {
+    const sizes = await sizesOf(path)
+    if (!reportSize(relative(process.cwd(), path), sizes, budget)) ok = false
+  }
+  process.exit(ok ? 0 : 1)
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -75,6 +97,9 @@ console.log(`bake-hdd — Open-Meteo ERA5, ${START} → ${END}, ${COUNTIES.lengt
 
 /** @type {Record<string, object>} */
 const counties = {}
+/** Raw monthly HDD sums per county, kept out of the county artefact to keep it at 3 KB. */
+/** @type {Record<string, number[]>} */
+const monthlyTotalsByFips = {}
 const rows = []
 const deviations = []
 let fetchedAt = null
@@ -104,6 +129,7 @@ async function computeAt(county, point, cacheFile, label) {
   }
 
   const byYear = new Map()
+  const byMonth = Array.from({ length: 12 }, () => 0)
   let missing = 0
   for (let i = 0; i < times.length; i += 1) {
     const year = times[i].slice(0, 4)
@@ -112,7 +138,9 @@ async function computeAt(county, point, cacheFile, label) {
       missing += 1
       continue
     }
-    byYear.set(year, (byYear.get(year) ?? 0) + Math.max(BASE_F - mean, 0))
+    const hdd = Math.max(BASE_F - mean, 0)
+    byYear.set(year, (byYear.get(year) ?? 0) + hdd)
+    byMonth[Number(times[i].slice(5, 7)) - 1] += hdd
   }
 
   const years = [...byYear.keys()].sort()
@@ -125,12 +153,21 @@ async function computeAt(county, point, cacheFile, label) {
   const hdd2024 = byYear.get('2024')
   if (!Number.isFinite(hdd65)) throw new Error('HDD is not finite')
 
+  // The monthly sums must add up to the annual figure they are a share of. If
+  // they do not, the month index or the subsetting is wrong — never patch it.
+  const monthlyTotal = byMonth.reduce((a, b) => a + b, 0)
+  const annualTotal = annual.reduce((a, b) => a + b, 0)
+  if (Math.abs(monthlyTotal - annualTotal) > 1) {
+    throw new Error(`monthly HDD ${monthlyTotal.toFixed(1)} does not reconcile with annual ${annualTotal.toFixed(1)}`)
+  }
+
   return {
     hdd65: Number(hdd65.toFixed(1)),
     hdd2024: Number(hdd2024.toFixed(1)),
     gridPoint: [Number(result.data.latitude), Number(result.data.longitude)],
     elevationM: result.data.elevation ?? null,
     daysMissing: missing,
+    monthlyTotals: byMonth,
   }
 }
 
@@ -174,6 +211,8 @@ for (const county of COUNTIES) {
       gridPoint: computed.gridPoint,
       elevationM: computed.elevationM,
     }
+    monthlyTotalsByFips[county.fips] = computed.monthlyTotals
+    // `rows` is printed, never serialised, so the extra field costs nothing.
     rows.push({ fips: county.fips, name: county.name, ...computed, ok: true })
   } catch (error) {
     failures += 1
@@ -224,12 +263,88 @@ await writeJson(OUT, artefact)
 const sizes = await sizesOf(OUT)
 const ok = reportSize(relative(process.cwd(), OUT), sizes, BUDGET_BYTES)
 
+// ---- monthly heating-year shares -----------------------------------------
+// Share of the heating year in each calendar month, from the identical daily
+// series. `lib/parse/annualise.ts` divides by these instead of multiplying a
+// single month by 12: a Newton January is 19.1% of the year, not 8.3%.
+const shareOf = (totals) => {
+  const total = totals.reduce((a, b) => a + b, 0)
+  return totals.map((value) => Number((value / total).toFixed(SHARE_DECIMALS)))
+}
+
+const weightCounties = {}
+const reconciled = []
+for (const [fips, county] of Object.entries(counties)) {
+  const months = shareOf(monthlyTotalsByFips[fips])
+  const shareSum = Number(months.reduce((a, b) => a + b, 0).toFixed(SHARE_DECIMALS))
+  if (Math.abs(shareSum - 1) > 0.003) {
+    console.error(`  FAIL   ${county.name}: shares sum to ${shareSum}, not 1. Refusing to write.`)
+    process.exit(1)
+  }
+  weightCounties[fips] = { name: county.name, seasonHdd: county.hdd65, months }
+  reconciled.push({ fips, shareSum })
+}
+
+// A statewide fallback for a caller that has no town: the mean monthly HDD curve
+// across all 14 county centroids, normalised the same way. Documented in _meta.
+const meanMonthly = MONTH_NAMES.map(
+  (_, index) => Object.values(monthlyTotalsByFips).reduce((sum, totals) => sum + totals[index], 0) / COUNTIES.length,
+)
+const statewideMonths = shareOf(meanMonthly)
+const statewideSeasonHdd = Number(
+  (Object.values(counties).reduce((sum, county) => sum + county.hdd65, 0) / COUNTIES.length).toFixed(1),
+)
+const boston = weightCounties[DEFAULT_COUNTY]
+if (!boston) {
+  console.error(`  FAIL   default county ${DEFAULT_COUNTY} missing from the table.`)
+  process.exit(1)
+}
+
+const weightsArtefact = {
+  _meta: meta({
+    source: 'Open-Meteo archive API (ERA5 reanalysis), daily mean 2 m temperature, county centroid',
+    url: 'https://archive-api.open-meteo.com/v1/archive',
+    fetchedAt,
+    recordCount: Object.keys(weightCounties).length,
+    extra: {
+      method:
+        'HDD65 = Σ max(65 − daily mean °F, 0) summed per calendar month over 2015–2024, divided by that county’s ten-year HDD65 total. Shares are unitless fractions of the heating year, January first.',
+      baseTempF: BASE_F,
+      years: [START, END],
+      fields:
+        'counties: FIPS → { name, seasonHdd (HDD65 2015–2024 mean), months: 12 shares, Jan…Dec }; statewide: the same two fields averaged across all 14 counties (unweighted by population).',
+      defaultCounty: { fips: DEFAULT_COUNTY, name: boston.name, note: 'Boston. Used by lib/parse when the caller names no county.' },
+      statewideNote:
+        'Unweighted mean of the 14 county centroids, offered only as a fallback. Prefer the county the address is in; population weighting is not applied because no population table is baked here.',
+      rounding:
+        `Shares are rounded to ${SHARE_DECIMALS} decimals and never renormalised after rounding, so a county’s twelve shares can sum to 1 ± 0.003. The error on an annualised bill is under 0.3% and is far below the method confidence.`,
+      shareSums: reconciled,
+      seasonHddNote:
+        'seasonHdd is the same HDD65 the county table carries, so `annualise` cannot disagree with the design-load path.',
+      caveats: [
+        'Monthly shares are a ten-year climate average, not this winter. A cold January is a bigger share than 0.191.',
+        'A household’s own heating profile differs from the county’s: setback, wood stove, hot-water baseload.',
+      ],
+    },
+  }),
+  statewide: { seasonHdd: statewideSeasonHdd, months: statewideMonths },
+  counties: weightCounties,
+}
+
+await writeJson(WEIGHTS_OUT, weightsArtefact)
+const weightSizes = await sizesOf(WEIGHTS_OUT)
+const weightsOk = reportSize(relative(process.cwd(), WEIGHTS_OUT), weightSizes, WEIGHTS_BUDGET_BYTES)
+
 console.log('\n  county          HDD65 (2015–24 mean)   HDD65 2024   range')
 for (const row of rows) {
   console.log(
     `  ${row.name.padEnd(14)} ${row.hdd65.toFixed(0).padStart(8)}              ${row.hdd2024.toFixed(0).padStart(8)}   ${row.hdd65 >= MIN_HDD && row.hdd65 <= MAX_HDD ? 'ok' : 'OUT'}`,
   )
 }
-console.log(`\n  ${anchorNote}`)
+console.log('\n  heating-year share by month (Boston / Suffolk)')
+console.log(`  ${MONTH_NAMES.map((name) => name.padStart(6)).join('')}`)
+console.log(`  ${boston.months.map((share) => share.toFixed(3).padStart(6)).join('')}`)
+console.log(`  ${anchorNote}`)
 console.log(`  artefact ${kb(sizes.raw)} raw (budget ${kb(BUDGET_BYTES)}) ${ok ? 'ok' : 'OVER'}`)
-if (!ok) process.exitCode = 1
+console.log(`  artefact ${kb(weightSizes.raw)} raw (budget ${kb(WEIGHTS_BUDGET_BYTES)}) ${weightsOk ? 'ok' : 'OVER'}`)
+if (!ok || !weightsOk) process.exitCode = 1

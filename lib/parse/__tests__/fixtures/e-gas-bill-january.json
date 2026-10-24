@@ -1,0 +1,15 @@
+{
+  "_synthetic": "SYNTHETIC FIXTURE E — invented, not a real bill. A single January gas bill with no usage chart. January carries 19.1% of a Boston heating year, so this month is enough to imply the year — the hdd_scaled method. Included for path coverage: fixture A–D do not reach it.",
+  "fuel": "gas",
+  "quantity": 142,
+  "unit": "therm",
+  "price_per_unit": 1.58,
+  "billing_period": "month",
+  "document_date": "2026-01-22",
+  "document_type": "gas_bill",
+  "usage_history": null,
+  "degree_days": null,
+  "tank_size_gal": null,
+  "rate_class": null,
+  "confidence": "high"
+}

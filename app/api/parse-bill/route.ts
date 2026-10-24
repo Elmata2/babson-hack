@@ -1,10 +1,18 @@
 /**
  * @built F-26 /api/parse-bill — one vision call, in memory, nothing stored
+ * @built F-77 route options — the household facts the photograph cannot carry
  *
  * The privacy rule from steering: the image is read in this request and discarded.
  * No filesystem, no blob store, no cache key, no log line that contains the image,
- * the response text, or an address. The model is asked for six fields; the
- * validator in `lib/parse` decides whether they are possible.
+ * the response text, or an address. The model is asked for eleven fields plus an
+ * optional printed usage chart; the validator in `lib/parse` decides whether they
+ * are possible, and annualises only by a named method.
+ *
+ * Optional form fields carry what no photograph contains:
+ *   deliveriesPerSeason (2–8)  one oil ticket × the household's own fill cadence
+ *   heating (true|false)       a gas bill that only covers cooking is not a heat source
+ *   forceMonthlyX12 (true)     the user explicitly wants a flat ×12
+ *   countyFips (25001–25027)   shapes the heating year; defaults to Suffolk/Boston
  *
  * Failure is typed and boring: no key, unsupported file, too large, upstream down,
  * not a bill. Every one of them leaves the user with manual entry, which is
@@ -13,7 +21,7 @@
  * POST multipart/form-data, field `file`. GET is a 405.
  */
 
-import { readBill } from '@/lib/parse/plausibility'
+import { readBill, type ReadBillOptions } from '@/lib/parse/plausibility'
 import { BILL_PROMPT, readJsonBody } from '@/lib/parse/prompt'
 import type { BillReadResult } from '@/lib/parse/types'
 
@@ -41,8 +49,7 @@ interface VisionResponse {
   content?: VisionContentBlock[]
 }
 
-/** The base64 block for the model, or null when the type is not one we accept. */
-function mediaBlock(
+/** The base64 block for the model, or null when the type is not one we accept. */function mediaBlock(
   mediaType: string,
   data: string,
 ): { type: 'image' | 'document'; source: { type: 'base64'; media_type: string; data: string } } | null {
@@ -53,6 +60,33 @@ function mediaBlock(
     return { type: 'document', source: { type: 'base64', media_type: mediaType, data } }
   }
   return null
+}
+
+/**
+ * The document alone is not always enough to reach an annual figure. These three
+ * optional form fields carry what only the household knows, and each one is
+ * validated before it reaches the parser — junk becomes absent, never a guess.
+ */
+function optionalInt(value: FormDataEntryValue | null, low: number, high: number): number | null {
+  if (typeof value !== 'string' || value.trim() === '') return null
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < low || parsed > high) return null
+  return parsed
+}
+
+function optionalBool(value: FormDataEntryValue | null): boolean | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalised = value.trim().toLowerCase()
+  if (normalised === 'false' || normalised === '0' || normalised === 'no') return false
+  if (normalised === 'true' || normalised === '1' || normalised === 'yes') return true
+  return undefined
+}
+
+/** Massachusetts counties are 25001–25027; anything else is not a county we can shape. */
+function optionalCounty(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return /^250\d\d$/.test(trimmed) ? trimmed : null
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -93,6 +127,19 @@ export async function POST(request: Request): Promise<Response> {
       'Bill reading is not configured on this deployment. Enter the two numbers instead — it is just as fast.',
     )
   }
+
+  // What the pixels cannot tell us. Absent fields stay absent so the parser's own
+  // defaults and refusal paths still apply: a missing fill count must produce a
+  // question, not a fabricated annual figure.
+  const options: ReadBillOptions = {}
+  const fills = optionalInt(form.get('deliveriesPerSeason'), 2, 8)
+  if (fills !== null) options.deliveriesPerSeason = fills
+  const heating = optionalBool(form.get('heating'))
+  if (heating !== undefined) options.heating = heating
+  const forceMonthlyX12 = optionalBool(form.get('forceMonthlyX12'))
+  if (forceMonthlyX12 !== undefined) options.forceMonthlyX12 = forceMonthlyX12
+  const countyFips = optionalCounty(form.get('countyFips'))
+  if (countyFips !== null) options.countyFips = countyFips
 
   let payload: VisionResponse
   try {
@@ -143,7 +190,7 @@ export async function POST(request: Request): Promise<Response> {
     return fail(422, 'unreadable', 'The reader did not return usable fields. Type them instead.')
   }
 
-  const result: BillReadResult = readBill(json)
+  const result: BillReadResult = readBill(json, Date.now(), options)
   if (!result.ok) {
     return fail(422, result.refusal.code, result.refusal.message)
   }
