@@ -7,9 +7,19 @@ import type { NextConfig } from 'next'
  * server key. There is nothing to configure before a deploy, which is the point
  * at 12:00 on hackathon day.
  */
+const SECURITY_HEADERS = [
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+]
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  async headers() {
+    return [{ source: '/:path*', headers: SECURITY_HEADERS }]
+  },
   async redirects() {
     return [{ source: '/start', destination: '/onboarding', permanent: false }]
   },

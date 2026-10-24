@@ -13,7 +13,7 @@
 
 import type { Fuel } from '../calc/types'
 import { ALL_TOWNS } from '../utility'
-import type { OutreachRequest, SharedFacts } from './types'
+import { DELIVERY_WINDOWS, type DeliveryWindow, type OutreachRequest, type SharedFacts } from './types'
 
 /** R18.3: at most six providers per session. */
 export const MAX_PROVIDERS_PER_SESSION = 6
@@ -45,7 +45,7 @@ const UNITS_BY_FUEL: Record<Fuel, SharedFacts['unit']> = {
   resistance: 'kWh',
 }
 
-const TOP_LEVEL_KEYS = new Set(['kind', 'choice', 'facts', 'providers', 'consentAt', 'demo', 'sessionId'])
+const TOP_LEVEL_KEYS = new Set(['kind', 'choice', 'facts', 'providers', 'consentAt', 'consentToken', 'demo', 'sessionId'])
 const FACT_KEYS = new Set([
   'town',
   'zip',
@@ -75,7 +75,7 @@ export function buildFacts(input: {
   tons?: number | null
   deliverySizeGal?: number
   tankSizeGal?: number | null
-  deliveryWindow?: string | null
+  deliveryWindow?: DeliveryWindow | null
 }): SharedFacts {
   const fuel = input.fuel
   const unit = fuel ? UNITS_BY_FUEL[fuel] : null
@@ -95,7 +95,7 @@ export function buildFacts(input: {
     unit,
     deliverySizeGal: input.deliverySizeGal ?? DEFAULT_DELIVERY_GALLONS,
     tankSizeGal: input.tankSizeGal ?? null,
-    deliveryWindow: input.deliveryWindow?.trim() || null,
+    deliveryWindow: input.deliveryWindow ?? null,
     sqft: input.sqft ?? null,
     tons: input.tons ?? null,
   }
@@ -124,13 +124,20 @@ export function disclosureRows(facts: SharedFacts, kind: 'fuel' | 'installer'): 
   if (kind === 'fuel') {
     rows.push({ label: 'Delivery size', value: `${facts.deliverySizeGal} gal` })
     if (facts.tankSizeGal !== null) rows.push({ label: 'Tank', value: `${facts.tankSizeGal} gal` })
-    if (facts.deliveryWindow) rows.push({ label: 'Delivery window', value: facts.deliveryWindow })
+    if (facts.deliveryWindow) rows.push({ label: 'Delivery window', value: WINDOW_LABEL[facts.deliveryWindow] })
   } else {
     if (facts.sqft !== null) rows.push({ label: 'Home size', value: `${facts.sqft.toLocaleString('en-US')} sqft` })
     if (facts.tons !== null) rows.push({ label: 'Estimated size', value: `${facts.tons.toFixed(1)} tons` })
   }
 
   return rows
+}
+
+export const WINDOW_LABEL: Record<DeliveryWindow, string> = {
+  any: 'Any time',
+  morning: 'Mornings',
+  afternoon: 'Afternoons',
+  evening: 'Evenings',
 }
 
 const FUEL_LABEL: Record<Fuel, string> = {
@@ -259,7 +266,11 @@ function fail(code: string, message: string): ConsentValidation {
 export function validateOutreachRequest(body: unknown): ConsentValidation {
   if (!isRecord(body)) return fail('bad_body', 'The request was not a JSON object.')
 
-  const identifying = findIdentifyingField(body)
+  const { consentToken, ...scanned } = body
+  if (consentToken !== undefined && (typeof consentToken !== 'string' || consentToken.length > 200)) {
+    return fail('bad_consent', 'The consent token is malformed.')
+  }
+  const identifying = findIdentifyingField(scanned)
   if (identifying) {
     return fail(
       'personal_fact',
@@ -329,12 +340,8 @@ export function validateOutreachRequest(body: unknown): ConsentValidation {
   }
 
   const window = facts.deliveryWindow
-  if (window !== null) {
-    if (typeof window !== 'string') return fail('bad_window', 'The delivery window must be text, or null.')
-    if (window.length > 40) return fail('bad_window', 'Keep the delivery window to 40 characters.')
-    if (findIdentifyingField(window)) {
-      return fail('personal_fact', 'The delivery window must not contain an address, email or phone number.')
-    }
+  if (window !== null && !DELIVERY_WINDOWS.includes(window as DeliveryWindow)) {
+    return fail('bad_window', 'The delivery window is any, morning, afternoon or evening.')
   }
 
   const sqft = facts.sqft
@@ -384,7 +391,7 @@ export function validateOutreachRequest(body: unknown): ConsentValidation {
         unit: (facts.unit as SharedFacts['unit']) ?? null,
         deliverySizeGal: delivery as number,
         tankSizeGal: (tank as number | null) ?? null,
-        deliveryWindow: (window as string | null) ?? null,
+        deliveryWindow: (window as DeliveryWindow | null) ?? null,
         sqft: (sqft as number | null) ?? null,
         tons: (tons as number | null) ?? null,
       },

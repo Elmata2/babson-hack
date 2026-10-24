@@ -90,7 +90,6 @@ export async function startCall(
     conversation_initiation_client_data: {
       conversation_config_override: {
         agent: {
-          first_message: null,
           language: 'en',
         },
       },

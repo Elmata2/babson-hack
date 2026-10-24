@@ -56,18 +56,20 @@ export async function sendEmail(input: EmailInput, options: SendOptions = {}): P
       signal: AbortSignal.timeout(options.timeoutMs ?? 8_000),
     })
   } catch (error) {
+    console.error('outreach email transport failed', error instanceof Error ? error.name : 'unknown')
     return {
       ok: false,
       code: 'email_unreachable',
-      message: `Resend did not answer (${error instanceof Error ? error.message : 'unknown error'}). Nothing was sent.`,
+      message: 'The email service did not answer. Nothing was sent.',
     }
   }
 
   if (!response.ok) {
+    console.error('outreach email rejected', response.status)
     return {
       ok: false,
       code: 'email_rejected',
-      message: `Resend refused the message (HTTP ${response.status}). Nothing was sent.`,
+      message: 'The email service refused the message. Nothing was sent.',
     }
   }
   return { ok: true }

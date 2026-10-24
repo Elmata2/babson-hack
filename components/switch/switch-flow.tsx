@@ -14,9 +14,12 @@ import {
   DEFAULT_DELIVERY_GALLONS,
   MAX_PROVIDERS_PER_SESSION,
   NEVER_SAID,
+  WINDOW_LABEL,
   buildFacts,
   disclosureRows,
 } from '@/lib/switch/consent'
+import { requestConsentToken } from '@/lib/switch/consent-client'
+import { DELIVERY_WINDOWS, type DeliveryWindow } from '@/lib/switch/types'
 import type { SwitchModel } from '@/lib/switch/model'
 import {
   CONTACT_STATUS_LABEL,
@@ -133,7 +136,7 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
   const [zipCheck, setZipCheck] = useState<{ zip: string; town: string } | null>(null)
   const [delivery, setDelivery] = useState(String(DEFAULT_DELIVERY_GALLONS))
   const [tank, setTank] = useState('')
-  const [deliveryWindow, setDeliveryWindow] = useState('')
+  const [deliveryWindow, setDeliveryWindow] = useState<DeliveryWindow | ''>('')
   const [outreachOverride, setOutreachOverride] = useState<OutreachResult | null>(() => {
     if (entry.kit && (choice === 'SHOP_FUEL' || choice === 'SWITCH_HEAT_PUMP')) return KIT_NOTICE
     if (entry.autoStart && (choice === 'SHOP_FUEL' || choice === 'SWITCH_HEAT_PUMP')) {
@@ -190,7 +193,7 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
         tons: model.tons,
         deliverySizeGal: clampDelivery(delivery),
         tankSizeGal: Number(tank) > 0 ? Number(tank) : null,
-        deliveryWindow: deliveryWindow.trim() || null,
+        deliveryWindow: deliveryWindow || null,
       }),
     [model.town, model.fuel, model.annualUnits, model.sqft, model.tons, zip, delivery, tank, deliveryWindow],
   )
@@ -325,11 +328,21 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
           channel: channel[provider.id] ?? provider.channels[0] ?? 'email',
         })),
         consentAt: new Date().toISOString(),
+        sessionId,
+      }
+      let consentToken: string | undefined
+      if (!demoNow) {
+        const receipt = await requestConsentToken(body)
+        if (!receipt.ok) {
+          setError(receipt.message)
+          return
+        }
+        consentToken = receipt.consentToken
       }
       const response = await fetch(withDemo('/api/switch', demoNow), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(demoNow ? { ...body, demo: true } : body),
+        body: JSON.stringify(demoNow ? { ...body, demo: true } : { ...body, consentToken }),
       })
       const payload = (await response.json()) as OutreachResult & { message?: string }
       if (!response.ok || payload.ok !== true) {
@@ -530,12 +543,18 @@ export function SwitchFlow({ model, providers, plan, call, demo, initialZip = ''
                   />
                 </Labeled>
                 <Labeled label="Delivery window (optional)">
-                  <input
+                  <select
                     value={deliveryWindow}
-                    onChange={(event) => setDeliveryWindow(event.target.value.slice(0, 40))}
-                    placeholder="next two weeks"
+                    onChange={(event) => setDeliveryWindow(event.target.value as DeliveryWindow | '')}
                     className={INPUT}
-                  />
+                  >
+                    <option value="">Not specified</option>
+                    {DELIVERY_WINDOWS.map((window) => (
+                      <option key={window} value={window}>
+                        {WINDOW_LABEL[window]}
+                      </option>
+                    ))}
+                  </select>
                 </Labeled>
                 <label className="flex items-center gap-2 text-small text-ink-muted sm:col-span-2">
                   <input

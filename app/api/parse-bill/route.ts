@@ -45,6 +45,7 @@
  */
 
 import { DEMO_MESSAGES, demoFromRequest, demoUnavailable, isDemoFlag } from '@/lib/demo'
+import { billTooLarge } from '@/lib/security/limits'
 import { readBill, type ReadBillOptions } from '@/lib/parse/plausibility'
 import { BILL_PROMPT, readJsonBody } from '@/lib/parse/prompt'
 import type { BillReadResult } from '@/lib/parse/types'
@@ -352,6 +353,10 @@ function demoRefusal(): Response {
 export async function POST(request: Request): Promise<Response> {
   // Query/header first: in demo mode the body is never parsed, let alone decoded.
   if (demoFromRequest(request)) return demoRefusal()
+
+  if (billTooLarge(request.headers.get('content-length'))) {
+    return fail(413, 'too_large', 'That upload is more than 4 MB. Send fewer pages, or a closer photo.')
+  }
 
   let form: FormData
   try {

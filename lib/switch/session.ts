@@ -13,19 +13,20 @@
 
 import { VERDICT_META } from '../verdicts'
 import { shareableQuery } from '../verdict/share-query'
-import type {
-  ContactStatus,
-  DecisionOutcome,
-  OutreachMode,
-  ProviderStatus,
-  SharedFacts,
-  StoredAgentRun,
-  StoredQuoteRow,
-  StoredQuotes,
-  StoredSwitch,
-  SwitchChoice,
-  SwitchKind,
-  SwitchStage,
+import {
+  DELIVERY_WINDOWS,
+  type ContactStatus,
+  type DecisionOutcome,
+  type OutreachMode,
+  type ProviderStatus,
+  type SharedFacts,
+  type StoredAgentRun,
+  type StoredQuoteRow,
+  type StoredQuotes,
+  type StoredSwitch,
+  type SwitchChoice,
+  type SwitchKind,
+  type SwitchStage,
 } from './types'
 
 export const SWITCH_KEY = 'switchpoint.switch.v1'
@@ -125,7 +126,8 @@ function readFacts(value: unknown): SharedFacts | null {
     unit,
     deliverySizeGal: value.deliverySizeGal,
     tankSizeGal: positive(value.tankSizeGal),
-    deliveryWindow: typeof value.deliveryWindow === 'string' ? value.deliveryWindow : null,
+    // Origin's hardening: only a known window is trusted, never an arbitrary string.
+    deliveryWindow: DELIVERY_WINDOWS.find((window) => window === value.deliveryWindow) ?? null,
     sqft: positive(value.sqft),
     tons: positive(value.tons),
   }

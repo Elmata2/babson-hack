@@ -26,6 +26,7 @@ const CACHE_MAX_ENTRIES = 200
 const MIN_QUERY = 4
 const MAX_QUERY = 120
 const TIMEOUT_MS = 4_000
+const MAX_QUEUE_DEPTH = 8
 const USER_AGENT = 'Switchpoint/0.1 (Massachusetts heat-pump verdict; +https://github.com/Elmata2/babson-hack)'
 
 interface CacheEntry {
@@ -38,12 +39,17 @@ const cache = new Map<string, CacheEntry>()
 /** One request per second to the public instance. Queue, not a comment. */
 let queue: Promise<void> = Promise.resolve()
 let lastCallAt = 0
+let waiting = 0
 
 function throttle(): Promise<void> {
+  waiting += 1
   const next = queue.then(async () => {
     const elapsed = Date.now() - lastCallAt
     if (elapsed < 1_000) await new Promise((resolve) => setTimeout(resolve, 1_000 - elapsed))
     lastCallAt = Date.now()
+  })
+  void next.finally(() => {
+    waiting -= 1
   })
   queue = next.catch(() => undefined)
   return next
@@ -96,6 +102,12 @@ export async function GET(request: Request): Promise<Response> {
     return reply({ ok: true, results: hit, cached: true, attribution: '© OpenStreetMap contributors' })
   }
 
+  if (waiting >= MAX_QUEUE_DEPTH) {
+    return Response.json(
+      { ok: false, code: 'busy', message: 'The address search is busy. Pick your town from the list instead.' },
+      { status: 429, headers: { 'cache-control': 'no-store', 'retry-after': String(MAX_QUEUE_DEPTH) } },
+    )
+  }
   await throttle()
 
   let payload: unknown

@@ -20,6 +20,11 @@ import { fixtureRecord } from '@/lib/calls/fixtures'
 import { callPlan, dialable, isE164 } from '@/lib/calls/plan'
 import { callRecord, callVariables } from '@/lib/calls/route-model'
 import type { CallRecord, CallStart } from '@/lib/calls/types'
+import { chargeOutbound } from '@/lib/security/outbound-cap'
+import { clientIp } from '@/lib/security/rate-limit'
+import { outreachMode } from '@/lib/security/operator'
+import { consentSecretReady } from '@/lib/security/secret'
+import { consumeConsentToken, signCallId, verifyConsentToken } from '@/lib/switch/consent-token'
 import { nextCallWindow, validateOutreachRequest, withinBusinessHours } from '@/lib/switch/consent'
 import { directoryFor } from '@/lib/switch/directory'
 import type { SwitchProvider } from '@/lib/switch/types'
@@ -46,13 +51,25 @@ export async function POST(request: Request): Promise<Response> {
   if (!validated.ok) return refuse(400, validated.code, validated.message)
   const payload = validated.value
 
-  const raw = body as { sessionId?: unknown; demo?: unknown }
+  const raw = body as { sessionId?: unknown; demo?: unknown; consentToken?: unknown }
   const sessionId = typeof raw.sessionId === 'string' ? raw.sessionId : null
   if (sessionId !== null && !SESSION_ID.test(sessionId)) {
     return refuse(400, 'bad_session', 'A session id is 8–64 lowercase letters, digits and hyphens.')
   }
 
   const demo = demoFromRequest(request) || isDemoFlag(raw.demo)
+
+  const mode = demo ? 'off' : outreachMode(payload.facts.town)
+  if (mode !== 'off') {
+    if (sessionId === null) return refuse(400, 'bad_session', 'A live call needs a session id.')
+    if (!consentSecretReady()) {
+      return refuse(503, 'consent_secret_not_configured', 'Live calling needs CONSENT_SECRET (32+ characters). Nothing was dialled.')
+    }
+    const consent = verifyConsentToken(raw.consentToken, payload, sessionId, mode)
+    if (!consent.ok) {
+      return refuse(403, consent.code, 'Consent could not be verified. Approve the facts on the consent screen again.')
+    }
+  }
 
   const providers = directoryFor(payload.facts.town)
   const byId = new Map(providers.map((provider) => [provider.id, provider]))
@@ -101,6 +118,18 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(result, { headers: NO_STORE })
   }
 
+  if (!consumeConsentToken(raw.consentToken, now)) {
+    return refuse(403, 'used_consent', 'That consent was already used. Approve the facts on the consent screen again.')
+  }
+
+  const charged = chargeOutbound(clientIp(request.headers), selected.length, now.getTime())
+  if (!charged.ok) {
+    return Response.json(
+      { ok: false, code: 'outbound_cap', message: 'Calling limit reached. Try again later; the switch kit still works.' },
+      { status: 429, headers: { ...NO_STORE, 'retry-after': String(charged.retryAfterSeconds) } },
+    )
+  }
+
   const agent = plan.agent
   const variables = callVariables(payload.facts)
   const records: CallRecord[] = []
@@ -129,7 +158,9 @@ export async function POST(request: Request): Promise<Response> {
     )
     records.push(
       started.ok
-        ? callRecord(provider, 'queued', null, { conversationId: started.value.conversationId })
+        ? callRecord(provider, 'queued', null, {
+            conversationId: signCallId(started.value.conversationId, sessionId as string),
+          })
         : callRecord(provider, 'failed', started.message),
     )
   }

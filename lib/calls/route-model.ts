@@ -86,7 +86,7 @@ export function callVariables(facts: {
     ['unit', facts.unit],
     ['delivery_size_gal', String(facts.deliverySizeGal)],
     ['tank_size_gal', facts.tankSizeGal === null ? null : String(facts.tankSizeGal)],
-    ['delivery_window', facts.deliveryWindow],
+    ['delivery_window', facts.deliveryWindow === 'any' ? null : facts.deliveryWindow],
     ['sqft', facts.sqft === null ? null : String(facts.sqft)],
     ['tons', facts.tons === null ? null : String(facts.tons)],
   ]

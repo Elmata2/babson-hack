@@ -15,6 +15,12 @@ const FUEL_LABEL: Record<string, string> = {
   resistance: 'electric resistance',
 }
 
+const WINDOW_PHRASE: Record<string, string> = { morning: 'mornings', afternoon: 'afternoons', evening: 'evenings' }
+
+function windowPhrase(facts: SharedFacts): string | null {
+  return facts.deliveryWindow ? (WINDOW_PHRASE[facts.deliveryWindow] ?? null) : null
+}
+
 /** R18.1 fuel question, in the order a dealer answers it. */
 export function fuelRequestText(facts: SharedFacts): string {
   const fuel = facts.fuel ? FUEL_LABEL[facts.fuel] : 'heating fuel'
@@ -23,7 +29,7 @@ export function fuelRequestText(facts: SharedFacts): string {
     `Hello — I am asking about ${fuel} prices for a home in ${facts.town}${facts.zip ? `, ${facts.zip}` : ''}.`,
     volume ? `The house uses about ${volume} a year.` : null,
     `I would take ${facts.deliverySizeGal} gallons a delivery.${facts.tankSizeGal ? ` The tank is ${facts.tankSizeGal} gallons.` : ''}`,
-    facts.deliveryWindow ? `The delivery window I am aiming for is ${facts.deliveryWindow}.` : null,
+    windowPhrase(facts) ? `The delivery window I am aiming for is ${windowPhrase(facts)}.` : null,
     'Could you tell me your cash/COD price per gallon today, any delivery or small-load fee, your minimum delivery, whether there is a card surcharge, and the earliest delivery date?',
     'If you offer a price cap or prebuy for this winter, please give that price and its fee as a separate number.',
   ].filter(Boolean)
@@ -54,7 +60,7 @@ export function fuelPhoneScript(facts: SharedFacts): string {
   const fuel = facts.fuel ? FUEL_LABEL[facts.fuel] : 'heating fuel'
   const volume = facts.annualVolume === null ? 'a year' : `${facts.annualVolume.toLocaleString('en-US')} ${facts.unit ?? 'units'} a year`
   const tank = facts.tankSizeGal ? ` My tank is ${facts.tankSizeGal} gallons.` : ''
-  const window = facts.deliveryWindow ? ` I am looking at ${facts.deliveryWindow}.` : ''
+  const window = windowPhrase(facts) ? ` I am looking at ${windowPhrase(facts)}.` : ''
   return `“I am in ${facts.town}${facts.zip ? `, ${facts.zip}` : ''}, and I heat with ${fuel}. I use about ${volume}, and I would take ${facts.deliverySizeGal} gallons a delivery.${tank}${window} What is your cash/COD price per gallon today, is there a delivery or small-load fee, a minimum, or a card surcharge, and when could you deliver?”`
 }
 

@@ -27,7 +27,7 @@ const valid: OutreachRequest = {
     unit: 'gal',
     deliverySizeGal: DEFAULT_DELIVERY_GALLONS,
     tankSizeGal: 275,
-    deliveryWindow: 'next two weeks',
+    deliveryWindow: 'morning',
     sqft: null,
     tons: null,
   },

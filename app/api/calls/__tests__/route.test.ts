@@ -10,6 +10,10 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { outreachMode } from '@/lib/security/operator'
+import { validateOutreachRequest } from '@/lib/switch/consent'
+import { mintConsentToken, openCallId, resetUsedConsentTokensForTests } from '@/lib/switch/consent-token'
+
 import { POST } from '../route'
 
 const SESSION = 'session-abc123'
@@ -37,7 +41,22 @@ function body(overrides: Record<string, unknown> = {}): Record<string, unknown> 
   }
 }
 
+function signed(payload: unknown, at: Date = new Date()): unknown {
+  const validated = validateOutreachRequest(payload)
+  if (!validated.ok) return payload
+  const sessionId = (payload as { sessionId?: string }).sessionId ?? null
+  const mode = outreachMode(validated.value.facts.town)
+  return {
+    ...(payload as object),
+    consentToken: mintConsentToken(validated.value, sessionId, mode === 'live' ? 'live' : 'allowlist', at),
+  }
+}
+
 function request(payload: unknown, query = '?demo=1'): Request {
+  return rawRequest(signed(payload), query)
+}
+
+function rawRequest(payload: unknown, query = '?demo=1'): Request {
   return new Request(`https://example.test/api/calls${query}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -46,6 +65,7 @@ function request(payload: unknown, query = '?demo=1'): Request {
 }
 
 afterEach(() => {
+  resetUsedConsentTokensForTests()
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
 })
@@ -134,13 +154,16 @@ describe('POST /api/calls', () => {
     }
     expect(payload.mode).toBe('allowlist')
     expect(payload.records[0]?.status).toBe('queued')
-    expect(payload.records[0]?.conversationId).toBe('conv_live_1')
+    expect(payload.records[0]?.conversationId.startsWith('conv_live_1.')).toBe(true)
     expect(fetchSpy).toHaveBeenCalledTimes(1)
 
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
     expect(url).toContain('/twilio/outbound-call')
     const sent = JSON.parse(String(init.body)) as { to_number: string; dynamic_variables?: unknown }
     expect(sent.to_number).toBe('+15550100001')
+    const override = (JSON.parse(String(init.body)) as { conversation_initiation_client_data: { conversation_config_override: { agent: Record<string, unknown> } } })
+      .conversation_initiation_client_data.conversation_config_override.agent
+    expect(Object.keys(override)).not.toContain('first_message')
     const dynamic = (JSON.parse(String(init.body)) as { conversation_initiation_client_data: { dynamic_variables: Record<string, string> } })
       .conversation_initiation_client_data.dynamic_variables
     expect(dynamic).toMatchObject({ town: 'Framingham', vertical: 'fuel' })
@@ -159,4 +182,98 @@ describe('POST /api/calls', () => {
     expect(payload.records[0]?.status).toBe('failed')
     expect(payload.records[0]?.note).toContain('voice platform')
   })
+
+  it('refuses a live call whose consent token is missing, forged, stale or for other facts', async () => {
+    vi.stubEnv('ELEVENLABS_API_KEY', 'test-key')
+    vi.stubEnv('ELEVENLABS_AGENT_ID', 'agent-1')
+    vi.stubEnv('ELEVENLABS_PHONE_NUMBER_ID', 'phone-1')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+
+    const missing = await POST(rawRequest(body(), ''))
+    expect(missing.status).toBe(403)
+    expect(((await missing.json()) as { code: string }).code).toBe('missing_consent')
+
+    const forged = await POST(rawRequest({ ...body(), consentToken: `${Date.now()}.${'a'.repeat(16)}.${'a'.repeat(64)}` }, ''))
+    expect(((await forged.json()) as { code: string }).code).toBe('bad_consent')
+
+    const stale = await POST(rawRequest(signed(body(), new Date(Date.now() - 11 * 60_000)), ''))
+    expect(((await stale.json()) as { code: string }).code).toBe('expired_consent')
+
+    const token = (signed(body()) as { consentToken: string }).consentToken
+    const otherFacts = body({ facts: { ...(body().facts as object), annualVolume: 1200 } })
+    const swapped = await POST(rawRequest({ ...otherFacts, consentToken: token }, ''))
+    expect(((await swapped.json()) as { code: string }).code).toBe('bad_consent')
+
+    const otherSession = await POST(rawRequest({ ...body({ sessionId: 'session-other99' }), consentToken: token }, ''))
+    expect(((await otherSession.json()) as { code: string }).code).toBe('bad_consent')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('returns call refs bound to the session', async () => {
+    vi.stubEnv('ELEVENLABS_API_KEY', 'test-key')
+    vi.stubEnv('ELEVENLABS_AGENT_ID', 'agent-1')
+    vi.stubEnv('ELEVENLABS_PHONE_NUMBER_ID', 'phone-1')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ conversation_id: 'conv_live_1' }), { status: 200 }),
+    )
+    const response = await POST(request(body(), ''))
+    const payload = (await response.json()) as { records: { conversationId: string }[] }
+    const ref = payload.records[0]?.conversationId ?? ''
+    expect(ref).not.toBe('conv_live_1')
+    expect(openCallId(ref, SESSION)).toBe('conv_live_1')
+    expect(openCallId(ref, 'session-other99')).toBeNull()
+  })
+
+  it('spends a consent token once, and refuses live calling in production without a real secret', async () => {
+    vi.stubEnv('ELEVENLABS_API_KEY', 'test-key')
+    vi.stubEnv('ELEVENLABS_AGENT_ID', 'agent-1')
+    vi.stubEnv('ELEVENLABS_PHONE_NUMBER_ID', 'phone-1')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ conversation_id: 'conv_live_1' }), { status: 200 }),
+    )
+    const once = signed(body())
+    expect((await POST(rawRequest(once, ''))).status).toBe(200)
+    const replay = await POST(rawRequest(once, ''))
+    expect(replay.status).toBe(403)
+    expect(((await replay.json()) as { code: string }).code).toBe('used_consent')
+
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('CONSENT_SECRET', 'short')
+    const prod = await POST(rawRequest(signed(body()), ''))
+    expect(prod.status).toBe(503)
+    expect(((await prod.json()) as { code: string }).code).toBe('consent_secret_not_configured')
+  })
+
+  it('rejects a token minted under the other mode', async () => {
+    vi.stubEnv('ELEVENLABS_API_KEY', 'test-key')
+    vi.stubEnv('ELEVENLABS_AGENT_ID', 'agent-1')
+    vi.stubEnv('ELEVENLABS_PHONE_NUMBER_ID', 'phone-1')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const validated = validateOutreachRequest(body())
+    if (!validated.ok) throw new Error('fixture invalid')
+
+    const liveToken = mintConsentToken(validated.value, SESSION, 'live')
+    const underAllowlist = await POST(rawRequest({ ...body(), consentToken: liveToken }, ''))
+    expect(underAllowlist.status).toBe(403)
+    expect(((await underAllowlist.json()) as { code: string }).code).toBe('bad_consent')
+
+    vi.stubEnv('PROVIDER_CALLS_ENABLED', 'true')
+    vi.stubEnv('PROVIDER_ALLOWLIST_JSON', JSON.stringify([{ ...LIVE_ROW }]))
+    const allowlistToken = mintConsentToken(validated.value, SESSION, 'allowlist')
+    const underLive = await POST(rawRequest({ ...body(), consentToken: allowlistToken }, ''))
+    expect(underLive.status).toBe(403)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
 })
+
+const LIVE_ROW = {
+  id: 'real-fuel',
+  name: 'A real dealer',
+  kind: 'fuel',
+  channels: ['phone'],
+  phone: '+16175550100',
+  email: null,
+  source: 'Fixture list',
+  asOf: '2026-10-24',
+  allowlist: false,
+}
