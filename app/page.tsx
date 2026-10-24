@@ -33,9 +33,11 @@ const FACTS: readonly Fact[] = [
     source: 'Mass Save · installs on or after 1 Jan 2027 · cap falls $8,500 → $7,500',
   },
   {
-    value: '29.2%',
-    label: 'Share of Massachusetts households heating with oil',
-    source: 'ACS 2024 1-year, via the Mass.gov heating profile · 1.82M homes',
+    value: '624,510',
+    unit: 'homes',
+    label: 'Massachusetts households heating with oil',
+    source:
+      '22.4% of 2,785,042 occupied units · ACS 5-year B25040, baked statewide from 1,620 tracts · ≈$2.9B a winter at 750 gal each',
   },
 ]
 
@@ -56,10 +58,10 @@ export default function Home() {
             </h1>
 
             <p className="mt-6 max-w-[58ch] text-lede text-ink-muted">
-              Three in ten homes here heat with oil. Give Switchpoint an address and a heating
-              bill and it answers one question — switch, switch before 31 December, or leave it
-              alone. When the numbers do not work, it says so and prints the break-even
-              electricity price instead.
+              624,510 households here heat with oil — about $2.9 billion a winter. Give
+              Switchpoint an address and a heating bill and it answers one question — switch,
+              switch before 31 December, or leave it alone. When the numbers do not work, it
+              says so and prints the break-even electricity price instead.
             </p>
 
             <dl className="mt-12 grid overflow-hidden rounded-card border border-rule bg-surface sm:grid-cols-3">

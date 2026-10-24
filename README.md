@@ -9,7 +9,7 @@ Cleaner, more affordable buildings** · built with Kiro.
 
 ## The one sentence
 
-Three in ten Massachusetts homes heat with oil — 624,510 households at last
+One in four Massachusetts homes heats with oil — 624,510 households at last
 count. Oil costs **$6.23/gal**, up **75%** in a year. The whole-home heat pump
 rebate drops by up to **$1,000** on January 1. Point the app at your address and your bill, and it tells you —
 honestly — whether to switch, whether to do it before December 31, or whether to

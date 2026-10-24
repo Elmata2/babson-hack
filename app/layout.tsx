@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     siteName: 'Switchpoint',
     title: 'The honest heat pump verdict for Massachusetts',
     description:
-      'Three in ten Massachusetts homes heat with oil. Switchpoint says whether a heat pump pays for this house — and says no when it does not.',
+      '624,510 Massachusetts households heat with oil. Switchpoint says whether a heat pump pays for this house — and says no when it does not.',
   },
   robots: { index: true, follow: true },
 }
