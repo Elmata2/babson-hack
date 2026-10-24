@@ -58,6 +58,14 @@ because that is when the hackathon clock runs.
   Enter, Escape; attribution rendered inside the list; one upstream request per
   second enforced by a queue; results cached in-process only and served
   `no-store`.
+- **F-29** — the bill confirm screen, rebuilt against the F-76/F-77 contract. It
+  shows what the document is (`document_type`, `rate_class`, date, confidence),
+  lets fuel, annual units and price be edited, and prints
+  `annualisation.{method, note, assumptions[], confidence}` next to the figure —
+  never a bare annual number. `needs_fills` renders a 2–8 fills input and re-reads
+  the same photo with the household's own cadence; `summer_month` and
+  `partial_period` are questions, not errors; `stale_price` never blocks and
+  carries the DOER date. Confidence is a colour and a word.
 - **F-65** — bill upload beside the numbers: one photo to `/api/parse-bill`,
   the fields it read, then "Use these numbers" to fill the form. Unconfigured
   OCR says so and points at the two inputs; there is no dead end. The image is
@@ -66,6 +74,10 @@ because that is when the hackathon clock runs.
 
 ### Changed
 
+- The bill panel no longer hard-codes "annualised from a monthly bill". There are
+  five named methods now, and the panel reads the method, note, assumptions and
+  confidence off the parse instead of guessing. The copy also stopped saying "six
+  fields"; the schema asks for eleven.
 - The address field is a dropdown that updates while typing, not a button that
   guesses one address. The town select stays as the offline fallback, and a
   typed address the dropdown did not list can still be sent to the Census
