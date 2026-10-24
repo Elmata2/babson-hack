@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mass Energy Map</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B1220;
+    --panel: rgba(18, 27, 44, .78);
+    --line: rgba(255, 255, 255, .08);
+    --text: #E6EDF7;
+    --muted: #93A3BC;
+    --accent: #2FD3B5;
+    --solar: #FFD166;
+    --eversource: #3FA7FF;
+    --ngrid: #9B8CFF;
+    --unitil: #F28C6B;
+    --mlp: #2FD3B5;
+    --mixed: #C9D4E5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 13px/1.4 Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  #map { position: absolute; inset: 0 0 132px 0; }
+  .panel { position: absolute; background: var(--panel); backdrop-filter: blur(12px);
+    border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .panel h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .label { color: var(--muted); font-size: 11px; margin: 10px 0 4px; }
+  select { width: 100%; background: rgba(255,255,255,.05); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px; font: inherit; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: rgba(255,255,255,.06); border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 5px 9px; font: inherit; cursor: pointer; transition: background .15s, border-color .15s; }
+  .chip[aria-pressed="true"] { border-color: var(--accent); background: rgba(47,211,181,.14); }
+  #left { position: absolute; top: 16px; left: 16px; bottom: 214px; width: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; }
+  #left .panel { position: static; flex: 0 0 auto; }
+  #insight p { margin: 0; color: var(--text); }
+  .legend-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; color: var(--muted); font-size: 11px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+  #detail { top: 16px; right: 16px; width: 300px; max-height: calc(100vh - 292px); overflow: auto; scrollbar-width: thin; }
+  #detail .big { font-size: 22px; font-weight: 600; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .stat { background: rgba(255,255,255,.04); border-radius: 8px; padding: 8px; }
+  .stat b { display: block; font-size: 15px; font-weight: 600; }
+  .stat span { color: var(--muted); font-size: 11px; }
+  .bars { margin-top: 12px; display: grid; gap: 6px; }
+  .bar { display: grid; grid-template-columns: 92px 1fr 40px; gap: 8px; align-items: center; font-size: 11px; color: var(--muted); }
+  .bar i { display: block; height: 6px; border-radius: 3px; transition: width .3s ease-out; }
+  #scale { position: absolute; right: 332px; top: 40px; height: 260px; width: 40px; font-size: 10px; color: var(--muted); }
+  #scale .ramp { position: absolute; right: 0; top: 0; bottom: 0; width: 4px; border-radius: 2px; }
+  #scale span { position: absolute; right: 10px; transform: translateY(-50%); }
+  #bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 132px; background: #0E1626; border-top: 1px solid var(--line); padding: 10px 16px; }
+  #timeline { display: flex; align-items: center; gap: 4px; overflow-x: auto; }
+  #timeline button { flex: 1 0 34px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 11px; padding: 6px 0; border-radius: 6px; cursor: pointer; }
+  #timeline button.on { background: rgba(47,211,181,.18); color: var(--accent); font-weight: 600; }
+  #play { flex: 0 0 34px !important; color: var(--text) !important; }
+  #layers { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; }
+  .tile { flex: 0 0 150px; height: 58px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.03);
+    color: var(--muted); font: inherit; font-size: 11px; text-align: left; padding: 8px; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; }
+  .tile[aria-pressed="true"] { border-color: var(--accent); color: var(--text); }
+  .tile .sw { height: 14px; border-radius: 3px; }
+  .note { position: absolute; left: 16px; bottom: 140px; max-width: 340px; color: var(--muted); font-size: 11px; background: var(--panel); padding: 4px 8px; border-radius: 6px; }
+  .maplibregl-popup-content { background: #121B2C; color: var(--text); font: 12px Inter, sans-serif; border-radius: 8px; padding: 6px 10px; }
+  .maplibregl-popup-tip { display: none; }
+  @media (max-width: 900px) { #detail, #scale, #insight { display: none; } #left { width: calc(100% - 32px); bottom: 176px; } #profile { left: 16px !important; width: calc(100% - 32px) !important; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=text], input[type=number], input[type=date], input[type=search] { width: 100%; background: rgba(255,255,255,.05); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; }
+  .btn { background: rgba(255,255,255,.06); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.pri { border-color: var(--accent); background: rgba(47,211,181,.14); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .small { font-size: 11px; color: var(--muted); }
+  .src { display: inline-block; font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 4px; text-decoration: none; vertical-align: 1px; }
+  a.src:hover { color: var(--accent); border-color: var(--accent); }
+  a { color: var(--accent); }
+  #search-wrap { position: relative; }
+  #s-list { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin: 2px 0 0; padding: 4px; list-style: none; background: #121B2C; border: 1px solid var(--line); border-radius: 8px; }
+  #s-list li { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+  #s-list li[aria-selected="true"], #s-list li:hover { background: rgba(47,211,181,.16); }
+  #s-msg { margin-top: 6px; min-height: 0; }
+  #s-msg.err { color: #FFB4A2; }
+  .row2 { display: flex; gap: 6px; }
+  .row2 > input { flex: 1; }
+  #profile { position: absolute; top: 16px; left: 312px; width: 320px; max-height: calc(100vh - 176px); overflow: auto; z-index: 6; background: rgba(18,27,44,.96); }
+  #profile[hidden] { display: none; }
+  #profile label { display: block; color: var(--muted); font-size: 11px; margin: 10px 0 4px; }
+  #profile .hd { display: flex; justify-content: space-between; align-items: center; }
+  #profile .hd h2 { margin: 0; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tabs .chip { flex: 1; }
+  .bl { border-top: 1px solid var(--line); padding: 10px 0 2px; margin-top: 10px; }
+  .bl:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+  .bl h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; }
+  .bl p, .bl li { margin: 0 0 6px; }
+  .bl ul { margin: 0 0 6px; padding-left: 16px; }
+  .bl .opt { background: rgba(255,255,255,.04); border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+  .bl .opt b { display: block; margin-bottom: 2px; }
+  .bl.emph { border-left: 2px solid var(--accent); padding-left: 8px; }
+  .calc { background: rgba(47,211,181,.08); border: 1px solid rgba(47,211,181,.3); border-radius: 8px; padding: 8px; }
+  .calc b { font-size: 15px; }
+  .pin { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); box-shadow: 0 0 0 3px rgba(47,211,181,.3); }
+  #cam { position: absolute; left: 50%; transform: translateX(-50%); bottom: 142px; display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; backdrop-filter: blur(12px); }
+  #cam button { background: none; border: 0; color: var(--text); font: inherit; font-size: 12px; white-space: nowrap; min-width: 30px; height: 28px; padding: 0 7px; border-radius: 6px; cursor: pointer; }
+  #cam button:hover { background: rgba(255,255,255,.08); }
+  #cam button[aria-pressed="true"] { background: rgba(47,211,181,.18); color: var(--accent); }
+  #cam button[disabled], #play[disabled], #region[disabled] { opacity: .4; cursor: not-allowed; }
+  .maplibregl-ctrl-bottom-right { bottom: 0; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="left">
+<section id="overview" class="panel">
+  <h2>⚡ Energy overview</h2>
+  <button class="btn pri" id="home-btn" aria-expanded="false" aria-controls="profile" style="width:100%">My home</button>
+  <div class="label" style="margin-top:12px"><label for="search">Search a town or address</label></div>
+  <div id="search-wrap">
+    <div class="row2">
+      <input id="search" type="text" role="combobox" aria-expanded="false" aria-controls="s-list" aria-autocomplete="list" autocomplete="off" placeholder="Wellesley, or 1 Main St">
+      <button class="btn" id="s-go">Go</button>
+    </div>
+    <ul id="s-list" role="listbox" hidden></ul>
+  </div>
+  <div class="small" style="margin-top:4px">Addresses go only to the US Census geocoder.</div>
+  <div id="s-msg" class="small" role="status" aria-live="polite"></div>
+  <div class="label">Region (ISO-NE load zone)</div>
+  <select id="region" aria-label="Region" disabled>
+    <option value="ALL">All Massachusetts</option>
+    <option value="NEMA">NEMA · Boston &amp; North Shore</option>
+    <option value="SEMA">SEMA · South Shore &amp; Cape</option>
+    <option value="WCMA">WCMA · Central &amp; Western</option>
+  </select>
+  <div class="label">Metric</div>
+  <div class="chips" id="metric">
+    <button class="chip" data-v="demand" aria-pressed="true">Demand</button>
+    <button class="chip" data-v="solar">Solar output</button>
+    <button class="chip" data-v="net">Net load</button>
+  </div>
+  <div class="label">Colour by</div>
+  <div class="chips" id="colour">
+    <button class="chip" data-v="provider" aria-pressed="true">Provider</button>
+    <button class="chip" data-v="intensity">Intensity</button>
+  </div>
+</section>
+
+<section id="insight" class="panel">
+  <h2>Grid right now</h2>
+  <div class="legend-row">
+    <span><i class="dot" style="background:var(--eversource)"></i>Eversource</span>
+    <span><i class="dot" style="background:var(--ngrid)"></i>National Grid</span>
+    <span><i class="dot" style="background:var(--unitil)"></i>Unitil</span>
+    <span><i class="dot" style="background:var(--mlp)"></i>Municipal</span>
+    <span><i class="dot" style="background:var(--mixed)"></i>Mixed</span>
+  </div>
+  <p id="insight-text"></p>
+  <div class="small" style="margin-top:6px">Mixed towns split evenly. <span class="src">MassGIS · Electricity Providers · fetched 2026-10-24</span></div>
+</section>
+</div>
+
+<section id="profile" class="panel" hidden aria-label="My home">
+  <div class="hd"><h2>My home</h2><button class="btn" id="p-close" aria-label="Close My home">Close</button></div>
+  <div class="small">Saved only in this browser. Don't enter your account number.</div>
+  <label for="p-address">Address (optional)</label>
+  <input id="p-address" type="text" data-k="address" autocomplete="off">
+  <label for="p-town">Town</label>
+  <select id="p-town" data-k="town"></select>
+  <div id="p-utilwrap">
+    <label for="p-utility">Electric utility</label>
+    <div id="p-utiltext" class="small"></div>
+    <select id="p-utility" data-k="utility"></select>
+  </div>
+  <label for="p-fuel">Heating fuel</label>
+  <select id="p-fuel" data-k="fuel">
+    <option value="">Choose</option><option value="oil">Oil</option><option value="propane">Propane</option>
+    <option value="gas">Natural gas</option><option value="resistance">Electric resistance</option><option value="heatpump">Heat pump</option>
+  </select>
+  <label for="p-home">Home type</label>
+  <select id="p-home" data-k="home">
+    <option value="">Choose</option><option value="single">Single-family</option><option value="multi">2–4 unit</option><option value="condo">Condo / apartment</option>
+  </select>
+  <label for="p-kwh">Monthly electricity use (kWh) <span id="p-kwhseed" class="small"></span></label>
+  <input id="p-kwh" type="number" min="0" step="1" data-k="kwh">
+  <label for="p-supply">Current supply</label>
+  <select id="p-supply" data-k="supply">
+    <option value="">Choose</option><option value="basic">Basic Service</option><option value="muni">Municipal aggregation</option>
+    <option value="competitive">Competitive supplier</option><option value="unsure">Not sure</option>
+  </select>
+  <div id="p-comp" hidden>
+    <label for="p-rate">Supplier rate (¢/kWh)</label>
+    <input id="p-rate" type="number" min="0" step="0.001" data-k="rate">
+    <label for="p-end">Contract end date</label>
+    <input id="p-end" type="date" data-k="end">
+    <label for="p-etf">Early termination fee ($)</label>
+    <input id="p-etf" type="number" min="0" step="1" data-k="etf">
+  </div>
+  <label for="p-solar">Rooftop solar</label>
+  <select id="p-solar" data-k="solar"><option value="no">No</option><option value="yes">Yes</option></select>
+  <label for="p-ev">EV</label>
+  <select id="p-ev" data-k="ev"><option value="no">No</option><option value="yes">Yes</option></select>
+  <label for="p-income">Income-eligible for enhanced programs</label>
+  <select id="p-income" data-k="income"><option value="unsure">Not sure</option><option value="yes">Yes</option><option value="no">No</option></select>
+  <div style="margin-top:12px"><button class="btn" id="p-clear">Clear profile</button></div>
+</section>
+
+<div id="scale"><div class="ramp"></div></div>
+
+<section id="detail" class="panel">
+  <h2 id="d-title">Massachusetts</h2>
+  <div class="tabs" id="d-tabs" role="tablist" hidden>
+    <button class="chip" role="tab" data-v="grid" aria-pressed="true">Grid</button>
+    <button class="chip" role="tab" data-v="bill" aria-pressed="false">Your bill</button>
+  </div>
+  <div id="d-grid">
+    <div id="d-util" class="small" style="margin-bottom:6px"></div>
+    <svg id="polar" viewBox="-130 -130 260 260" width="100%" aria-label="Load by hour"></svg>
+    <div class="stats" id="d-stats"></div>
+    <div class="bars" id="d-bars"></div>
+    <div class="small" id="d-note" style="margin-top:6px"></div>
+  </div>
+  <div id="d-bill" hidden></div>
+</section>
+
+<div class="note">Real town boundaries (US Census 2023) and utilities (MassGIS). Demand and solar figures are invented.</div>
+
+<div id="cam" role="group" aria-label="Camera">
+  <button id="c-left" disabled aria-label="Rotate 45 degrees left" title="Rotate left 45°">⟲ 45°</button>
+  <button id="c-right" disabled aria-label="Rotate 45 degrees right" title="Rotate right 45°">45° ⟳</button>
+  <button id="c-up" disabled aria-label="Tilt up 15 degrees" title="Tilt up 15°">Tilt ▲</button>
+  <button id="c-down" disabled aria-label="Tilt down 15 degrees" title="Tilt down 15°">Tilt ▼</button>
+  <button id="c-orbit" disabled aria-pressed="false" title="Slowly rotate the view">Orbit</button>
+  <button id="c-reset" disabled title="Reset view">Reset view</button>
+</div>
+
+<section id="bottom">
+  <div id="timeline"><button id="play" aria-label="Play" disabled>▶</button></div>
+  <div id="layers"></div>
+</section>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+// ---------- mock model ----------
+const $ = id => document.getElementById(id);
+const PROVIDERS = {
+  Eversource: getCss('--eversource'), 'National Grid': getCss('--ngrid'),
+  Unitil: getCss('--unitil'), Municipal: getCss('--mlp'), Mixed: getCss('--mixed'),
+};
+const UTIL_SRC = 'MassGIS · Electricity Providers · fetched 2026-10-24';
+const ZONE = { '025':'NEMA','017':'NEMA','009':'NEMA','021':'NEMA','023':'SEMA','005':'SEMA','001':'SEMA','007':'SEMA','019':'SEMA',
+  '027':'WCMA','013':'WCMA','015':'WCMA','011':'WCMA','003':'WCMA' };
+const CITIES = [[42.36,-71.06,12],[42.37,-71.11,5],[42.26,-71.80,3],[42.10,-72.59,3],[42.64,-71.32,2],
+  [41.64,-70.93,1.5],[42.08,-71.02,1.5],[41.70,-71.15,1.5],[42.71,-71.16,1.5],[42.45,-73.25,1]];
+// Relative hourly shapes, index 0 = midnight.
+const LOAD_SHAPE = [.62,.58,.56,.55,.57,.63,.74,.84,.88,.89,.9,.9,.89,.88,.88,.9,.95,1,1,.97,.92,.84,.75,.67];
+const SOLAR_SHAPE = Array.from({length:24}, (_, h) => Math.max(0, Math.sin((h - 6) / 12 * Math.PI)) ** 1.5);
+const MA_ANNUAL_TWH = 55, MA_SOLAR_MW = 4500;
+
+function getCss(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function hash(s) { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0) / 4294967295; }
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function parseUtility(u) {
+  const sponsors = [];
+  for (const part of u.label.split(',').map(s => s.trim()).filter(Boolean)) {
+    const c = /municipal/i.test(part) ? 'Municipal' : /eversource|nstar/i.test(part) ? 'Eversource'
+      : /national grid/i.test(part) ? 'National Grid' : /unitil/i.test(part) ? 'Unitil' : part;
+    if (!sponsors.includes(c)) sponsors.push(c);
+  }
+  return { sponsors, hasMunicipal: sponsors.includes('Municipal'), mixed: sponsors.length > 1, elecName: u.elec,
+    nantucket: /nantucket/i.test(u.label) };
+}
+const provLabel = p => p.mixed ? p.classes.join(' / ') : p.provider;
+function centroid(geom) {
+  const pts = geom.type === 'Polygon' ? geom.coordinates[0] : geom.coordinates.flatMap(p => p[0]);
+  const [x, y] = pts.reduce((a, p) => [a[0] + p[0], a[1] + p[1]], [0, 0]);
+  return [x / pts.length, y / pts.length];
+}
+function inRing(x, y, ring) {
+  let ins = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins;
+  }
+  return ins;
+}
+function inPolygon(x, y, rings) { return inRing(x, y, rings[0]) && !rings.slice(1).some(r => inRing(x, y, r)); }
+const HEIGHT_EXPR = ['interpolate', ['linear'], ['zoom'], 7, ['get', 'height'], 10, ['*', ['get', 'height'], .12], 12, ['*', ['get', 'height'], .03]];
+const polysOf = g => g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+const geomHas = (g, x, y) => polysOf(g).some(r => inPolygon(x, y, r));
+function townAt(lng, lat) {
+  for (const f of towns.features) if (geomHas(f.geometry, lng, lat)) return f.properties;
+  return null;
+}
+function ringArea(r) { let a = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += r[j][0] * r[i][1] - r[i][0] * r[j][1]; return Math.abs(a / 2); }
+function anchorOf(g) {   // a point guaranteed inside the town: bbox centre, else the inside grid point nearest the mean of the largest ring
+  const all = polysOf(g).flatMap(r => r[0]);
+  const xs = all.map(c => c[0]), ys = all.map(c => c[1]);
+  const bc = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  if (geomHas(g, bc[0], bc[1])) return bc;
+  const big = polysOf(g).reduce((a, b) => ringArea(b[0]) > ringArea(a[0]) ? b : a), ring = big[0];
+  const m = ring.reduce((a, c) => [a[0] + c[0] / ring.length, a[1] + c[1] / ring.length], [0, 0]);
+  const bx = ring.map(c => c[0]), by = ring.map(c => c[1]), x0 = Math.min(...bx), x1 = Math.max(...bx), y0 = Math.min(...by), y1 = Math.max(...by);
+  let best = null, bd = Infinity;
+  for (let i = 0; i <= 24; i++) for (let j = 0; j <= 24; j++) {
+    const x = x0 + (x1 - x0) * i / 24, y = y0 + (y1 - y0) * j / 24, d = Math.hypot(x - m[0], y - m[1]);
+    if (d < bd && inPolygon(x, y, big)) { bd = d; best = [x, y]; }
+  }
+  return best || m;
+}
+
+function buildTowns(fc, utils) {
+  for (const f of fc.features) {
+    const p = f.properties, [lng, lat] = centroid(f.geometry), km2 = p.ALAND / 1e6;
+    p.NAME = p.NAME.replace(/ Town$/, '');   // Census: "Braintree Town", "Weymouth Town"
+    const urban = CITIES.reduce((s, [cy, cx, w]) => s + w * Math.exp(-Math.hypot((lat - cy) * 111, (lng - cx) * 82) / 9), 0);
+    const u = parseUtility(utils.towns[p.NAME.toUpperCase()] || { label: '', elec: '' });
+    p.centroid = [lng, lat]; p.anchor = anchorOf(f.geometry);
+    p.classes = u.sponsors; p.mixed = u.mixed; p.hasMunicipal = u.hasMunicipal; p.elecName = u.elecName; p.nantucket = u.nantucket;
+    p.provider = u.mixed ? 'Mixed' : u.sponsors[0];
+    p.zone = ZONE[p.COUNTYFP];
+    p.rawDemand = (km2 * 0.4 + 6) * (0.15 + urban) * (0.8 + 0.4 * hash(p.NAME));
+    p.rawSolar = km2 * (1.6 - Math.min(urban, 1.2)) * (0.6 + 0.8 * hash(p.NAME + 's'));
+  }
+  const sumD = fc.features.reduce((s, f) => s + f.properties.rawDemand, 0);
+  const sumS = fc.features.reduce((s, f) => s + f.properties.rawSolar, 0);
+  const avgLoad = LOAD_SHAPE.reduce((a, b) => a + b) / 24;
+  for (const f of fc.features) {
+    const p = f.properties;
+    p.annualMWh = p.rawDemand / sumD * MA_ANNUAL_TWH * 1e6;
+    p.peakMW = p.annualMWh / 8760 / avgLoad;          // MW at shape = 1
+    p.solarMW = p.rawSolar / sumS * MA_SOLAR_MW;      // nameplate
+  }
+  return fc;
+}
+const at = (p, h) => ({ demand: p.peakMW * LOAD_SHAPE[h], solar: p.solarMW * SOLAR_SHAPE[h] * 0.8 });
+function value(p, h, metric) {
+  const { demand, solar } = at(p, h);
+  return metric === 'demand' ? demand : metric === 'solar' ? solar : Math.max(0, demand - solar);
+}
+
+// ---------- state ----------
+const state = { hour: 18, metric: 'demand', colour: 'provider', region: 'ALL', selected: null, tab: 'grid',
+  layers: { columns: true, territory: true, solar: false, labels: true } };
+let towns, map, playing = null, pin = null, mapReady = false;
+
+const fmtMW = mw => mw >= 1000 ? (mw / 1000).toFixed(1) + ' GW' : mw >= 10 ? Math.round(mw) + ' MW' : mw.toFixed(1) + ' MW';
+const hourLabel = h => h === 0 ? '12 AM' : h === 12 ? '12 PM' : h < 12 ? h + ' AM' : (h - 12) + ' PM';
+const inRegion = p => state.region === 'ALL' || p.zone === state.region;
+const scope = () => state.selected ? [state.selected] : towns.features.map(f => f.properties).filter(inRegion);
+const townByName = n => n && towns ? (towns.features.find(f => f.properties.NAME === n) || {}).properties : null;
+
+// ---------- profile (localStorage, always guarded) ----------
+const PKEY = 'switchpoint.profile.v1';
+const DEMO = { address: '', town: '', utility: '', fuel: '', home: '', kwh: 600, kwhSeed: true, supply: '', rate: '', end: '', etf: '',
+  solar: 'no', ev: 'no', income: 'unsure' };
+let profile = loadProfile();
+function loadProfile() {
+  try { const raw = localStorage.getItem(PKEY); if (raw) return Object.assign({}, DEMO, JSON.parse(raw)); } catch (e) {}
+  return Object.assign({}, DEMO);
+}
+function saveProfile() { try { localStorage.setItem(PKEY, JSON.stringify(profile)); } catch (e) {} }
+
+// ---------- map ----------
+Promise.all([fetch('ma-towns.geojson').then(r => r.json()), fetch('utilities.json').then(r => r.json())]).then(([fc, utils]) => {
+  towns = buildTowns(fc, utils);
+  towns.features.forEach((f, i) => f.id = i);
+  initProfileForm(); render();
+  map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
+    center: [-71.75, 42.2], zoom: 7.2, pitch: 55, bearing: -12, maxPitch: 85, attributionControl: { compact: true },
+    dragRotate: true, touchZoomRotate: true, touchPitch: true,
+  });
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+  map.dragRotate.enable(); map.touchZoomRotate.enableRotation();
+  ['mousedown', 'touchstart', 'wheel', 'keydown'].forEach(ev => map.getContainer().addEventListener(ev, () => stopOrbit(), true));
+  ['dragstart', 'rotatestart', 'pitchstart'].forEach(ev => map.on(ev, e => { if (!e.orbit) stopOrbit(); }));
+  if (innerWidth > 900) map.setPadding({ left: 300, right: 330, top: 0, bottom: 0 });
+  map.on('load', () => {
+    map.addSource('towns', { type: 'geojson', data: towns });
+    map.addSource('points', { type: 'geojson', data: pointsFC() });
+    map.addLayer({ id: 'flat', type: 'fill', source: 'towns', paint: { 'fill-color': '#1A2740', 'fill-opacity': .55 } });
+    map.addLayer({ id: 'columns', type: 'fill-extrusion', source: 'towns', paint: {
+      'fill-extrusion-color': ['get', 'colour'], 'fill-extrusion-height': HEIGHT_EXPR,
+      'fill-extrusion-opacity': .88, 'fill-extrusion-height-transition': { duration: 300 } }, filter: ['!=', ['get', 'sel'], 1] });
+    map.addLayer({ id: 'selected', type: 'fill-extrusion', source: 'towns', filter: ['==', ['get', 'sel'], 1], paint: {
+      'fill-extrusion-color': '#FFFFFF', 'fill-extrusion-height': HEIGHT_EXPR, 'fill-extrusion-opacity': .45 } });
+    map.addLayer({ id: 'outline', type: 'line', source: 'towns', paint: { 'line-color': 'rgba(255,255,255,.12)', 'line-width': .5 } });
+    map.addLayer({ id: 'solar', type: 'circle', source: 'points', layout: { visibility: 'none' }, paint: {
+      'circle-color': getCss('--solar'), 'circle-opacity': .75, 'circle-blur': .3,
+      'circle-radius': ['interpolate', ['linear'], ['get', 'solar'], 0, 0, 20, 4, 120, 12] } });
+    map.addLayer({ id: 'labels', type: 'symbol', source: 'points', filter: ['>', ['get', 'peakMW'], 60], layout: {
+      'text-field': ['get', 'name'], 'text-size': 11, 'text-font': ['Open Sans Regular'] },
+      paint: { 'text-color': '#E6EDF7', 'text-halo-color': '#0B1220', 'text-halo-width': 1.2 } });
+
+    const popup = new maplibregl.Popup({ closeButton: false, offset: 8 });
+    map.on('mousemove', 'flat', e => {
+      const p = towns.features[e.features[0].id].properties;
+      map.getCanvas().style.cursor = 'pointer';
+      popup.setLngLat(e.lngLat).setHTML(`<b>${esc(p.NAME)}</b> · ${esc(provLabel(p))}<br>${fmtMW(value(p, state.hour, state.metric))} at ${hourLabel(state.hour)}`).addTo(map);
+    });
+    map.on('mouseleave', 'flat', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
+    map.on('click', e => {
+      const hit = map.queryRenderedFeatures(e.point, { layers: ['flat'] })[0];
+      state.selected = hit ? towns.features[hit.id].properties : null;
+      render();
+    });
+    mapReady = true;
+    ['c-left', 'c-right', 'c-up', 'c-down', 'c-reset', 'region', 'play'].forEach(i => $(i).disabled = false);
+    $('c-orbit').disabled = reduceMotion;
+    render();
+  });
+}).catch(err => { $('insight-text').textContent = 'Could not load map data: ' + err.message; });
+
+function pointsFC() {
+  return { type: 'FeatureCollection', features: towns.features.map(f => ({ type: 'Feature',
+    geometry: { type: 'Point', coordinates: f.properties.centroid },
+    properties: { name: f.properties.NAME, peakMW: f.properties.peakMW, solar: at(f.properties, state.hour).solar } })) };
+}
+
+function intensityColour(t) {
+  const stops = [[0, [30, 62, 90]], [.5, [47, 163, 181]], [1, [180, 255, 236]]];
+  const i = t < .5 ? 0 : 1, [a, ca] = stops[i], [b, cb] = stops[i + 1], k = (t - a) / (b - a);
+  return `rgb(${ca.map((c, j) => Math.round(c + (cb[j] - c) * k)).join(',')})`;
+}
+
+// ---------- render ----------
+function render() {
+  const max = Math.max(...towns.features.map(f => value(f.properties, 17, 'demand')));
+  for (const f of towns.features) {
+    const p = f.properties, v = value(p, state.hour, state.metric), isSel = state.selected === p, dim = !inRegion(p) && !isSel;
+    p.sel = isSel ? 1 : 0;
+    p.height = state.layers.columns && !dim ? Math.sqrt(v) * 2600 : 0;
+    p.colour = isSel ? '#FFFFFF' : dim ? '#222c3d'
+      : state.colour === 'provider' && state.layers.territory ? (PROVIDERS[p.provider] || '#888')
+      : intensityColour(Math.sqrt(v / max));
+  }
+  if (mapReady) {
+    map.getSource('towns').setData(towns);
+    map.getSource('points').setData(pointsFC());
+    map.setLayoutProperty('solar', 'visibility', state.layers.solar ? 'visible' : 'none');
+    map.setLayoutProperty('labels', 'visibility', state.layers.labels ? 'visible' : 'none');
+    const colVis = state.layers.territory || state.layers.columns ? 'visible' : 'none';
+    map.setLayoutProperty('columns', 'visibility', colVis); map.setLayoutProperty('selected', 'visibility', colVis);
+  }
+  renderInsight(); renderDetail(); renderTimeline(); renderLayers(); renderScale(max);
+}
+
+function totals(list, h) {
+  const t = { demand: 0, solar: 0, byProvider: {} };
+  for (const p of list) {
+    const { demand, solar } = at(p, h);
+    t.demand += demand; t.solar += solar;
+    for (const c of p.classes) t.byProvider[c] = (t.byProvider[c] || 0) + demand / p.classes.length;   // mixed towns split evenly
+  }
+  return t;
+}
+
+function renderInsight() {
+  const t = totals(towns.features.map(f => f.properties).filter(inRegion), state.hour);
+  const [topName, topMW] = Object.entries(t.byProvider).sort((a, b) => b[1] - a[1])[0];
+  const share = Math.round(t.solar / t.demand * 100);
+  const where = state.region === 'ALL' ? 'Massachusetts' : state.region;
+  $('insight-text').textContent =
+    `At ${hourLabel(state.hour)}, ${where} draws ${fmtMW(t.demand)}. ${topName} carries ${Math.round(topMW / t.demand * 100)}% of it. ` +
+    (share > 0 ? `Local solar covers ${share}%, leaving ${fmtMW(t.demand - t.solar)} net.` : 'No solar now, so the grid carries the full load.');
+}
+
+function renderDetail() {
+  const list = scope(), sel = state.selected;
+  const hasBill = !!(sel || profile.town);
+  $('d-tabs').hidden = !hasBill;
+  if (!hasBill) state.tab = 'grid';
+  [...$('d-tabs').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === state.tab));
+  $('d-grid').hidden = state.tab !== 'grid'; $('d-bill').hidden = state.tab !== 'bill';
+  const bt = sel || townByName(profile.town);
+  $('d-title').textContent = state.tab === 'bill' && bt ? `${bt.NAME} · your electricity`
+    : sel ? `${sel.NAME} · ${provLabel(sel)}` : (state.region === 'ALL' ? 'Massachusetts' : state.region) + ' · load by hour';
+  $('d-util').innerHTML = sel ? `Utility: ${esc(sel.elecName)} <span class="src">${UTIL_SRC}</span>` : '';
+  if (state.tab === 'bill') { renderBill(); return; }
+  const hours = LOAD_SHAPE.map((_, h) => totals(list, h));
+  const peak = Math.max(...hours.map(t => t.demand)), now = hours[state.hour];
+  drawPolar(hours, peak);
+  const annual = list.reduce((s, p) => s + p.annualMWh, 0), solarCap = list.reduce((s, p) => s + p.solarMW, 0);
+  $('d-stats').innerHTML = [
+    [fmtMW(now.demand), `demand at ${hourLabel(state.hour)}`], [fmtMW(now.solar), 'solar output'],
+    [(annual / 1e6).toFixed(annual > 1e6 ? 1 : 3) + ' TWh', 'annual use'], [fmtMW(solarCap), 'solar installed'],
+  ].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('');
+  $('d-bars').innerHTML = sel ? '' : Object.entries(now.byProvider).filter(([, mw]) => mw / now.demand >= .005).sort((a, b) => b[1] - a[1]).map(([name, mw]) => {
+    const pct = Math.round(mw / now.demand * 100);
+    return `<div class="bar">${esc(name)}<i style="width:${pct}%;background:${PROVIDERS[name] || '#888'}"></i>${pct}%</div>`;
+  }).join('');
+  $('d-note').innerHTML = sel ? '' : `Mixed towns split evenly. <span class="src">${UTIL_SRC}</span>`;
+}
+
+function drawPolar(hours, peak) {
+  const R = 100, r0 = 26, pt = (h, v) => {
+    const a = h / 24 * 2 * Math.PI - Math.PI / 2, r = r0 + (R - r0) * v / peak;
+    return [Math.cos(a) * r, Math.sin(a) * r];
+  };
+  const path = key => 'M' + hours.map((t, h) => pt(h, t[key]).map(n => n.toFixed(1)).join(',')).join('L') + 'Z';
+  const rings = [.25, .5, .75, 1].map(k => `<circle r="${r0 + (R - r0) * k}" fill="none" stroke="rgba(255,255,255,.07)"/>`).join('');
+  const ticks = [0, 6, 12, 18].map(h => { const [x, y] = pt(h, peak * 1.17); return `<text x="${x}" y="${y}" fill="#93A3BC" font-size="10" text-anchor="middle" dominant-baseline="middle">${hourLabel(h)}</text>`; }).join('');
+  const [hx, hy] = pt(state.hour, hours[state.hour].demand);
+  $('polar').innerHTML = `${rings}${ticks}
+    <path d="${path('demand')}" fill="rgba(47,211,181,.18)" stroke="${getCss('--accent')}" stroke-width="1.5"/>
+    <path d="${path('solar')}" fill="rgba(255,209,102,.18)" stroke="${getCss('--solar')}" stroke-width="1.2"/>
+    <line x1="0" y1="0" x2="${hx}" y2="${hy}" stroke="rgba(255,255,255,.35)" stroke-dasharray="2 3"/>
+    <circle cx="${hx}" cy="${hy}" r="4" fill="#fff"/>
+    <text y="-2" fill="#E6EDF7" font-size="13" font-weight="600" text-anchor="middle">${fmtMW(hours[state.hour].demand)}</text>
+    <text y="12" fill="#93A3BC" font-size="9" text-anchor="middle">${hourLabel(state.hour)}</text>`;
+}
+
+function renderTimeline() {
+  const el = $('timeline');
+  if (el.children.length === 1) {
+    LOAD_SHAPE.forEach((_, h) => {
+      const b = document.createElement('button');
+      b.textContent = h === 0 ? '12AM' : h === 12 ? '12PM' : String(h % 12).padStart(2, '0');
+      b.onclick = () => { stop(); state.hour = h; render(); };
+      el.appendChild(b);
+    });
+  }
+  [...el.children].slice(1).forEach((b, h) => b.classList.toggle('on', h === state.hour));
+}
+
+const LAYERS = [
+  ['columns', 'Demand columns', 'linear-gradient(90deg,#1E3E5A,#2FA3B5,#B4FFEC)'],
+  ['territory', 'Provider territories', 'linear-gradient(90deg,var(--eversource),var(--ngrid),var(--unitil),var(--mlp),var(--mixed))'],
+  ['solar', 'Solar sites', 'radial-gradient(circle,var(--solar) 30%,transparent 70%)'],
+  ['labels', 'Town labels', 'repeating-linear-gradient(90deg,#93A3BC 0 6px,transparent 6px 12px)'],
+];
+function renderLayers() {
+  const el = $('layers');
+  if (!el.children.length) {
+    for (const [key, name, bg] of LAYERS) {
+      const b = document.createElement('button');
+      b.className = 'tile'; b.dataset.key = key;
+      b.innerHTML = `<div class="sw" style="background:${bg}"></div>${name}`;
+      b.onclick = () => { state.layers[key] = !state.layers[key]; render(); };
+      el.appendChild(b);
+    }
+  }
+  [...el.children].forEach(b => b.setAttribute('aria-pressed', state.layers[b.dataset.key]));
+}
+
+function renderScale(max) {
+  const el = $('scale');
+  const ramp = state.colour === 'intensity' ? 'linear-gradient(0deg,#1E3E5A,#2FA3B5,#B4FFEC)' : 'linear-gradient(0deg,#2A3A55,#93A3BC)';
+  el.innerHTML = `<div class="ramp" style="background:${ramp}"></div>` +
+    [1, .5, .25, 0].map(k => `<span style="top:${(1 - Math.sqrt(k)) * 100}%">${fmtMW(max * k)}</span>`).join('');
+}
+
+// ---------- "Your bill" ----------
+const A = (href, t) => `<a href="${href}" target="_blank" rel="noopener">${t}</a>`;
+const SRC = (t, href) => href ? `<a class="src" href="${href}" target="_blank" rel="noopener">${t}</a>` : `<span class="src">${t}</span>`;
+const S = {
+  boston: SRC('Boston.com · 2026-07-29', 'https://boston.com/news/local-news/2026/07/29/electric-utility-rates-are-going-up-aug-1-will-your-bill-actually-increase'),
+  ag: SRC('MA Attorney General · 2026 Competitive Supply Report', 'https://www.mass.gov/doc/2026-competitive-supply-report/download'),
+  news: SRC('MA AG · The Energy Advocate · summer 2026', 'https://www.mass.gov/doc/era-newsletter-the-energy-advocate-summer-2026/download'),
+  agg: SRC('Mass.gov · municipal aggregation', 'https://www.mass.gov/info-details/municipal-aggregation'),
+  ms: SRC('Mass Save · read 2026-10-24'),
+  eia: SRC('EIA · July 2026'),
+  gis: SRC(UTIL_SRC),
+  unitil: SRC('Unitil · Aug 2026 – Jan 2027', 'https://unitil.com/sites/default/files/2026-07/2026%20FGE%20Basic%20Service%20Update-Aug26-Jan27-0928.pdf'),
+};
+const BASIC = { Eversource: 17.3, 'National Grid': 16.074 };       // ¢/kWh, supply only, Aug 2026 – Jan 2027
+const SEASONAL = { Eversource: .07, Unitil: .07, 'National Grid': .04 };   // $/kWh off, Nov 1 – Apr 30
+const dayStart = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const daysUntil = d => Math.round((dayStart(d) - dayStart(new Date())) / 864e5);
+const plural = n => n === 1 ? '' : 's';
+
+function utilName(t, util) {
+  if (!t.mixed) return t.elecName;
+  const re = { Municipal: /^(?!.*(eversource|nstar|national grid|unitil))/i, Eversource: /eversource|nstar/i, 'National Grid': /national grid/i, Unitil: /unitil/i }[util];
+  const parts = t.elecName.split(', ').filter(x => re && re.test(x));
+  return parts.length ? parts.join(', ') : util;
+}
+function billUtility(t, mine) {
+  if (!t.mixed) return t.classes[0];
+  return mine && t.classes.includes(profile.utility) ? profile.utility : null;
+}
+
+function renderBill() {
+  const el = $('d-bill'), t = state.selected || townByName(profile.town);
+  if (!t) { el.innerHTML = '<p class="small">Select a town on the map or search for yours.</p>'; return; }
+  const mine = profile.town === t.NAME, util = billUtility(t, mine);
+  const out = [];
+  // a. delivery
+  let a = `<h3>Who delivers your power</h3>`;
+  if (t.mixed && !util) {
+    a += `<p>${esc(t.NAME)} is served by more than one utility: ${t.classes.map(esc).join(', ')}. Which one bills you depends on your address.</p>` +
+      `<p>${mine ? 'Pick one in My home.' : 'Set this town as your home, then pick your utility.'} <button class="btn" data-act="open-profile">My home</button></p>` +
+      `<p class="small">Utility names ${S.gis}</p>`;
+    out.push(`<div class="bl">${a}</div>`, eiaBlock());
+    el.innerHTML = out.join(''); return;
+  }
+  const detail = esc(utilName(t, util));
+  a += `<p><b>${detail}</b> ${S.gis}</p>`;
+  const muni = util === 'Municipal';
+  a += muni ? `<p>Your town's light plant both supplies and delivers your power. There's no supplier to switch, and Mass Save electric rebates don't apply.</p>`
+    : `<p>Delivery is fixed by your address. You can't switch it.</p>`;
+  out.push(`<div class="bl">${a}</div>`);
+  if (!muni) {
+    out.push(supplyBlock(t, util, mine));
+    out.push(`<div class="bl"><h3>Before you switch, find these on your bill</h3><ul><li>Supplier name</li><li>Supply rate (¢/kWh)</li><li>Contract end date</li><li>Early termination fee</li><li>Monthly kWh</li></ul><p class="small">Don't enter your account number here.</p></div>`);
+  }
+  out.push(heatBlock(t, util, mine, muni));
+  out.push(eiaBlock());
+  el.innerHTML = out.join('');
+}
+
+function eiaBlock() {
+  return `<div class="bl"><h3>All-in average, for context</h3><p>MA residential electricity averaged 30.49¢/kWh all-in, July 2026. ${S.eia}</p>` +
+    `<p class="small">The Basic Service rates above are supply-only. Delivery and other charges come on top, so don't compare them with this number directly.</p></div>`;
+}
+
+function supplyBlock(t, util, mine) {
+  let basicTxt;
+  if (util === 'Unitil') basicTxt = `No number here. See ${A('https://unitil.com/sites/default/files/2026-07/2026%20FGE%20Basic%20Service%20Update-Aug26-Jan27-0928.pdf', "Unitil's Basic Service rates")}. ${S.unitil}`;
+  else if (t.nantucket) basicTxt = `Nantucket Electric's own rate isn't in our source. Check with National Grid. For other National Grid areas: 16.074¢/kWh. ${S.boston}`;
+  else basicTxt = `<b>${BASIC[util]}¢/kWh</b> for ${util}, supply-only, Aug 1 2026 – Jan 2027. ${S.boston}`;
+  let h = `<div class="bl"><h3>Who supplies it: your three options</h3>
+  <div class="opt"><b>1. Basic Service</b>The utility default, DPU-approved, resets every 6 months. ${basicTxt}</div>
+  <div class="opt"><b>2. Municipal aggregation</b>Your town buys supply for residents. You're enrolled unless you opt out, and there's no exit fee to opt out. Check whether your town has one. ${A('https://www.mass.gov/info-details/municipal-aggregation', 'Municipal aggregation on Mass.gov')} ${S.agg}</div>
+  <div class="opt"><b>3. Competitive supplier</b>You sign a contract yourself. Residential customers on competitive supply paid $738.7M more than Basic Service would have cost, July 2024 – June 2025. ${S.ag}
+    <br>Watch for variable rates, auto-renewal and cancellation fees. Compare offers at ${A('https://www.energyswitchma.gov/', 'Energy Switch Massachusetts')}.</div>
+  <p class="small">Mar 2026: 51% of customers on municipal aggregation, 26.6% on Basic Service, ~22% on a competitive supplier. ${S.news}</p>`;
+  if (mine) {
+    const rate = parseFloat(profile.rate), kwh = parseFloat(profile.kwh), basic = t.nantucket ? undefined : BASIC[util];
+    if (profile.supply === 'unsure') h += `<p class="calc">Look at the "Supplier" line on your bill. If it names your utility, you're on Basic Service.</p>`;
+    if (profile.supply === 'competitive') {
+      if (basic !== undefined && rate > 0 && kwh > 0) {
+        const d = (rate - basic) * kwh / 100;
+        h += `<div class="calc"><b>${d >= 0 ? `You pay $${d.toFixed(2)}/month more than Basic Service` : `You pay $${Math.abs(d).toFixed(2)}/month less than Basic Service`}</b>
+          <div class="small">(${rate} − ${basic}) ¢/kWh × ${kwh} kWh ÷ 100 = $${d.toFixed(2)}${profile.kwhSeed ? '. The 600 kWh is an example. Edit it in My home.' : ''}</div>
+          <div class="small">Basic Service resets every 6 months, so this comparison will change.</div></div>`;
+      } else if (util === 'Unitil' || t.nantucket) h += `<p class="calc">We have no Basic Service number for ${t.nantucket ? 'Nantucket' : 'Unitil'}. Compare your rate with the utility's published Basic Service rate.</p>`;
+      else h += `<p class="small">Enter your supplier rate and monthly kWh in My home to see the monthly difference.</p>`;
+      if (profile.end) {
+        const days = daysUntil(new Date(profile.end + 'T00:00:00'));
+        const etf = parseFloat(profile.etf);
+        h += `<p class="calc">${days > 0 ? `Your contract ends in ${days} day${plural(days)} (${esc(profile.end)}).` : days === 0 ? `Your contract ends today (${esc(profile.end)}).` : `Your contract ended ${-days} day${plural(-days)} ago (${esc(profile.end)}). Check whether it renewed.`}
+          ${etf > 0 ? ` Leaving before then may cost the $${etf} early termination fee.` : ' Check your contract for an early termination fee before you leave.'}</p>`;
+      }
+    }
+  }
+  return h + '</div>';
+}
+
+function heatBlock(t, util, mine, muni) {
+  const fuel = mine ? profile.fuel : '', em = ['heatpump', 'resistance', 'oil', 'propane'].includes(fuel);
+  let h = `<div class="bl${em ? ' emph' : ''}"><h3>If you heat with electricity or are considering a heat pump</h3>`;
+  if (muni) h += `<p>Seasonal Heat Pump Rate (Nov 1 – Apr 30): not applicable. Not available through Mass Save in your town. ${S.ms}</p>`;
+  else {
+    const off = SEASONAL[util];
+    h += `<p>Seasonal Heat Pump Rate, Nov 1 – Apr 30: ${util} rate − $${off.toFixed(2)}/kWh. ${S.ms}</p>`;
+    const left = daysUntil(new Date(2026, 11, 31));
+    h += `<p>Mass Save whole-home heat pump rebate: <b>$2,650/ton, cap $8,500</b> in 2026. Installs from 2027-01-01: $2,350/ton, cap $7,500. ${left > 0 ? `${left} day${plural(left)} left to install at 2026 rates (through 2026-12-31).` : left === 0 ? 'Last day to install at 2026 rates (2026-12-31).' : 'The 2026 rates have ended.'} ${S.ms}</p>`;
+  }
+  if (fuel === 'gas' && !muni) h += `<p>Standard rebates apply; the enhanced income-based tier doesn't.</p>`;
+  if (mine && !muni && ['yes', 'unsure'].includes(profile.income) && ['oil', 'propane', 'resistance'].includes(fuel))
+    h += `<p>Enhanced rebates up to $16,000, or no cost through Turnkey. Check eligibility: 888-714-3990. ${S.ms}</p>`;
+  h += muni ? `<p>0% HEAT Loan (up to $25,000) needs a Mass Save sponsor. You may qualify through your gas utility. Check with Mass Save. Federal 25C credit: expired 2025-12-31.</p>`
+    : `<p>0% HEAT Loan up to $25,000. It's a loan, not a rebate. Federal 25C credit: expired 2025-12-31.</p>`;
+  if (mine && profile.solar === 'yes') h += `<p>Ask your utility about net metering credits.</p>`;
+  if (mine && profile.ev === 'yes') h += `<p>Charging adds to your kWh; recheck your plan comparison.</p>`;
+  return h + `<p class="small">Estimate only. Not a quote. A Home Energy Assessment determines eligibility and sizing.</p>
+    <p class="small">Sources: Mass Save program rules, read 2026-10-24 (team steering: .kiro/steering/mass-save-rules.md).</p></div>`;
+}
+
+// ---------- profile form ----------
+function initProfileForm() {
+  $('p-town').innerHTML = '<option value="">Choose a town</option>' + towns.features.map(f => f.properties.NAME).sort().map(n => `<option>${esc(n)}</option>`).join('');
+  document.querySelectorAll('#profile [data-k]').forEach(el => {
+    const ev = el.tagName === 'SELECT' || el.type === 'date' ? 'change' : 'input';
+    el.addEventListener(ev, () => onProfileInput(el));
+  });
+  $('p-clear').onclick = () => { profile = Object.assign({}, DEMO); try { localStorage.removeItem(PKEY); } catch (e) {} syncProfileForm(); render(); };
+  $('p-close').onclick = () => toggleProfile(false);
+  $('home-btn').onclick = () => toggleProfile($('profile').hidden);
+  $('d-bill').addEventListener('click', e => { if (e.target.dataset.act === 'open-profile') toggleProfile(true); });
+  $('d-tabs').addEventListener('click', e => { const v = e.target.dataset.v; if (v) { state.tab = v; render(); } });
+  syncProfileForm();
+}
+function toggleProfile(open) { $('profile').hidden = !open; $('home-btn').setAttribute('aria-expanded', open); if (open) $('p-address').focus(); }
+function onProfileInput(el) {
+  const k = el.dataset.k;
+  if (k === 'town') { setHome(el.value, null); return; }
+  profile[k] = el.value;
+  if (k === 'kwh') profile.kwhSeed = false;
+  saveProfile(); syncProfileForm(el); render();
+}
+function syncProfileForm(skip) {
+  for (const el of document.querySelectorAll('#profile [data-k]')) {
+    if (el === skip) continue;
+    const v = profile[el.dataset.k]; el.value = v === undefined || v === null ? '' : v;
+  }
+  const t = townByName(profile.town);
+  $('p-kwhseed').textContent = profile.kwhSeed ? '(example, edit me)' : '';
+  $('p-comp').hidden = profile.supply !== 'competitive';
+  const sel = $('p-utility'), txt = $('p-utiltext');
+  if (!t) { sel.hidden = true; txt.textContent = 'Choose a town first.'; }
+  else if (!t.mixed) { sel.hidden = true; txt.innerHTML = `${esc(t.elecName)} <span class="src">${UTIL_SRC}</span>`; }
+  else {
+    txt.innerHTML = `More than one utility serves ${esc(t.NAME)}. <span class="src">${UTIL_SRC}</span>`;
+    sel.hidden = false; sel.required = true; sel.setAttribute('aria-label', 'Which utility bills you?');
+    sel.innerHTML = '<option value="">Which utility bills you? (required)</option>' + t.classes.map(c => `<option>${esc(c)}</option>`).join('');
+    sel.value = t.classes.includes(profile.utility) ? profile.utility : '';
+  }
+}
+function setHome(town, address) {
+  profile.town = town || '';
+  if (address !== null) profile.address = address;
+  const t = townByName(profile.town);
+  if (!t || !t.classes.includes(profile.utility)) profile.utility = '';
+  saveProfile(); syncProfileForm();
+  if (t) { state.selected = t; state.tab = 'bill'; fly(t.anchor); }
+  render();
+}
+
+// ---------- search ----------
+const search = $('search'), sList = $('s-list'), sMsg = $('s-msg');
+let matches = [], active = -1, found = null, geoN = 0, geoReq = 0;
+function say(html, err) { sMsg.className = 'small' + (err ? ' err' : ''); sMsg.innerHTML = html; }
+function closeList() { sList.hidden = true; sList.innerHTML = ''; matches = []; search.setAttribute('aria-expanded', 'false'); search.removeAttribute('aria-activedescendant'); active = -1; }
+function suggest() {
+  const q = search.value.trim().toLowerCase();
+  matches = [];
+  if (q && !/\d/.test(q) && towns) {
+    const names = towns.features.map(f => f.properties.NAME);
+    matches = [...names.filter(n => n.toLowerCase().startsWith(q)), ...names.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q))].slice(0, 6);
+  }
+  sList.innerHTML = matches.map((n, i) => `<li role="option" id="so-${i}" data-i="${i}" aria-selected="false">${esc(n)}</li>`).join('');
+  sList.hidden = !matches.length; search.setAttribute('aria-expanded', String(!!matches.length)); active = -1;
+  if (/\d/.test(q)) say('Press Enter to look up this address.'); else say('');
+}
+function mark(i) {
+  active = i;
+  [...sList.children].forEach((li, j) => li.setAttribute('aria-selected', j === i));
+  if (i >= 0) search.setAttribute('aria-activedescendant', 'so-' + i); else search.removeAttribute('aria-activedescendant');
+}
+function fly(c) { if (!mapReady) return; stopOrbit(); map.flyTo({ center: c, zoom: 11, duration: reduceMotion ? 0 : 1400 }); }
+function dropPin(c) {
+  if (!mapReady) return;
+  if (!pin) { const el = document.createElement('div'); el.className = 'pin'; pin = new maplibregl.Marker({ element: el }); }
+  pin.setLngLat(c).addTo(map);
+}
+function pickTown(name) {
+  const t = townByName(name); if (!t) return;
+  geoReq++; search.value = name; closeList(); found = { town: t.NAME, address: '' };
+  state.selected = t; dropPin(t.anchor); fly(t.anchor); render(); foundMsg();
+}
+function foundMsg() {
+  say(`Found: <b>${esc(found.town)}</b>${found.address ? ' · ' + esc(found.address) : ''} <button class="btn" id="use-home" style="margin-left:4px">Use as my home</button>`);
+  $('use-home').onclick = () => { setHome(found.town, found.address); say(`Saved ${esc(found.town)} as your home, in this browser only.`); };
+}
+function fail() { found = null; say("We couldn't find that address. Pick your town instead.", true); }
+function geocode(q) {
+  return new Promise((resolve, reject) => {
+    const cb = '__geo' + (++geoN) + '_' + Date.now(), s = document.createElement('script');
+    const gone = () => { delete window[cb]; s.remove(); };
+    const timer = setTimeout(() => { window[cb] = () => {}; s.onload = gone; s.onerror = gone; reject(new Error('timeout')); }, 6000);
+    window[cb] = r => { clearTimeout(timer); resolve(r); };
+    s.onload = () => { clearTimeout(timer); gone(); };
+    s.onerror = () => { clearTimeout(timer); gone(); reject(new Error('network')); };
+    s.src = 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=' + encodeURIComponent(q) +
+      '&benchmark=Public_AR_Current&format=jsonp&callback=' + cb;
+    document.head.appendChild(s);
+  });
+}
+async function lookupAddress(raw) {
+  const q = /\bMA\b|massachusetts/i.test(raw) ? raw : raw + ', MA';
+  say('Looking up address…');
+  const my = ++geoReq;
+  try {
+    const r = await geocode(q);
+    if (my !== geoReq) return;
+    const m = r && r.result && r.result.addressMatches && r.result.addressMatches[0];
+    if (!m) return fail();
+    const { x, y } = m.coordinates, t = townAt(x, y);
+    if (!t) return fail();
+    closeList(); found = { town: t.NAME, address: m.matchedAddress || raw };
+    state.selected = t; dropPin([x, y]); fly([x, y]); render(); foundMsg();
+  } catch (e) { if (my === geoReq) fail(); }
+}
+function submitSearch() {
+  const q = search.value.trim(); if (!q) return;
+  if (!sList.hidden && active >= 0 && matches[active]) return pickTown(matches[active]);
+  if (/\d/.test(q)) return lookupAddress(q);
+  const exact = towns && towns.features.find(f => f.properties.NAME.toLowerCase() === q.toLowerCase());
+  if (exact) return pickTown(exact.properties.NAME);
+  if (matches.length === 1) return pickTown(matches[0]);
+  say("We couldn't find that town. Pick one from the list.", true);
+}
+search.addEventListener('input', suggest);
+search.addEventListener('keydown', e => {
+  const open = !sList.hidden && matches.length;
+  if (e.key === 'ArrowDown' && open) { e.preventDefault(); mark((active + 1) % matches.length); }
+  else if (e.key === 'ArrowUp' && open) { e.preventDefault(); mark((active - 1 + matches.length) % matches.length); }
+  else if (e.key === 'Enter') { e.preventDefault(); submitSearch(); }
+  else if (e.key === 'Escape') closeList();
+});
+sList.addEventListener('mousedown', e => { const li = e.target.closest('li'); if (li) { e.preventDefault(); pickTown(matches[+li.dataset.i]); } });
+search.addEventListener('blur', () => setTimeout(closeList, 100));
+$('s-go').onclick = submitSearch;
+
+// ---------- camera ----------
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let orbit = null, lastT = 0;
+function orbitStep(t) {
+  if (!orbit) return;
+  map.setBearing(map.getBearing() + 6 * Math.min(t - lastT, 100) / 1000, { orbit: true }); lastT = t;
+  orbit = requestAnimationFrame(orbitStep);
+}
+function stopOrbit() { if (orbit) { cancelAnimationFrame(orbit); orbit = null; $('c-orbit').setAttribute('aria-pressed', 'false'); } }
+const camDur = reduceMotion ? 0 : 500;
+$('c-left').onclick = () => { if (!mapReady) return; stopOrbit(); map.easeTo({ bearing: map.getBearing() - 45, duration: camDur }); };
+$('c-right').onclick = () => { if (!mapReady) return; stopOrbit(); map.easeTo({ bearing: map.getBearing() + 45, duration: camDur }); };
+$('c-up').onclick = () => { if (!mapReady) return; stopOrbit(); map.easeTo({ pitch: Math.max(0, map.getPitch() - 15), duration: camDur }); };
+$('c-down').onclick = () => { if (!mapReady) return; stopOrbit(); map.easeTo({ pitch: Math.min(85, map.getPitch() + 15), duration: camDur }); };
+$('c-reset').onclick = () => { if (!mapReady) return; stopOrbit(); map.easeTo({ center: VIEWS.ALL[0], zoom: VIEWS.ALL[1], pitch: 55, bearing: -12, duration: reduceMotion ? 0 : 900 }); };
+if (reduceMotion) { $('c-orbit').title = 'Disabled: reduced motion is on'; }
+$('c-orbit').onclick = () => {
+  if (!mapReady) return;
+  if (orbit) return stopOrbit();
+  orbit = requestAnimationFrame(t => { lastT = t; orbitStep(t); });
+  $('c-orbit').setAttribute('aria-pressed', 'true');
+};
+
+// ---------- controls ----------
+function bindChips(id, key) {
+  $(id).addEventListener('click', e => {
+    const v = e.target.dataset.v; if (!v) return;
+    state[key] = v;
+    document.querySelectorAll(`#${id} .chip`).forEach(c => c.setAttribute('aria-pressed', c.dataset.v === v));
+    render();
+  });
+}
+bindChips('metric', 'metric'); bindChips('colour', 'colour');
+const VIEWS = { ALL: [[-71.75, 42.2], 7.2], NEMA: [[-71.1, 42.48], 8.9], SEMA: [[-70.75, 41.85], 8.4], WCMA: [[-72.3, 42.35], 8.2] };
+$('region').onchange = e => {
+  state.region = e.target.value; state.selected = null;
+  const [center, zoom] = VIEWS[state.region];
+  if (mapReady) { stopOrbit(); map.easeTo({ center, zoom, duration: reduceMotion ? 0 : 900 }); }
+  render();
+};
+function stop() { clearInterval(playing); playing = null; $('play').textContent = '▶'; }
+$('play').onclick = () => {
+  if (playing) return stop();
+  $('play').textContent = '❚❚';
+  playing = setInterval(() => { state.hour = (state.hour + 1) % 24; render(); }, 600);
+};
+</script>
+</body>
+</html>
