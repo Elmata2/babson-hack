@@ -129,6 +129,46 @@ export interface OutreachRequest {
   consentAt: string
 }
 
+/**
+ * What the agent was asked to do. Stored so the dashboard can say who is being
+ * contacted, and so reopening the screen does not lose the run.
+ */
+export interface StoredAgentRun {
+  kind: 'fuel' | 'installer'
+  providerIds: string[]
+  channel: OutreachChannel
+  sessionId: string | null
+  mode: OutreachMode
+  startedAt: string
+}
+
+/** One comparable number the agent brought back, with the sentence behind it. */
+export interface StoredQuoteRow {
+  providerId: string
+  providerName: string
+  kind: 'fuel' | 'installer'
+  status: 'ranked' | 'shown'
+  /** Annual cost at this use for fuel; total install for an installer. Null when unknown. */
+  figure: number | null
+  /** Effective $/gal for fuel; $/ton for an installer. */
+  unit: number | null
+  note: string | null
+  evidence: string | null
+  at: string | null
+}
+
+/** The ranked result the dashboard can render without replaying a call. */
+export interface StoredQuotes {
+  kind: 'fuel' | 'installer'
+  rows: StoredQuoteRow[]
+  best: { providerId: string; providerName: string; figure: number | null; unit: number | null } | null
+  complete: boolean
+  at: string
+}
+
+/** What the household decided, in the closed vocabulary the dashboard reads. */
+export type DecisionOutcome = 'declined' | 'contacting' | 'checked'
+
 /** What the browser keeps for the dashboard. Session scoped; see `session.ts`. */
 export interface StoredSwitch {
   choice: SwitchChoice
@@ -140,5 +180,9 @@ export interface StoredSwitch {
   query: string
   facts: SharedFacts | null
   statuses: ProviderStatus[]
-  decision: { providerId: string | null; outcome: 'declined' | 'contacting'; at: string } | null
+  decision: { providerId: string | null; outcome: DecisionOutcome; at: string } | null
+  /** The agent run behind the statuses, when one was started. */
+  agent: StoredAgentRun | null
+  /** The ranked quotes the agent brought back, when it finished. */
+  quotes: StoredQuotes | null
 }

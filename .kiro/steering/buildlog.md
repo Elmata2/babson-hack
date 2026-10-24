@@ -1,6 +1,9 @@
+---
+inclusion: auto
+name: buildlog
+description: How features are credited in this repo. Use when adding an @built F-NN marker, editing tasks.md, running the build log scripts, or asked what has been built.
+---
 # Steering — The build log
-
-**Inclusion:** always
 
 If it is not in the log, it did not happen. The log is not a nicety; it is how
 four people with eight hours avoid rebuilding each other's work, and how the

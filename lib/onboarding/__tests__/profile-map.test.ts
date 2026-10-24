@@ -42,6 +42,20 @@ describe('mapProfileFrom', () => {
       incomeEligible: 'yes',
     })
   })
+  it('keeps the heating numbers the verdict needs to be rebuilt later', () => {
+    const fields = mapProfileFrom({
+      town: 'Newton',
+      fuel: 'oil',
+      electric,
+      income: 'no',
+      units: 900,
+      price: 6.23,
+    })
+    expect(fields).toMatchObject({ units: 900, price: 6.23 })
+    const merged = mergeMapProfile(null, fields)
+    expect(JSON.parse(merged)).toMatchObject({ units: 900, price: 6.23 })
+  })
+
   it('omits kwh when no electric bill gave one', () => {
     const fields = mapProfileFrom({ town: 'Newton', fuel: 'gas', electric: null, income: 'unsure' })
     expect('kwh' in fields).toBe(false)

@@ -1,6 +1,7 @@
+---
+inclusion: always
+---
 # Steering — Product
-
-**Inclusion:** always
 
 ## What we are building
 

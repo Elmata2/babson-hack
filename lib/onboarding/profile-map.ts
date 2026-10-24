@@ -8,6 +8,9 @@ export interface MapProfileFields {
   town: string
   utility: SponsorKey | null
   fuel: BillFuel
+  /** The heating numbers the review step used, so the verdict can be rebuilt later. */
+  units?: number
+  price?: number
   kwh?: number
   kwhIsExample?: false
   supply: 'basic' | 'competitive' | null
@@ -30,12 +33,19 @@ export function mapProfileFrom(input: {
   fuel: BillFuel
   electric: Pick<BillApplied, 'units' | 'utility'> | null
   income: Income
+  /** Heating use and unit price from the review step, when the household has them. */
+  units?: number | null
+  price?: number | null
 }): MapProfileFields {
   const kwh = monthlyKwh(input.electric)
+  const units = typeof input.units === 'number' && Number.isFinite(input.units) && input.units > 0 ? input.units : undefined
+  const price = typeof input.price === 'number' && Number.isFinite(input.price) && input.price > 0 ? input.price : undefined
   return {
     town: input.town,
     utility: sponsorFromBill(input.electric?.utility ?? null),
     fuel: input.fuel,
+    ...(units === undefined ? {} : { units }),
+    ...(price === undefined ? {} : { price }),
     ...(kwh === null ? {} : { kwh, kwhIsExample: false as const }),
     supply: null,
     supplierRateCents: null,

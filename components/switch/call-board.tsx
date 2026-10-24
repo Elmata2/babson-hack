@@ -25,7 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildBoard, type CallBoard as Board } from '@/lib/calls/board'
 import { demoDurationMs, fixtureRecord, isDemoConversationId } from '@/lib/calls/fixtures'
 import type { CallMode, CallPoll, CallRecord, CallStart } from '@/lib/calls/types'
-import type { SharedFacts, SwitchProvider } from '@/lib/switch/types'
+import type { SharedFacts, SwitchChoice, SwitchProvider } from '@/lib/switch/types'
 import { withDemo } from '@/lib/demo'
 import { withUnitPrice } from '@/lib/intake/params'
 
@@ -61,6 +61,9 @@ function money(value: number | null, suffix = ''): string {
 
 export interface CallBoardProps {
   mode: CallMode
+  /** The decision the household consented to; the route checks it against each row. */
+  choice: SwitchChoice
+  kind: 'fuel' | 'installer'
   providers: SwitchProvider[]
   facts: SharedFacts
   usage: {
@@ -73,9 +76,25 @@ export interface CallBoardProps {
   query: string
   sessionId: string
   demo: boolean
+  /** Start as soon as the board mounts, after the consent gate. */
+  autoStart?: boolean
+  /** Report every change so the dashboard can keep the same rows. */
+  onProgress?: (records: CallRecord[], board: Board, complete: boolean) => void
 }
 
-export function CallBoard({ mode, providers, facts, usage, query, sessionId, demo }: CallBoardProps) {
+export function CallBoard({
+  mode,
+  choice,
+  kind,
+  providers,
+  facts,
+  usage,
+  query,
+  sessionId,
+  demo,
+  autoStart = false,
+  onProgress,
+}: CallBoardProps) {
   const startedAt = useRef(new Date().toISOString())
   const [records, setRecords] = useState<CallRecord[]>([])
   const [notice, setNotice] = useState<string | null>(null)
@@ -87,6 +106,8 @@ export function CallBoard({ mode, providers, facts, usage, query, sessionId, dem
 
   // R13.1: with the demo flag there is no fetch anywhere in this component.
   const replay = demo || mode === 'demo'
+  const count = providers.length
+  const noun = count === 1 ? 'call' : 'calls'
 
   const board: Board = useMemo(() => buildBoard(records, usage), [records, usage])
   const complete = replay ? elapsed >= demoDurationMs() : board.complete
@@ -101,13 +122,15 @@ export function CallBoard({ mode, providers, facts, usage, query, sessionId, dem
             providerName: provider.name,
             vertical: provider.kind,
             conversationId: `demo-${provider.id}`,
-            status: 'queued' as const,
+            // A line with no fixture must never sit at "queued" forever; say it was
+            // not placed rather than implying a call that will never happen.
+            status: 'unsupported' as const,
             at: startedAt.current,
             durationSeconds: null,
             excerpts: [],
             quote: null,
             needsCallback: false,
-            note: 'Demo mode — this line has no staged conversation.',
+            note: 'Demo mode — this line has no staged conversation, so it is not placed.',
           }
         )
       })
@@ -124,14 +147,16 @@ export function CallBoard({ mode, providers, facts, usage, query, sessionId, dem
 
     if (replay) {
       stageDemo(0)
-      setNotice('Demo mode: three conversations are replayed from a fixture. Nothing was dialled.')
+      setNotice(
+        `Demo mode: ${count} conversation${count === 1 ? ' is' : 's are'} replayed from a fixture. Nothing was dialled.`,
+      )
       return
     }
 
     try {
       const body = {
-        kind: providers[0]?.kind ?? 'fuel',
-        choice: providers[0]?.kind === 'installer' ? 'SWITCH_HEAT_PUMP' : 'SHOP_FUEL',
+        kind,
+        choice,
         facts,
         providers: providers.map((provider) => ({ id: provider.id, channel: 'phone' as const })),
         consentAt: new Date().toISOString(),
@@ -158,7 +183,26 @@ export function CallBoard({ mode, providers, facts, usage, query, sessionId, dem
       setError('The call route is unreachable. Nothing was dialled — the switch kit still works.')
       setRunning(false)
     }
-  }, [replay, stageDemo, providers, facts, sessionId])
+  }, [replay, stageDemo, providers, facts, sessionId, choice, kind, count])
+
+  // A consent click already said what would be said and to whom. Auto-start is
+  // one run per mount, never a loop.
+  const autoStarted = useRef(false)
+  useEffect(() => {
+    if (!autoStart || autoStarted.current || providers.length === 0) return
+    autoStarted.current = true
+    void start()
+  }, [autoStart, providers.length, start])
+
+  // Send every change up so the dashboard keeps the same rows the household saw.
+  const lastReport = useRef('')
+  useEffect(() => {
+    if (!onProgress || records.length === 0) return
+    const key = `${records.map((record) => `${record.providerId}:${record.status}:${record.quote ? 'q' : '-'}`).join('|')}|${complete}`
+    if (key === lastReport.current) return
+    lastReport.current = key
+    onProgress(records, board, complete)
+  }, [onProgress, records, board, complete])
 
   // The demo clock. One interval, stopped at the end of the staged beat.
   useEffect(() => {
@@ -253,14 +297,16 @@ export function CallBoard({ mode, providers, facts, usage, query, sessionId, dem
             onClick={() => void start()}
             className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
           >
-            {replay ? 'Play the three calls' : `Call ${providers.length} provider${providers.length === 1 ? '' : 's'}`}
+            {replay
+              ? `Play the ${count} ${noun}`
+              : `Call ${count} ${kind === 'fuel' ? 'dealer' : 'installer'}${count === 1 ? '' : 's'}`}
           </button>
         ) : null}
       </div>
 
       <p className="max-w-[70ch] text-small text-ink-muted">
         {replay
-          ? 'Demo mode: three conversations are replayed from a fixture, in the same order and with the same numbers every time. Nothing is dialled and no audio exists.'
+          ? `Demo mode: ${count} conversation${count === 1 ? ' is' : 's are'} replayed from a fixture, in the same order and with the same numbers every time. Nothing is dialled and no audio exists.`
           : 'Each call is placed by an automated AI assistant that says what it is and that the call is recorded, asks only the questions on the consent screen, and hangs up after four minutes.'}
       </p>
 

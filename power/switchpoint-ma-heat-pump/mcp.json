@@ -1,0 +1,17 @@
+
+{
+  "mcpServers": {
+    "switchpoint": {
+      "command": "npx",
+      "args": ["tsx", "mcp/switchpoint-server.ts"],
+      "env": {},
+      "disabled": false,
+      "autoApprove": [
+        "compute_verdict",
+        "lookup_sponsor",
+        "get_program_rule",
+        "get_fuel_snapshot"
+      ]
+    }
+  }
+}

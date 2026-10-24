@@ -36,12 +36,32 @@ describe('outreachCopy', () => {
     expect(copy.what).not.toMatch(/emails up to/)
   })
 
-  it('says email only, no calls, and replies are not read in live mode', () => {
+  it('says the agent calls, and what it never says, in live mode', () => {
     const copy = outreachCopy('installers', base({ plan: { mode: 'live' } }))
-    expect(copy.what).toMatch(/emails up to 3 installers/)
-    expect(copy.what).toContain('no phone calls')
-    expect(copy.what).toContain('does not read replies')
+    expect(copy.what).toMatch(/calls up to 3 installers/)
+    expect(copy.what).toContain('never says your name')
+    expect(copy.what).toContain('You compare what comes back and choose.')
     expect(copy.live).toBe(true)
+  })
+
+  it('uses the dial plan when email has no reachable row', () => {
+    const copy = outreachCopy(
+      'installers',
+      base({
+        plan: { mode: 'off' },
+        call: { mode: 'live' },
+        reachable: { fuel: 0, installer: 0 },
+      }),
+    )
+    expect(copy.live).toBe(true)
+    expect(copy.what).toContain('calls up to 2 installers')
+  })
+
+  it('says the demo replays a fixture and dials nothing', () => {
+    const copy = outreachCopy('installers', base({ demo: true }))
+    expect(copy.live).toBe(true)
+    expect(copy.what).toContain('Demo mode')
+    expect(copy.what).toContain('Nothing is dialled')
   })
 
   it('caps the provider count at the session limit', () => {

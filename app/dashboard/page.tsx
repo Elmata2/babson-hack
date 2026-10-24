@@ -7,8 +7,8 @@ import { demoFromParams } from '@/lib/demo'
 
 /**
  * @built F-150 `/dashboard` shell — Addendum B §3.7, the tab-scoped version
- * @built F-49 `?demo=1` is read only to keep the header links in demo mode; the
- * page itself has no server fetch and its links carry the stored query
+ * @built F-49 `?demo=1` is passed into the client view so every link it builds
+ * keeps the flag; the page itself has no server fetch
  *
  * Server chrome, client data: the profile and the switch request are read from the
  * browser, so there is nothing to fetch on the server and nothing to leak.
@@ -29,10 +29,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader demo={demo} />
+      <SiteHeader demo={demo} showDashboard={false} />
       <main id="main" className="flex-1">
         <div className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
-          <DashboardView />
+          <DashboardView demo={demo} />
         </div>
       </main>
       <SiteFooter />

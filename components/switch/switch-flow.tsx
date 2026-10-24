@@ -1,23 +1,36 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import { FreshnessBadge } from '@/components/freshness-badge'
-import { demoFromLocation, isDemo, withDemo } from '@/lib/demo'
+import type { CallBoard as Board } from '@/lib/calls/board'
+import { quotesForStore } from '@/lib/calls/summary'
+import type { CallRecord } from '@/lib/calls/types'
+import { isDemo, withDemo } from '@/lib/demo'
 import { CHOICE_COPY, kindOf } from '@/lib/switch/choices'
-import { DEFAULT_DELIVERY_GALLONS, NEVER_SAID, buildFacts, disclosureRows } from '@/lib/switch/consent'
+import {
+  DEFAULT_DELIVERY_GALLONS,
+  MAX_PROVIDERS_PER_SESSION,
+  NEVER_SAID,
+  buildFacts,
+  disclosureRows,
+} from '@/lib/switch/consent'
 import type { SwitchModel } from '@/lib/switch/model'
 import {
   CONTACT_STATUS_LABEL,
   createSwitch,
+  mergeSwitch,
   readStoredSwitch,
   serializeSwitch,
   serverSwitchSnapshot,
   subscribeSwitch,
+  switchQueryKey,
   switchSnapshot,
   writeSwitch,
 } from '@/lib/switch/session'
+import { verdictPath } from '@/lib/verdict/share-query'
 import type {
   BestCaseOutcome,
 } from '@/lib/switch/best-case'
@@ -26,10 +39,13 @@ import type {
   OutreachResult,
   ProviderStatus,
   SharedFacts,
+  StoredAgentRun,
+  StoredQuotes,
   SwitchChoice,
   SwitchProvider,
 } from '@/lib/switch/types'
-import { formatCents, monthlyDifferenceUsd } from '@/lib/supply'
+import { formatCents, monthlyDifferenceUsd, nextBasicServiceReset } from '@/lib/supply'
+import { checkZip } from '@/lib/switch/zip-check'
 import { CallBoard } from './call-board'
 import { SwitchKit } from './switch-kit'
 
@@ -60,7 +76,11 @@ export interface SwitchFlowProps {
   plan: { mode: 'off' | 'allowlist' | 'live'; reason: string | null; notice: string | null }
   /** The dial plan from `lib/calls/plan.ts`. Separate from the email plan: R19.8. */
   call: { mode: 'off' | 'allowlist' | 'live'; reason: string | null; notice: string | null }
-  entry: { choice: SwitchChoice; kit: boolean }
+  /** Server-read demo flag, so the first paint and the hydrated list agree. */
+  demo: boolean
+  /** A ZIP already saved in the URL, so reloading the page keeps it. */
+  initialZip?: string
+  entry: { choice: SwitchChoice; kit: boolean; autoStart?: boolean }
 }
 
 const KIT_NOTICE: OutreachResult = {
@@ -89,31 +109,62 @@ function statusTone(status: ContactStatus): string {
   return 'text-switch border-switch-edge bg-switch-tint'
 }
 
-export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowProps) {
+/** Pick the two closest providers for the household, so the agentic path is one confirm. */
+function recommendedProviders(providers: readonly SwitchProvider[]): Record<string, boolean> {
+  const picked: Record<string, boolean> = {}
+  for (const provider of providers.slice(0, 2)) picked[provider.id] = true
+  return picked
+}
+
+export function SwitchFlow({ model, providers, plan, call, demo, initialZip = '', entry }: SwitchFlowProps) {
   const choice = entry.choice
-  const [picked, setPicked] = useState<Record<string, boolean>>({})
+  const router = useRouter()
+  const selectedKind = kindOf(choice)
+  const kindProviders = useMemo(
+    () => providers.filter((provider) => provider.kind === selectedKind),
+    [providers, selectedKind],
+  )
+  const [picked, setPicked] = useState<Record<string, boolean>>(() =>
+    recommendedProviders(kindProviders),
+  )
   const [channel, setChannel] = useState<Record<string, 'email' | 'phone'>>({})
-  const [zip, setZip] = useState('')
+  const [zip, setZip] = useState(initialZip)
+  const [zipError, setZipError] = useState<string | null>(null)
+  const [zipCheck, setZipCheck] = useState<{ zip: string; town: string } | null>(null)
   const [delivery, setDelivery] = useState(String(DEFAULT_DELIVERY_GALLONS))
   const [tank, setTank] = useState('')
   const [deliveryWindow, setDeliveryWindow] = useState('')
-  const [outreachOverride, setOutreachOverride] = useState<OutreachResult | null>(
-    entry.kit && (choice === 'SHOP_FUEL' || choice === 'SWITCH_HEAT_PUMP') ? KIT_NOTICE : null,
-  )
+  const [outreachOverride, setOutreachOverride] = useState<OutreachResult | null>(() => {
+    if (entry.kit && (choice === 'SHOP_FUEL' || choice === 'SWITCH_HEAT_PUMP')) return KIT_NOTICE
+    if (entry.autoStart && (choice === 'SHOP_FUEL' || choice === 'SWITCH_HEAT_PUMP')) {
+      return {
+        ok: true,
+        mode: demo ? 'demo' : call.mode,
+        notice: demo
+          ? 'Demo mode: the agent conversation is replayed, and nothing is dialled.'
+          : 'You approved the facts and the providers. The agent is starting the calls.',
+        statuses: [],
+      }
+    }
+    return null
+  })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [supplierCents, setSupplierCents] = useState('')
   const [monthlyKwh, setMonthlyKwh] = useState('')
   const [paysByCard, setPaysByCard] = useState(false)
-  const [callOpen, setCallOpen] = useState(false)
+  const [callOpen, setCallOpen] = useState(entry.autoStart === true && (choice === 'SHOP_FUEL' || choice === 'SWITCH_HEAT_PUMP'))
   // Opaque, per-tab, and never sent to a provider. It names the poll URL (ADR-010).
   const [sessionId] = useState(() => (globalThis.crypto?.randomUUID ? `s-${globalThis.crypto.randomUUID()}` : 's-local-session'))
+  const agentRef = useRef<StoredAgentRun | null>(null)
 
   // The request is an external store, so it hydrates without an effect and without
   // a cascading render. A request from another house must not show up as this one's.
   const storedRaw = useSyncExternalStore(subscribeSwitch, switchSnapshot, serverSwitchSnapshot)
   const stored = useMemo(() => readStoredSwitch(storedRaw), [storedRaw])
-  const liveStored = stored && stored.query === model.query && stored.choice === choice ? stored : null
+  const sameNumbers = stored ? switchQueryKey(stored.query) === switchQueryKey(model.query) : false
+  const liveStored = stored && sameNumbers && stored.choice === choice ? stored : null
+  const otherStored = stored && sameNumbers && stored.choice !== choice ? stored : null
   const storedStage = liveStored?.stage ?? null
   const outreach: OutreachResult | null =
     outreachOverride ??
@@ -121,7 +172,9 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
       ? {
           ok: true,
           mode: liveStored.statuses.some((status) => status.allowlist) ? 'allowlist' : 'live',
-          notice: 'Saved in this tab.',
+          notice: liveStored.agent
+            ? `Saved in this tab. ${liveStored.agent.mode === 'demo' ? 'Demo mode — the statuses were staged, nothing left this page.' : ''}`.trim()
+            : 'Saved in this tab.',
           statuses: liveStored.statuses,
         }
       : null)
@@ -142,12 +195,16 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
     [model.town, model.fuel, model.annualUnits, model.sqft, model.tons, zip, delivery, tank, deliveryWindow],
   )
 
-  const demoNow = demoFromLocation()
+  const demoNow = demo
   // A provider is reachable when either path can reach it: an email sender, or an
   // agent that may dial. With both off the list is shown as context in the reason.
-  const contactable = plan.mode === 'off' && call.mode === 'off' && !demoNow ? [] : providers
+  const contactable =
+    selectedKind !== 'fuel' && selectedKind !== 'installer'
+      ? []
+      : plan.mode === 'off' && call.mode === 'off' && !demoNow
+        ? []
+        : kindProviders
   const selectedProviders = contactable.filter((provider) => picked[provider.id])
-  const selectedKind = kindOf(choice)
   const channelOf = (provider: SwitchProvider) => channel[provider.id] ?? provider.channels[0] ?? 'email'
   const allPhoneSelected =
     selectedProviders.length > 0 && selectedProviders.every((provider) => channelOf(provider) === 'phone')
@@ -162,31 +219,97 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
     energySwitchUrl: model.supply.energySwitchUrl,
   }
 
-  function persist(
-    stage: 'kit' | 'consented' | 'contacting' | 'decided',
-    decision: 'declined' | 'contacting' | null,
-    statuses: ProviderStatus[] = outreach?.statuses ?? [],
-    forChoice: SwitchChoice | null = choice,
-  ) {
-    if (!forChoice) return
-    const request = createSwitch({
-      choice: forChoice,
-      kind: kindOf(forChoice),
-      stage,
-      verdict: model.result?.verdict ?? 'UNKNOWN',
-      query: model.query,
-      facts,
-      statuses,
-      decision: decision ? { providerId: null, outcome: decision, at: new Date().toISOString() } : null,
-      at: new Date(),
-    })
-    writeSwitch(serializeSwitch(request))
-  }
+  const persist = useCallback(
+    (
+      stage: 'kit' | 'consented' | 'contacting' | 'quotes_ready' | 'decided',
+      decision: 'declined' | 'contacting' | 'checked' | null,
+      statuses: ProviderStatus[] = [],
+      extras: { agent?: StoredAgentRun | null; quotes?: StoredQuotes | null; forChoice?: SwitchChoice | null } = {},
+    ) => {
+      const forChoice = extras.forChoice ?? choice
+      if (!forChoice) return
+      const request = createSwitch({
+        choice: forChoice,
+        kind: kindOf(forChoice),
+        stage,
+        verdict: model.result?.verdict ?? 'UNKNOWN',
+        query: model.query,
+        facts,
+        statuses,
+        decision: decision ? { providerId: null, outcome: decision, at: new Date().toISOString() } : null,
+        agent: extras.agent ?? null,
+        quotes: extras.quotes ?? null,
+        at: new Date(),
+      })
+      // The tab holds one request per verdict. Merging keeps a late kit click from
+      // erasing a decision the household already made in this tab.
+      const previous = readStoredSwitch(switchSnapshot())
+      writeSwitch(serializeSwitch(mergeSwitch(previous, request)))
+    },
+    [choice, facts, model.query, model.result],
+  )
+
+  const startAgent = useCallback(
+    (channel: 'email' | 'phone') => {
+      if (selectedProviders.length === 0) return null
+      const agent: StoredAgentRun = {
+        kind: selectedKind === 'fuel' ? 'fuel' : 'installer',
+        providerIds: selectedProviders.map((provider) => provider.id),
+        channel,
+        sessionId,
+        mode: demoNow ? 'demo' : channel === 'phone' ? call.mode : plan.mode,
+        startedAt: new Date().toISOString(),
+      }
+      agentRef.current = agent
+      return agent
+    },
+    [selectedProviders, selectedKind, sessionId, demoNow, call.mode, plan.mode],
+  )
 
   useEffect(() => {
-    if (entry.kit && outreachOverride === KIT_NOTICE) persist('kit', null, [])
+    if (!entry.kit || (choice !== 'SHOP_FUEL' && choice !== 'SWITCH_HEAT_PUMP')) return
+    persist('kit', null, [])
+  }, [entry.kit, choice, persist])
+
+  // A link from the verdict or the dashboard can start the run without a second
+  // screen: the consent summary is still shown, and the run begins only after the
+  // household arrived from an action that already said what would be said.
+  useEffect(() => {
+    if (!entry.autoStart) return
+    if (choice !== 'SHOP_FUEL' && choice !== 'SWITCH_HEAT_PUMP') return
+    if (selectedProviders.length === 0) return
+    const agent = startAgent('phone')
+    if (!agent) return
+    persist('consented', null, [], { agent })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [entry.autoStart])
+
+  function applyZip(zipValue: string, town: string) {
+    const params = new URLSearchParams(model.query)
+    params.set('zip', zipValue)
+    params.set('town', town)
+    // A new ZIP changes what the agent may say, so it needs a fresh confirm. Never
+    // carry an auto-start flag across that boundary.
+    params.delete('agent')
+    router.replace(`/switch?${params.toString()}`)
+  }
+
+  /**
+   * Save the ZIP into the URL, where the whole screen already reads its state, and
+   * re-run the town check. A ZIP that lands in another town changes `town`, so the
+   * provider list, the utility lookup and the kit are rebuilt for the right place.
+   */
+  function saveZip() {
+    const result = checkZip(zip, model.town)
+    if (!result.ok) {
+      setZipError(result.error)
+      setZipCheck(null)
+      return
+    }
+    setZipError(null)
+    setZipCheck({ zip: result.zip, town: result.town })
+    if (!result.differs) applyZip(result.zip, result.town)
+  }
 
   async function contact() {
     if (!choice || selectedProviders.length === 0) return
@@ -203,19 +326,19 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
         })),
         consentAt: new Date().toISOString(),
       }
-      const demo = demoFromLocation()
-      const response = await fetch(withDemo('/api/switch', demo), {
+      const response = await fetch(withDemo('/api/switch', demoNow), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(demo ? { ...body, demo: true } : body),
+        body: JSON.stringify(demoNow ? { ...body, demo: true } : body),
       })
       const payload = (await response.json()) as OutreachResult & { message?: string }
       if (!response.ok || payload.ok !== true) {
         setError(payload.message ?? 'That request was refused. Nothing was sent.')
         return
       }
+      const agent = startAgent('email')
       setOutreachOverride(payload)
-      persist(payload.mode === 'off' ? 'consented' : 'contacting', null, payload.statuses)
+      persist(payload.mode === 'off' ? 'consented' : 'contacting', null, payload.statuses, { agent })
     } catch {
       setError('The contact route is unreachable. Nothing was sent — the switch kit below still works.')
     } finally {
@@ -223,12 +346,35 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
     }
   }
 
+  /** CallBoard reports back here so the dashboard sees the same numbers. */
+  const handleCallProgress = useCallback(
+    (records: CallRecord[], board: Board, complete: boolean) => {
+      if (records.length === 0) return
+      const allowlist = new Set(selectedProviders.filter((provider) => provider.allowlist).map((provider) => provider.id))
+      const statuses: ProviderStatus[] = records.map((record) => ({
+        providerId: record.providerId,
+        name: record.providerName,
+        channel: 'phone',
+        status: record.status,
+        allowlist: allowlist.has(record.providerId),
+        note: record.note,
+        at: record.at,
+      }))
+      const quotes = quotesForStore(board, new Date())
+      persist(complete ? 'quotes_ready' : 'contacting', null, statuses, {
+        agent: agentRef.current,
+        quotes,
+      })
+    },
+    [persist, selectedProviders],
+  )
+
   return (
     <div className="grid gap-10">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <p className="text-eyebrow uppercase text-ink-muted">{CHOICE_COPY[choice].label}</p>
         <Link
-          href={withDemo(`/verdict?${model.query}`, isDemo(model.query))}
+          href={withDemo(verdictPath(model.query), demoNow || isDemo(model.query))}
           className="text-micro text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
         >
           ← Back to the verdict
@@ -236,6 +382,31 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
       </div>
 
 <div id="choice-panel" className="scroll-mt-6 grid gap-10">
+      {otherStored ? (
+        <p className="rounded-card border border-deadline-edge bg-deadline-tint p-3 text-small text-ink">
+          You already saved a request to <strong>{CHOICE_COPY[otherStored.choice].label.toLowerCase()}</strong> for
+          these numbers. Choosing this one replaces that request in this tab.
+        </p>
+      ) : null}
+
+      {liveStored?.quotes ? (
+        <div className="rounded-card border border-rule bg-paper-sunk/50 p-4 text-small">
+          <p className="font-medium">The agent finished this run.</p>
+          <p className="mt-1 text-ink-muted">
+            {liveStored.quotes.rows.length} {liveStored.quotes.kind === 'fuel' ? 'dealer' : 'installer'} row
+            {liveStored.quotes.rows.length === 1 ? '' : 's'} came back
+            {liveStored.quotes.best ? `, and ${liveStored.quotes.best.providerName} has the best comparable number` : ''}.
+            The dashboard keeps the full comparison.
+          </p>
+          <Link
+            href={withDemo('/dashboard', demoNow || isDemo(model.query))}
+            className="mt-2 inline-block text-micro underline underline-offset-4"
+          >
+            See the results on the dashboard
+          </Link>
+        </div>
+      ) : null}
+
       {choice === 'STAY' ? (
         <StayPanel model={model} onSave={() => persist('decided', 'declined')} saved={storedStage === 'decided'} />
       ) : null}
@@ -247,7 +418,7 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
           monthlyKwh={monthlyKwh}
           onSupplierCents={setSupplierCents}
           onMonthlyKwh={setMonthlyKwh}
-          onRecord={() => persist('decided', 'contacting')}
+          onRecord={() => persist('decided', 'checked')}
           saved={storedStage === 'decided'}
         />
       ) : null}
@@ -289,15 +460,56 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Labeled label="ZIP (optional)">
-              <input
-                value={zip}
-                onChange={(event) => setZip(event.target.value.replace(/\D/g, '').slice(0, 5))}
-                inputMode="numeric"
-                placeholder="02474"
-                className={INPUT}
-              />
-            </Labeled>
+            <div className="grid gap-1.5 text-small">
+              <span className="font-medium">ZIP (optional)</span>
+              <div className="flex gap-2">
+                <input
+                  value={zip}
+                  onChange={(event) => {
+                    setZip(event.target.value.replace(/\D/g, '').slice(0, 5))
+                    setZipError(null)
+                    setZipCheck(null)
+                  }}
+                  inputMode="numeric"
+                  placeholder="02474"
+                  className={`${INPUT} min-w-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={saveZip}
+                  className="shrink-0 rounded-card border border-ink px-3 py-2 text-small font-medium text-ink hover:bg-ink hover:text-paper"
+                >
+                  Save ZIP
+                </button>
+              </div>
+              {zipError ? (
+                <span role="alert" className="text-micro text-deadline">
+                  {zipError}
+                </span>
+              ) : zipCheck && zipCheck.town.toLowerCase() !== model.town.toLowerCase() ? (
+                <div className="rounded-card border border-deadline-edge bg-deadline-tint p-2.5 text-micro text-ink">
+                  <p>
+                    ZIP {zipCheck.zip} is in <strong>{zipCheck.town}</strong>, not {model.town}. Saving it re-runs the
+                    utility and provider check for {zipCheck.town}.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => applyZip(zipCheck.zip, zipCheck.town)}
+                    className="mt-1.5 rounded-pill border border-ink px-3 py-1 font-medium text-ink"
+                  >
+                    Use this ZIP and re-check
+                  </button>
+                </div>
+              ) : initialZip ? (
+                <span className="text-micro text-ink-muted">
+                  ZIP {initialZip} is saved in the link. The disclosure, the kit and the agent all use it.
+                </span>
+              ) : (
+                <span className="text-micro text-ink-faint">
+                  Optional. Saving it adds the ZIP to what the agent may say and to the kit&rsquo;s script.
+                </span>
+              )}
+            </div>
             {selectedKind === 'fuel' ? (
               <>
                 <Labeled label="Delivery size, gallons">
@@ -342,7 +554,7 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
             <p className="text-small font-medium">Who we would contact</p>
             {contactable.length === 0 ? (
               <p className="mt-1 max-w-[64ch] rounded-card border border-dashed border-rule-strong bg-paper-sunk/60 p-3 text-small text-ink-muted">
-                {plan.reason ?? 'No provider list is configured.'}{' '}
+                {call.reason ?? plan.reason ?? 'No provider list is configured.'}{' '}
                 {selectedKind === 'fuel'
                   ? 'The switch kit below has the exact question to ask a dealer you choose.'
                   : 'The switch kit below has the exact question to ask a Mass Save contractor.'}
@@ -358,6 +570,7 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
                         <input
                           type="checkbox"
                           checked={checked}
+                          disabled={!checked && selectedProviders.length >= MAX_PROVIDERS_PER_SESSION}
                           onChange={(event) => {
                             setPicked((current) => ({ ...current, [provider.id]: event.target.checked }))
                           }}
@@ -400,10 +613,14 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
                 })}
               </ul>
             )}
-            <p className="mt-2 text-micro text-ink-faint">
-              At most six providers per session. Calls go out Monday to Friday 8am–5pm and Saturday 8am–12pm Eastern;
-              outside that window a call is scheduled, never placed. Consent lives in this tab and nowhere else.
-            </p>
+            {contactable.length > 0 ? (
+              <p className="mt-2 text-micro text-ink-faint">
+                We picked the first two {selectedKind === 'fuel' ? 'dealers' : 'installers'} for you; untick any you
+                do not want. At most {MAX_PROVIDERS_PER_SESSION} providers per session. Calls go out Monday to Friday
+                8am–5pm and Saturday 8am–12pm Eastern; outside that window a call is scheduled, never placed. Consent
+                lives in this tab and nowhere else.
+              </p>
+            ) : null}
           </div>
 
           {error ? (
@@ -419,8 +636,19 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
                 onClick={() => {
                   // A phone row is dialled by the agent; an email row is sent. Both
                   // are behind the same confirm, and neither happens on a tick alone.
+                  if (selectedProviders.length === 0) return
                   if (allPhoneSelected && callAllowed) {
+                    const agent = startAgent('phone')
+                    setOutreachOverride({
+                      ok: true,
+                      mode: demoNow ? 'demo' : call.mode,
+                      notice: demoNow
+                        ? 'Demo mode: the agent conversation is replayed, and nothing is dialled.'
+                        : 'You approved the facts and the providers. The agent is starting the calls.',
+                      statuses: [],
+                    })
                     setCallOpen(true)
+                    persist('consented', null, [], { agent })
                     return
                   }
                   void contact()
@@ -429,10 +657,12 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
                 className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper disabled:opacity-40"
               >
                 {submitting
-                  ? 'Sending…'
-                  : allPhoneSelected && callAllowed
-                    ? `Confirm and call ${selectedProviders.length} provider${selectedProviders.length === 1 ? '' : 's'}`
-                    : `Confirm and contact ${selectedProviders.length || ''} provider${selectedProviders.length === 1 ? '' : 's'}`}
+                  ? 'Agreeing…'
+                  : selectedProviders.length === 0
+                    ? 'Select at least one provider'
+                    : allPhoneSelected && callAllowed
+                      ? `Agree and call ${selectedProviders.length} ${selectedKind === 'fuel' ? 'dealer' : 'installer'}${selectedProviders.length === 1 ? '' : 's'}`
+                      : `Agree and contact ${selectedProviders.length} provider${selectedProviders.length === 1 ? '' : 's'}`}
               </button>
             ) : null}
             <button
@@ -454,10 +684,14 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
             >
               Show me the switch kit
             </button>
-            <p className="text-micro text-ink-faint">
-              {plan.mode === 'off'
-                ? 'Outreach is off in this build, so nothing can be sent.'
-                : 'You can still use the kit instead of contacting anyone.'}
+            <p className="max-w-[52ch] text-micro text-ink-faint">
+              {demoNow
+                ? 'Demo mode: the agent beat is replayed from a fixture. Nothing is dialled, emailed or sent.'
+                : allPhoneSelected && callAllowed
+                  ? 'One confirm starts the calls. You can still use the kit instead.'
+                  : plan.mode === 'off' && call.mode === 'off'
+                    ? 'Outreach is off in this build, so nothing can be sent. The kit still works.'
+                    : 'You can still use the kit instead of contacting anyone.'}
             </p>
           </div>
 
@@ -477,34 +711,41 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
                   </ul>
                 </div>
               ) : null}
+            </>
+          ) : null}
 
-              {callOpen ? (
-                <CallBoard
-                  mode={demoNow ? 'demo' : call.mode}
-                  providers={selectedProviders}
-                  facts={facts}
-                  usage={{
-                    annualGallons:
-                      model.fuel === 'oil' || model.fuel === 'propane' ? model.annualUnits : null,
-                    deliveryGallons: clampDelivery(delivery),
-                    paysByCard,
-                    tons: model.tons,
-                    averagePerGal: model.market.price,
-                  }}
-                  query={model.query}
-                  sessionId={sessionId}
-                  demo={demoNow}
-                />
-              ) : (
-                <div className="rounded-card border border-rule bg-paper-sunk/40 p-4">
-                  <p className="text-small font-medium">Quotes</p>
-                  <p className="mt-1 text-small text-ink-muted">
-                    Nothing came back yet. A quote is a reply or a call transcript, and this build does not invent one.
-                    The switch kit below is how you get a real number now.
-                  </p>
-                </div>
-              )}
+          {callOpen && selectedProviders.length > 0 ? (
+            <CallBoard
+              mode={demoNow ? 'demo' : call.mode}
+              choice={choice}
+              kind={selectedKind === 'fuel' ? 'fuel' : 'installer'}
+              providers={selectedProviders}
+              facts={facts}
+              usage={{
+                annualGallons: model.fuel === 'oil' || model.fuel === 'propane' ? model.annualUnits : null,
+                deliveryGallons: clampDelivery(delivery),
+                paysByCard,
+                tons: model.tons,
+                averagePerGal: model.market.price,
+              }}
+              query={model.query}
+              sessionId={sessionId}
+              demo={demoNow}
+              autoStart
+              onProgress={handleCallProgress}
+            />
+          ) : outreach ? (
+            <div className="rounded-card border border-rule bg-paper-sunk/40 p-4">
+              <p className="text-small font-medium">Quotes</p>
+              <p className="mt-1 text-small text-ink-muted">
+                Nothing came back yet. A quote is a reply or a call transcript, and this build does not invent one. The
+                switch kit below is how you get a real number now.
+              </p>
+            </div>
+          ) : null}
 
+          {outreach || callOpen ? (
+            <>
               <SwitchKit
                 kind={selectedKind === 'fuel' ? 'fuel' : 'installer'}
                 facts={facts}
@@ -514,6 +755,19 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
               />
 
               <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-4">
+                {contactable.length > 0 && !callOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const agent = startAgent('phone')
+                      persist('consented', null, [], { agent })
+                      setCallOpen(true)
+                    }}
+                    className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
+                  >
+                    Let the agent do the calling
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => persist('decided', 'contacting')}
@@ -528,7 +782,7 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
                 >
                   Not now
                 </button>
-                <Link href={withDemo('/dashboard', isDemo(model.query))} className="text-micro text-ink-muted underline">
+                <Link href={withDemo('/dashboard', demoNow || isDemo(model.query))} className="text-micro text-ink-muted underline">
                   See the dashboard
                 </Link>
                 {storedStage === 'decided' ? <span className="text-micro text-ink-faint">Saved in this tab.</span> : null}
@@ -597,7 +851,7 @@ function StayPanel({ model, onSave, saved }: { model: SwitchModel; onSave: () =>
         />
         <Stat
           label="Next supply reset"
-          value="1 Feb 2027"
+          value={shortDate(nextBasicServiceReset(new Date()))}
           note="Basic Service resets every six months; the comparison changes then."
         />
       </dl>
@@ -811,6 +1065,17 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
       {children}
     </label>
   )
+}
+
+function shortDate(iso: string): string {
+  const parsed = Date.parse(`${iso}T00:00:00Z`)
+  if (!Number.isFinite(parsed)) return iso
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(parsed)
 }
 
 function clampDelivery(raw: string): number {

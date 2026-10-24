@@ -17,9 +17,8 @@ import { getPrices } from '@/lib/prices'
  * a client component because a photo, an OCR read and a confirmation only exist in
  * the browser.
  *
- * Deliberately not here yet: the best-case switch screen, `/dashboard` and
- * `/settings`. Those need an account with a home on a server, which this build
- * does not have. The wizard ends where the app already is honest: the verdict.
+ * The wizard ends at the verdict. The switch screen and `/dashboard` read the same
+ * browser-held profile and request, so they need no account on a server.
  */
 
 export const metadata: Metadata = {

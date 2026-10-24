@@ -1,6 +1,7 @@
+---
+inclusion: always
+---
 # Steering — Units, constants, conventions
-
-**Inclusion:** always
 
 ## Units
 

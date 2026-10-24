@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { HeaderShell } from '@/components/motion/header-shell'
+import { HeaderCta } from '@/components/profile/header-cta'
 import { ProfileLink } from '@/components/profile/profile-link'
 import { withDemo } from '@/lib/demo'
 
@@ -23,11 +24,14 @@ export function SiteHeader({
   demo = false,
   quietAtTop = false,
   cta = true,
+  showDashboard = true,
 }: {
   demo?: boolean
   quietAtTop?: boolean
   /** Off on `/onboarding`, where the pill would only link to the page you are on. */
   cta?: boolean
+  /** Off on `/dashboard`, where the link would point at the page itself. */
+  showDashboard?: boolean
 }) {
   return (
     <HeaderShell quietAtTop={quietAtTop}>
@@ -42,22 +46,8 @@ export function SiteHeader({
         </Link>
 
         <div className="flex items-center gap-2.5">
-          {cta ? (
-            <Link
-              href={withDemo('/onboarding', demo)}
-              className="group inline-flex items-center gap-1.5 rounded-pill bg-ink px-4 py-2 text-small font-medium text-paper shadow-[0_10px_24px_-14px_rgba(0,0,0,0.55)] transition-[translate,scale,box-shadow] duration-200 ease-out-expo hover:-translate-y-0.5 hover:shadow-[0_14px_28px_-14px_rgba(0,0,0,0.6)] active:scale-[0.97]"
-            >
-              <span className="hidden sm:inline">Get my verdict</span>
-              <span className="sm:hidden">Get verdict</span>
-              <span
-                aria-hidden
-                className="transition-transform duration-200 ease-out-expo group-hover:translate-x-0.5"
-              >
-                →
-              </span>
-            </Link>
-          ) : null}
-          <ProfileLink demo={demo} />
+          {cta ? <HeaderCta demo={demo} /> : null}
+          <ProfileLink demo={demo} showDashboard={showDashboard} />
         </div>
       </div>
     </HeaderShell>

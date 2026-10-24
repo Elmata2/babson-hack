@@ -10,7 +10,8 @@ import { getPrices } from '@/lib/prices'
 import { buildSwitchModel } from '@/lib/switch/model'
 import { buildOptionInput } from '@/lib/switch/option-input'
 import { callPlan } from '@/lib/calls/plan'
-import { directoryFor } from '@/lib/switch/directory'
+import { kindOf } from '@/lib/switch/choices'
+import { directoryFor, directoryForKind } from '@/lib/switch/directory'
 import { outreachPlan } from '@/lib/switch/providers'
 import { parseSwitchChoice } from '@/lib/switch/types'
 import { recommend } from '@/lib/verdict/recommendation'
@@ -59,7 +60,15 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
   const call = callPlan(providers)
   const choice = parseSwitchChoice(first(params.choice))
   const entryChoice = choice && model.choices.includes(choice) ? choice : null
-  const optionInput = buildOptionInput(model, providers, plan)
+  const optionInput = buildOptionInput(model, providers, plan, call, demo)
+  // The consent screen asks one vertical's question. Offering the other vertical's
+  // rows there is not a longer list, it is a refused request.
+  const entryKind = entryChoice ? kindOf(entryChoice) : null
+  const flowProviders =
+    entryKind === 'fuel' || entryKind === 'installer'
+      ? directoryForKind(entryKind, model.town)
+      : providers
+  const zipParam = first(params.zip) ?? ''
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -96,11 +105,18 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
           <div className="mt-10">
             {model.ready && model.result && entryChoice ? (
               <SwitchFlow
+                key={`${entryChoice}:${zipParam}`}
                 model={model}
-                providers={providers}
+                providers={flowProviders}
                 plan={plan}
                 call={call}
-                entry={{ choice: entryChoice, kit: first(params.mode) === 'kit' }}
+                demo={demo}
+                initialZip={zipParam}
+                entry={{
+                  choice: entryChoice,
+                  kit: first(params.mode) === 'kit',
+                  autoStart: first(params.agent) === '1',
+                }}
               />
             ) : model.ready && optionInput ? (
               <RecommendationCard

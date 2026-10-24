@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Rule tables regression",
+      "trigger": "PostFileSave",
+      "description": "A program number changed. Re-run the anchor and property tests so a typo in a rebate table cannot reach the screen.",
+      "matcher": "(^|/)data/rules/.*\\.json$",
+      "action": {
+        "type": "command",
+        "command": "npx vitest run lib/calc mcp",
+        "timeout": 120
+      }
+    }
+  ]
+}

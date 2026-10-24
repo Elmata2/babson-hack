@@ -80,6 +80,19 @@ function localMidnight(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 }
 
+/** The date the 2026 whole-home rebate tier closes. One constant, not nine literals. */
+export const REBATE_STEP_DOWN = '2027-01-01'
+
+/**
+ * The next Basic Service reset: 1 February and 1 August, DPU-approved, every year.
+ * Returns a local date as YYYY-MM-DD, never a hardcoded year.
+ */
+export function nextBasicServiceReset(today: Date): string {
+  const year = today.getFullYear()
+  const candidates = [`${year}-02-01`, `${year}-08-01`, `${year + 1}-02-01`]
+  return candidates.find((date) => daysUntil(date, today) >= 0) ?? candidates[0]
+}
+
 /** Whole local-calendar days from `today` to `isoDate` (YYYY-MM-DD). Past is negative; invalid is NaN. */
 export function daysUntil(isoDate: string, today: Date): number {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate)

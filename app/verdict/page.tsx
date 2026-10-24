@@ -25,7 +25,9 @@ import { demoFromParams } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
 import { buildSwitchModel } from '@/lib/switch/model'
 import { buildOptionInput } from '@/lib/switch/option-input'
-import { loadProviders, outreachPlan } from '@/lib/switch/providers'
+import { callPlan } from '@/lib/calls/plan'
+import { directoryFor } from '@/lib/switch/directory'
+import { outreachPlan } from '@/lib/switch/providers'
 import { contactUtilityFor, contactsBlock, isCapeLightTown } from '@/lib/verdict/contacts'
 import { recommend } from '@/lib/verdict/recommendation'
 import { verdictPath } from '@/lib/verdict/share-query'
@@ -116,10 +118,11 @@ function number(value: string | string[] | undefined): number | null {
 
 export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const params = await searchParams
+  const demo = demoFromParams(params)
 
   if (!isVerdictQueryComplete(params)) {
     return (
-      <Chrome>
+      <Chrome demo={demo}>
         <section className="rounded-card border border-rule bg-surface p-6">
           <h1 className="text-title font-medium">The verdict needs three things.</h1>
           <p className="mt-2 max-w-[52ch] text-small text-ink-muted">
@@ -247,7 +250,6 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const extraReasons =
     headline && notes ? notes.reasons.slice(0, Math.max(0, MIN_REASONS - headline.parts.why.length)) : []
   const townName = displayTown(townRaw)
-  const demo = demoFromParams(params)
   const mapHref = `/map?${new URLSearchParams({
     town: townName,
     next: '1',
@@ -255,9 +257,15 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
     save: String(Math.round(result?.annualSavings ?? 0)),
     back: verdictPath(queryString(params)),
   }).toString()}`
-  const providers = loadProviders()
   const switchModel = buildSwitchModel(params, prices)
-  const optionInput = buildOptionInput(switchModel, providers, outreachPlan(providers))
+  const providers = directoryFor(switchModel.town)
+  const optionInput = buildOptionInput(
+    switchModel,
+    providers,
+    outreachPlan(providers),
+    callPlan(providers),
+    demo,
+  )
   const recommendation = optionInput
     ? recommend({ option: optionInput, choices: switchModel.choices, query: queryString(params) })
     : null
@@ -276,7 +284,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
     utility.sponsors.length === 1 ? SPONSOR_NAME[utility.sponsors[0] as keyof typeof SPONSOR_NAME] : null
 
   return (
-    <Chrome>
+    <Chrome demo={demo}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={changeHref}
@@ -582,10 +590,10 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   )
 }
 
-function Chrome({ children }: { children: React.ReactNode }) {
+function Chrome({ children, demo = false }: { children: React.ReactNode; demo?: boolean }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader demo={demo} />
       <main id="main" className="flex-1">
         <div className="mx-auto max-w-[1180px] px-5 py-10 sm:px-8 sm:py-14">{children}</div>
       </main>
@@ -699,7 +707,9 @@ function Stat({
       {/* The eye sits in the corner of the card, not on the number: a reader who
           does not know the number is clickable still finds the working. */}
       <p className="pr-10 text-eyebrow uppercase text-ink-faint">{label}</p>
-      <p className={`mt-2 text-title font-medium tabular-nums ${muted ? 'text-ink-faint' : 'text-ink'}`}>
+      {/* A <div>, not a <p>: ProvenanceFigure renders a native <dialog>, which is
+          flow content and cannot live inside a paragraph. */}
+      <div className={`mt-2 text-title font-medium tabular-nums ${muted ? 'text-ink-faint' : 'text-ink'}`}>
         {entry ? (
           <ProvenanceFigure entry={entry} corner>
             {value}
@@ -707,7 +717,7 @@ function Stat({
         ) : (
           value
         )}
-      </p>
+      </div>
       <p className={`mt-2 text-small ${muted ? 'text-ink-faint' : 'text-ink'}`}>{summary}</p>
       <p className="mt-1.5 text-micro text-ink-faint">{note}</p>
     </div>

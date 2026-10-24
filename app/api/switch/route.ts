@@ -19,8 +19,9 @@
 
 import { DEMO_MESSAGES, demoFromRequest, isDemoFlag } from '@/lib/demo'
 import { nextCallWindow, validateOutreachRequest, withinBusinessHours } from '@/lib/switch/consent'
+import { directoryFor } from '@/lib/switch/directory'
 import { sendEmail } from '@/lib/switch/outreach'
-import { loadProviders, outreachPlan } from '@/lib/switch/providers'
+import { outreachPlan } from '@/lib/switch/providers'
 import { fuelRequestText, installerRequestText, requestSubject } from '@/lib/switch/requests'
 import type { OutreachResult, ProviderStatus, SwitchProvider } from '@/lib/switch/types'
 
@@ -66,7 +67,9 @@ export async function POST(request: Request): Promise<Response> {
     demoFromRequest(request) ||
     (typeof body === 'object' && body !== null && isDemoFlag((body as { demo?: unknown }).demo))
 
-  const providers = loadProviders()
+  // The screen lists the committed seed plus this deployment's rows. The gate must
+  // read the same list, or the browser is offered a provider the route cannot see.
+  const providers = directoryFor(payload.facts.town)
   const byId = new Map(providers.map((provider) => [provider.id, provider]))
   const selected: { provider: SwitchProvider; channel: 'email' | 'phone' }[] = []
 

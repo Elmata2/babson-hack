@@ -300,7 +300,14 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
     writeProfile(
       mergeMapProfile(
         profileSnapshot(),
-        mapProfileFrom({ town, fuel, electric: electricBill, income }),
+        mapProfileFrom({
+          town,
+          fuel,
+          electric: electricBill,
+          income,
+          units: Number(units),
+          price: Number(price),
+        }),
       ),
     )
     router.push(withDemo(`/verdict?${toQuery(values).toString()}`, demoFromLocation()))

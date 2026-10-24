@@ -37,10 +37,9 @@ allow-list.
    [`agents/`](agents/) and is off unless the deployment configures it — the switch
    kit, with the exact question and the number, always works.
 
-The 1:37 demo cut is at
-[`public/demo/switchpoint-demo.mp4`](public/demo/switchpoint-demo.mp4); it is made
-from the live app in `?demo=1` mode by `scripts/demo/record.mjs`, so it cannot show
-a screen the product does not have.
+The demo video is being re-recorded from the live app in `?demo=1` mode, so the
+new cut cannot show a screen the product does not have. Drop it at
+`public/demo/switchpoint-demo.mp4` and `npm run submission` turns green.
 
 If a gas-heated home will lose money on a heat pump, the screen says
 **DON'T SWITCH YET** and prints the break-even electricity price. That is the
@@ -86,37 +85,32 @@ npm run watch:log
 
 <!-- @built F-51 the README and the Kiro write-up: spec, steering, hooks, PBT, and the one number rule -->
 <!-- @built F-59 challenge C2 quoted, and every organiser dataset named with its endpoint -->
+<!-- @built F-158 seven v1 hooks: build log, property guard, rules regression, kiro guard, quality gate, drift, status -->
+<!-- @built F-159 steering in all four inclusion modes with file references to the rule JSON -->
+<!-- @built F-160 specs split by feature: onboarding-switch and voice-quotes beside the engine spec -->
+<!-- @built F-161 an authored Kiro Power wrapping the MCP server and two steering guides -->
+<!-- @built F-162 the Kiro write-up, the accessibility note and the judge sections of the README -->
+<!-- @built F-163 submission check rows for Kiro depth and a public hosted demo video link -->
 
-| Artefact | Where |
-| --- | --- |
-| Spec (requirements → design → tasks) | `.kiro/specs/switchpoint/` |
-| Steering — the program rules as a hard constraint | `.kiro/steering/mass-save-rules.md` |
-| Steering — units, constants, conventions | `.kiro/steering/units-and-conventions.md` |
-| Steering — data providers, ADRs, failure behaviour | `.kiro/steering/data-sources.md` |
-| Hooks — build log, PBT guard, spec drift | `.kiro/hooks/` |
-| Property-based tests for the calc engine | `lib/calc/__tests__/properties.test.ts` |
+The full write-up, with a file to open for every claim, is **[`docs/KIRO.md`](docs/KIRO.md)**.
+
+| Kiro capability | What we did | Where |
+| --- | --- | --- |
+| Specs | Three feature specs (engine, onboarding and switch, voice quotes): EARS requirements, correctness properties, F-numbered tasks | `.kiro/specs/` |
+| Steering | Ten files in all four inclusion modes; program rules as a hard constraint, machine-readable rules pulled in by file reference | `.kiro/steering/` |
+| Hooks | Seven v1 hooks: build log on save, property suite on engine edits, rules regression, a guard that blocks gitignoring `/.kiro`, a quality gate and a drift check after each task, build status at session start | `.kiro/hooks/` |
+| MCP | A read-only server exposing the real engine, the sponsor gate and the rule tables as four tools | `mcp/` |
+| Property-based testing | 22 named properties, plus a mutation check that plants ten bugs and shows which test style catches each | `lib/**/__tests__/*properties*`, `scripts/pbt-mutation-check.mjs` |
+| Powers | One authored power wrapping the MCP server and two steering guides | `power/switchpoint-ma-heat-pump/` |
 
 The short version: **the policy document is steering, so the model cannot invent
 a rebate number; and the arithmetic is property-tested, so a plausible-looking
 wrong answer cannot survive.** The model reads documents and writes sentences. It
 never produces a number that reaches the screen.
 
-### What the hooks actually changed
-
-`buildlog-sync` runs `node scripts/buildlog.mjs hook` on every source edit, so
-`BUILDLOG.md` and `.buildlog/events.jsonl` were updated in the same save as the
-`@built F-NN` marker. The log was never reconstructed at the end from memory.
-
-`pbt-guard` fires on `lib/calc/**` and asks for the property suite before the
-edit is accepted. That is why a change to the engine had to change the tests in
-the same pass: the suite (`lib/calc/__tests__/properties.test.ts`) is the thing
-that refuses a plausible-looking wrong number.
-
-**Honest caveat.** Kiro's hook file schema has moved between releases
-(`when.type` / `then.type`, pattern globs). `.kiro/hooks/README.md` says so, and
-the hook body is always the same command you can run by hand — `npm run log`,
-`npm run status`. We do not claim a hook fired on an install where it did not.
-The build log reads the same markers either way.
+To register the MCP server in Kiro, copy the `switchpoint` entry from
+[`mcp/kiro-mcp.json`](mcp/kiro-mcp.json) into `.kiro/settings/mcp.json`, then ask Kiro
+whether Wellesley gets Mass Save rebates.
 
 ## Why not Zillow
 
@@ -179,34 +173,34 @@ pressures."* This is the tool for the household at the end of that sentence.
 
 ---
 
-## Event details
+## Who benefits, and how it scales
 
-Mass AI Coalition × Kiro · Sat Oct 24, 2026 · 8 AM–8 PM ·
-[info](https://massaicoalition.com/hackachusetts/)
+- **Who:** the 624,510 Massachusetts households that heat with oil, who pay $6.23 a gallon
+  this week; gas-heated households who deserve an honest "not yet"; and the residents of
+  municipal light plant towns who are told, correctly, that Mass Save rebates do not apply to
+  them. The enhanced offer (up to $16,000, or no cost through Turnkey) is surfaced for
+  income-eligible households. See [`docs/ACCESSIBILITY.md`](docs/ACCESSIBILITY.md).
+- **Why it is not saturated:** a rebate calculator quotes a number. This one checks that the household
+  can receive it, refuses when it cannot, and says "do not switch yet" when the arithmetic says so.
+- **How it scales:** all 351 towns work today from committed bakes and live point queries, with
+  no database to run. A new program year is a change to `data/rules/*.json` and one steering
+  file, guarded by the anchor and property tests. Another state needs its own sponsor layer, rule
+  tables and fuel survey. The structure carries over (rules as data, a deterministic core, the
+  consent gate, the ranking); the constants and tables do not.
+- **Beyond tonight:** server accounts and notifications (a Basic Service reset, a contract end, a
+  deadline) are specified in `.kiro/specs/onboarding-switch/` and marked not built.
 
-| Time | What |
-| --- | --- |
-| 8:00 | Doors, breakfast, team formation |
-| 11:30 | Hacking begins (challenges drop 9:00) |
-| 20:00 | Hands off keyboards, submissions lock |
-| 20:00–23:00 | Judging · finalists notified midnight |
-| Sun 12:00 | Finalist brunch, winners announced |
+## For judges: try it
 
-**Submission checklist:** public GitHub repo · `/.kiro` committed (not
-gitignored) · demo video < 3 min on YouTube/Vimeo · track selected · Kiro
-write-up.
+- Live: **https://switchpoint-psi.vercel.app** (no login, free). Add `?demo=1` for the fully offline path.
+- Locally: `npm install && npm run dev`, then `npm run check` for typecheck, lint and tests.
+- Ask the engine directly: `npx tsx mcp/switchpoint-server.ts` speaks MCP over stdio.
+- Reproduce the property-testing claim: `node scripts/pbt-mutation-check.mjs`.
+- Check the submission against the rules: `npm run submission`.
 
-## House rules
+## Submission
 
-- Leave the room as you found it — tables, chairs, whiteboards reset, trash in bins.
-- No tailgating: don't hold doors for strangers. Report anyone suspicious.
-- Stay in the designated hack spaces; ask if unsure.
-- Respect others studying or working in the building.
-- Full terms: https://tinyurl.com/sundaiterms
+Track: **Climate Tech, challenge C2**. Checklist and scoring map:
+[`.kiro/steering/submission-checklist.md`](.kiro/steering/submission-checklist.md).
 
-## Comms
-
-Discord is mandatory — phone app *and* desktop. How-to (4 min):
-https://youtu.be/qVl4QdROUIA ·
-[Mass AI Coalition](https://massaicoalition.com/) ·
-[Sundai Club](https://www.sundai.foundation/about)
+Demo video (public, under three minutes): add the YouTube or Vimeo link here before submitting.

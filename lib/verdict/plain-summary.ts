@@ -25,6 +25,19 @@ const PLAIN_ANSWER: Record<Verdict, string> = {
   DO_NOT_SWITCH_YET: 'The heat pump costs more to run at these prices.',
 }
 
+/**
+ * `DO_NOT_SWITCH_YET` covers two different households: one whose running costs
+ * rise, and one whose savings are real but take longer than fifteen years to pay
+ * the install back. Saying "costs more to run" on the second contradicts the
+ * very next sentence, so the answer is chosen from the arithmetic, not the enum.
+ */
+function plainAnswer(result: VerdictResult): string {
+  if (result.verdict === 'DO_NOT_SWITCH_YET' && result.annualSavings > 0) {
+    return 'The heat pump saves money to run, but the install takes too long to pay back.'
+  }
+  return PLAIN_ANSWER[result.verdict]
+}
+
 export interface PlainSummary {
   /** One short line: what the answer means, in everyday words. */
   answer: string
@@ -45,7 +58,7 @@ export interface PlainSummary {
  * network, no locale beyond the `en-US` the rest of the page formats with.
  */
 export function plainSummary(result: VerdictResult): PlainSummary {
-  const answer = PLAIN_ANSWER[result.verdict]
+  const answer = plainAnswer(result)
   const sentences: string[] = [
     `You pay ${usd(result.oldAnnualCost)} a year to heat this house.`,
     `A heat pump would cost ${usd(result.newAnnualCostHeatPumpRate)} a year at the seasonal rate.`,

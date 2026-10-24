@@ -3,9 +3,21 @@
 import { buildReminderIcs } from '@/lib/verdict/reminder'
 import { verdictPath } from '@/lib/verdict/share-query'
 
-export function ReminderButton({ label, className }: { label: string; className?: string }) {
+export function ReminderButton({
+  label,
+  className,
+  path,
+}: {
+  label: string
+  className?: string
+  /** The verdict to reopen from the calendar entry. Defaults to the page's own query. */
+  path?: string
+}) {
   function download() {
-    const ics = buildReminderIcs(`${window.location.origin}${verdictPath(window.location.search)}`, new Date())
+    const ics = buildReminderIcs(
+      `${window.location.origin}${path ?? verdictPath(window.location.search)}`,
+      new Date(),
+    )
     const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }))
     const anchor = document.createElement('a')
     anchor.href = url

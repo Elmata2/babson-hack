@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Start every session with build status",
+      "trigger": "SessionStart",
+      "description": "Print per-phase build progress into the agent's context so it starts from what is actually done.",
+      "action": {
+        "type": "command",
+        "command": "node scripts/buildlog.mjs status",
+        "timeout": 20
+      }
+    }
+  ]
+}

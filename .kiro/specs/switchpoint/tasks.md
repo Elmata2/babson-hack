@@ -233,7 +233,7 @@ Spec: `docs/fixes/2026-10-24-one-photo-intake.md`. Amends R1.4, R2, R4.
 
 # Profile onboarding wizard — tasks (2026-10-24)
 
-Implements Addendum B steps 1–4 (`docs/superpowers/specs/2026-10-24-onboarding-and-switch-design.md`
+Implements Addendum B steps 1–4 (`.kiro/specs/onboarding-switch/design.md`
 §3.1–3.4) on the anonymous app's parts. Steps 5–6 (best case, switch) stay proposed:
 they need an account with a home on a server, which this build does not have.
 
@@ -268,3 +268,22 @@ F-152 because P11's switch work took F-143 first.
 | ID | Phase | Task | Owner | Est | Depends |
 | --- | --- | --- | --- | --- | --- |
 | F-152 | P4 | R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests | A | 20m | F-23 |
+
+# Kiro depth for the Implementation criterion — tasks (2026-10-24)
+
+Spec: `docs/KIRO.md` and `.kiro/steering/submission-checklist.md`. These rows exist so the
+Kiro features the judges read are in the build log with the same evidence rule as the
+product: a marker in the commit that makes it true.
+
+| ID | Phase | Task | Owner | Est | Depends |
+| --- | --- | --- | --- | --- | --- |
+| F-154 | P12 | `mcp/` read-only MCP server: `compute_verdict`, `lookup_sponsor`, `get_program_rule`, `get_fuel_snapshot` over the real engine; handlers tested without a process | A | 45m | F-23 |
+| F-155 | P12 | `scripts/hooks/protect-kiro.mjs` PreToolUse guard that blocks any write gitignoring `/.kiro`, with a nine-case self-test | A | 20m | F-132 |
+| F-156 | P12 | Property tests P17–P21 for the consent gate: unknown keys, emails, phone numbers and a seventh provider are always refused, with the right reason code | A | 25m | F-144 |
+| F-157 | P12 | `scripts/pbt-mutation-check.mjs`: ten planted engine bugs in a scratch copy, each scored against example suites and the property suite | A | 40m | F-23 |
+| F-158 | P12 | Seven v1 hooks: build log, property guard, rules regression, `.kiro` guard, task quality gate, spec drift, session status | A | 20m | F-03 |
+| F-159 | P12 | Steering front matter in all four inclusion modes, `#[[file:]]` references to the rule JSON, and the `mcp-tools`, `property-testing` and `submission-checklist` files | A | 25m | F-07 |
+| F-160 | P12 | Specs split by feature: `.kiro/specs/onboarding-switch/` and `.kiro/specs/voice-quotes/` with requirements, design, tasks and a correctness-properties table | A | 40m | F-151 |
+| F-161 | P12 | `power/switchpoint-ma-heat-pump/`: an authored Kiro Power with keyword activation, MCP config and two steering guides | A | 20m | F-154 |
+| F-162 | P12 | `docs/KIRO.md`, `docs/ACCESSIBILITY.md` and the README judge sections: who benefits, how it scales, how to try it | A | 40m | F-157 |
+| F-163 | P12 | Submission check rows for Kiro depth: several specs, steering front matter, v1 hooks, MCP, power, write-up with no open TODO, a public video link | A | 25m | F-53 |

@@ -1,23 +1,28 @@
 # Kiro hooks
 
-Three hooks, one purpose each:
+Seven hooks in the v1 format (`{ "version": "v1", "hooks": [ ... ] }`, PascalCase triggers,
+`command` or `agent` actions). Hooks load at session start.
 
-| File | Fires on | Does |
-| --- | --- | --- |
-| `buildlog-sync.json` | any source edit | `node scripts/buildlog.mjs hook` |
-| `pbt-guard.json` | edit under `lib/calc/` | asks the agent to run the property suite and fix the engine, not the test |
-| `spec-drift.json` | manual | asks the agent to diff the spec against the code and list gaps |
+| File | Trigger | Action | Does |
+| --- | --- | --- | --- |
+| `buildlog-sync.json` | `PostFileSave` under `lib/`, `app/`, `components/`, `agents/`, `mcp/` | command | `node scripts/buildlog.mjs hook` |
+| `pbt-guard.json` | `PostFileSave` under `lib/calc/` (not tests) | agent | Run the property suite; fix the engine, never weaken the property |
+| `rules-regression.json` | `PostFileSave` of `data/rules/*.json` | command | `npx vitest run lib/calc mcp` |
+| `protect-kiro-dir.json` | `PreToolUse` on write tools and shell | command | `scripts/hooks/protect-kiro.mjs`; exit 2 blocks a write that would gitignore `/.kiro` |
+| `task-quality-gate.json` | `PostTaskExec` | command | `npm run check` |
+| `spec-drift.json` | `PostTaskExec` | agent | Diff the code against the spec and list gaps, largest first |
+| `session-status.json` | `SessionStart` | command | `node scripts/buildlog.mjs status` |
 
-**Schema caveat, stated honestly.** Kiro's hook file format has moved between
-releases (`when.type` / `then.type` values, pattern globs). If a hook does not
-fire on your install, the command in it is still correct — run it by hand or from
-`package.json`:
+The scripts behind the hooks are ordinary commands, so none of them depends on a hook firing:
 
 ```bash
-npm run log      # sync + write
-npm run status   # progress
-npm run watch:log
+npm run log          # sync + write the build log
+npm run status       # progress per phase
+npm run check        # typecheck, lint, tests
+npm run hooks:test   # the .kiro guard's self-test
 ```
 
-Say "the hook calls the same command we run by hand" in the write-up. Never claim
-a hook fired when it did not; judges read repos.
+CI runs the same checks (`.github/workflows/ci.yml`), including the `/.kiro` guard.
+
+Earlier versions of these files used an older schema (`when` / `then`). They were rewritten
+to v1 on 2026-10-24. Never claim a hook fired unless you saw it; judges read repos.

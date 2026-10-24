@@ -635,7 +635,7 @@ lets us say "the AI made six phone calls" without anyone wincing.
 ## 15. Addendum B — profile onboarding, best-case switch, dashboard (draft, pending team review)
 
 **Status:** proposal · 2026-10-24 · nothing built. Full design:
-[`docs/superpowers/specs/2026-10-24-onboarding-and-switch-design.md`](../../../docs/superpowers/specs/2026-10-24-onboarding-and-switch-design.md).
+[`.kiro/specs/onboarding-switch/design.md`](../onboarding-switch/design.md).
 Builds on Addendum A (§12–§14 above, R17–R25).
 
 **What it proposes:** home CTA (header + hero) → `/onboarding` (account: name,

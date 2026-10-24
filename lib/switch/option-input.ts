@@ -14,6 +14,8 @@ export function buildOptionInput(
   model: SwitchModel,
   providers: readonly SwitchProvider[],
   plan: { mode: OutreachMode },
+  call: { mode: OutreachMode } = plan,
+  demo = false,
 ): OptionInput | null {
   if (!model.result) return null
   return {
@@ -32,6 +34,8 @@ export function buildOptionInput(
     noMassSave: model.noMassSave,
     town: model.town,
     plan,
+    call,
+    demo,
     reachable: {
       fuel: providers.filter((provider) => reachableBy(provider, 'fuel', plan.mode)).length,
       installer: providers.filter((provider) => reachableBy(provider, 'installer', plan.mode)).length,

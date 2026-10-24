@@ -13,6 +13,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { gradeLevel, sentencesIn, wordsIn } from '@/lib/a11y/readability'
+import { computeVerdict } from '@/lib/calc'
 import { inventedNumbers } from '@/lib/verdict/explain'
 import { usd } from '@/lib/verdict/format'
 
@@ -72,6 +73,20 @@ describe('plainSummary — R14.4', () => {
         expect(text, name).not.toContain('less each year')
       }
     }
+  })
+
+  it('does not call a slow-payback answer a running-cost loss', () => {
+    // A $60,000 quote on an oil house: savings are real, the payback is past 15
+    // years. The enum is DO_NOT_SWITCH_YET, but the reason is the install cost.
+    const result = computeVerdict(
+      { fuel: 'oil', annualUnits: 900, unitPrice: 6.23, hdd65: 5_928 },
+      { tier: 'whole', installYear: 2026, installCost: 60_000, heatPumpRate: 0.235, standardRate: 0.305 },
+    )
+    expect(result).not.toBeNull()
+    const summary = plainSummary(result!)
+    expect(summary.answer).not.toContain('costs more to run')
+    expect(summary.answer).toContain('takes too long to pay back')
+    expect(summary.sentences.join(' ')).toContain('less each year')
   })
 
   it('gives the loss branch a way out: the break-even price', () => {

@@ -46,10 +46,11 @@ export interface RecommendationInput {
 const usd = (value: number): string =>
   Math.abs(value).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
-export function switchHref(query: string, choice: SwitchChoice, mode?: 'kit'): string {
+export function switchHref(query: string, choice: SwitchChoice, mode?: 'kit' | 'agent'): string {
   const params = shareableQuery(query)
   params.set('choice', choice)
-  if (mode) params.set('mode', mode)
+  if (mode === 'kit') params.set('mode', 'kit')
+  if (mode === 'agent') params.set('agent', '1')
   return `/switch?${params.toString()}`
 }
 
@@ -106,6 +107,7 @@ export function recommend(input: RecommendationInput): Recommendation {
   }
 
   const copy = outreachCopy('installers', input.option)
+  const demo = input.option.demo === true
   const agentLive = copy.live
   const headline =
     result.verdict === 'SWITCH_BEFORE_DEC31'
@@ -116,12 +118,18 @@ export function recommend(input: RecommendationInput): Recommendation {
     headline,
     agentLabel: !agentLive
       ? 'See what the agent would say'
-      : input.option.plan.mode === 'allowlist'
-        ? 'Let our agent get quotes (test lines)'
-        : 'Let our agent get quotes',
+      : demo
+        ? 'Let the agent call (demo)'
+        : input.option.plan.mode === 'allowlist'
+          ? 'Let our agent call (test lines)'
+          : 'Let our agent get quotes',
     agentLive,
     agentNote: copy.what,
-    agentHref: switchHref(input.query, 'SWITCH_HEAT_PUMP'),
+    agentHref: switchHref(
+      input.query,
+      'SWITCH_HEAT_PUMP',
+      demo || (input.option.call?.mode ?? 'off') !== 'off' ? 'agent' : undefined,
+    ),
     kitHref: switchHref(input.query, 'SWITCH_HEAT_PUMP', 'kit'),
     secondary: null,
     others: othersFor(input, 'SWITCH_HEAT_PUMP'),

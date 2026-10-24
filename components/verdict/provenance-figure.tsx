@@ -19,6 +19,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { dialogAction, provenanceDialogId } from '@/lib/a11y/focus'
 import type { ProvenanceEntry } from '@/lib/verdict/provenance'
@@ -87,17 +88,23 @@ export function ProvenanceFigure({
         </button>
       ) : null}
 
-      <dialog
-        ref={dialog}
-        onClose={() => setOpen(false)}
-        onClick={(event) => {
-          // A click on the backdrop targets the dialog element itself.
-          if (event.target === dialog.current) setOpen(false)
-        }}
-        aria-labelledby={headingId}
-        className="provenance-dialog m-auto w-[min(26rem,calc(100vw-2rem))] rounded-card border border-rule bg-surface p-0 text-ink shadow-2xl"
-      >
-        {open ? (
+      {/* The drawer is portalled to the body. A native <dialog> is flow content,
+          so nesting it inside the paragraph or heading that holds the figure is
+          invalid HTML and breaks hydration. The figure stays inline; the modal
+          lives at the top of the document. */}
+      {open && typeof document !== 'undefined'
+        ? createPortal(
+            <dialog
+              ref={dialog}
+              onClose={() => setOpen(false)}
+              onClick={(event) => {
+                // A click on the backdrop targets the dialog element itself.
+                if (event.target === dialog.current) setOpen(false)
+              }}
+              aria-labelledby={headingId}
+              className="provenance-dialog m-auto w-[min(26rem,calc(100vw-2rem))] rounded-card border border-rule bg-surface p-0 text-ink shadow-2xl"
+            >
+              {open ? (
           <div className="max-h-[min(85dvh,44rem)] overflow-y-auto p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -139,8 +146,11 @@ export function ProvenanceFigure({
 
             {entry.note ? <p className="mt-5 border-t border-rule pt-4 text-micro text-ink-muted">{entry.note}</p> : null}
           </div>
-        ) : null}
-      </dialog>
+              ) : null}
+            </dialog>,
+            document.body,
+          )
+        : null}
     </>
   )
 }
