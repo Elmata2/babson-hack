@@ -16,6 +16,7 @@ import {
   type ParsedBill,
 } from '@/lib/client/bill-confirm'
 import { prepareUploadFiles } from '@/lib/client/prepare-image'
+import { demoFromLocation, withDemo } from '@/lib/demo'
 import type { BillApplied, BillRole } from '@/lib/parse/contract'
 import type { BillFuel } from '@/lib/parse/types'
 
@@ -27,6 +28,8 @@ import type { BillFuel } from '@/lib/parse/types'
  * @built F-108 multi-page upload (up to 3), camera-first button, county + heating sent
  * @built F-109 confirm panel rewrite — "Here's what we found", touch-to-confirm
  * for shaky fields, auto-apply when clean, Undo, and an electric-bill follow-up
+ * @built F-49 demo mode sends `?demo=1` and a `demo` form field, so the route
+ * refuses before decoding a byte and this card shows the manual-entry message
  *
  * A bill is not "a number". It is a document that covered some period, plus a
  * named method that turned that period into a heating year. The card therefore
@@ -171,15 +174,19 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
       return
     }
 
+    const demo = demoFromLocation()
     const body = new FormData()
     for (const file of prepared) body.append('file', file)
     if (countyFips) body.append('countyFips', countyFips)
     const heatingFlag = electricInstance ? false : heating
     if (heatingFlag !== undefined) body.append('heating', String(heatingFlag))
+    // F-49: both places the flag can be read, so a demo cannot fall through to a
+    // vision call if one of them is dropped by a proxy.
+    if (demo) body.append('demo', '1')
 
     let response: Response
     try {
-      response = await fetch('/api/parse-bill', { method: 'POST', body })
+      response = await fetch(withDemo('/api/parse-bill', demo), { method: 'POST', body })
     } catch {
       setStatus('error')
       setMessage('We could not reach the reader — check your connection and try again, or type the two numbers.')

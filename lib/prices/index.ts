@@ -1,5 +1,7 @@
 /**
  * @built F-09 /api/prices — DOER headline, EIA machine read, snapshot when either fails
+ * @built F-49 `demo: true` returns the baked snapshot before the cache, the key or
+ * `fetch` are consulted; the default path below is unchanged
  *
  * The contract, from `design.md` §2.3: the route is an *enrichment*. Delete it and
  * the app still returns a verdict. So this module never throws and never invents a
@@ -74,6 +76,13 @@ export interface GetPricesOptions {
   timeoutMs?: number
   cacheTtlMs?: number
   bypassCache?: boolean
+  /**
+   * R13.1: `?demo=1`. Resolve every number from the baked snapshot, before the
+   * cache, the API key and `fetch` are consulted. Nothing is read from the
+   * environment and nothing is written to the cache, so a demo request cannot
+   * leak a live price into the next normal one — or the reverse.
+   */
+  demo?: boolean
 }
 
 interface CachedEntry {
@@ -177,6 +186,20 @@ async function readAll(
 export async function getPrices(options: GetPricesOptions = {}): Promise<Prices> {
   const now = options.now ?? Date.now
   const cacheTtlMs = options.cacheTtlMs ?? CACHE_TTL_MS
+
+  // F-49: demo short-circuits before the cache is read, before `process.env` is
+  // touched and before a `fetchImpl` exists. The envelope is the same shape a
+  // no-key deployment returns, so the UI cannot tell the difference except by the
+  // note — and the verdict is identical because the numbers are identical.
+  if (options.demo) {
+    return {
+      ...snapshotPoint(),
+      mode: 'snapshot',
+      crosscheck: { oil: null, propane: null },
+      notes: ['Demo mode (?demo=1) — the baked 2026-10-19 snapshot only. No network call was made.'],
+      errors: [],
+    }
+  }
 
   if (!options.bypassCache && cache && now() - cache.at < cache.ttl) {
     return cache.value

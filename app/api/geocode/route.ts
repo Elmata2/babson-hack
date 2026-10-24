@@ -1,5 +1,7 @@
 /**
  * @built F-10 HTTP surface for the Census geocoder: address → lat/lon + town + tract
+ * @built F-49 `?demo=1` returns a typed `demo_unavailable` refusal (200, no fetch);
+ * the UI's documented fallback is the manual town list
  *
  * The adapter lives in `lib/geocode` and is tested there. It uses the
  * `geographies` endpoint only, because `locations` returns a match with an empty
@@ -16,6 +18,7 @@
  * GET /api/geocode?q=1 Main St, Framingham, MA
  */
 
+import { DEMO_MESSAGES, demoFromRequest, demoUnavailable } from '@/lib/demo'
 import { geocodeAddress } from '@/lib/geocode'
 import { countyOfFips, locateTown } from '@/lib/geo'
 
@@ -39,6 +42,14 @@ function townFromMatchedAddress(matchedAddress: string): { town: string | null; 
 }
 
 export async function GET(request: Request): Promise<Response> {
+  if (demoFromRequest(request)) {
+    // No baked address index exists, and inventing one would be worse than the
+    // manual path the form already offers.
+    return Response.json(demoUnavailable(DEMO_MESSAGES.geocode, 'town_list'), {
+      headers: { 'cache-control': 'no-store' },
+    })
+  }
+
   const address = new URL(request.url).searchParams.get('q')?.trim() ?? ''
 
   if (address.length < 5) {

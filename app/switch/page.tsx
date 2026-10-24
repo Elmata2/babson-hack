@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { SwitchFlow } from '@/components/switch/switch-flow'
+import { demoFromParams, withDemo } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
 import { buildSwitchModel } from '@/lib/switch/model'
 import { loadProviders, outreachPlan } from '@/lib/switch/providers'
@@ -15,9 +16,13 @@ import { loadProviders, outreachPlan } from '@/lib/switch/providers'
  * dated prices never reach the browser as a secret or a key. The interactive part
  * is `SwitchFlow`, which only ever holds facts the household can see.
  *
- * `?demo=1` is honoured upstream by the price reader; this screen adds no network
- * call of its own. With no sender configured, the plan is `off` and the page says
- * so before anyone types anything.
+ * `?demo=1` is honoured by the price reader and by `/api/switch`: the page reads
+ * the baked snapshot, and the contact button returns baked `queued` statuses with
+ * mode `demo` instead of sending anything. With no sender configured, the plan is
+ * `off` and the page says so before anyone types anything.
+ *
+ * @built F-49 demo mode keeps the same model, the same query and the same verdict;
+ * only the prices' source and the send path change
  */
 
 export const metadata: Metadata = {
@@ -33,24 +38,31 @@ interface SwitchPageProps {
 
 export default async function SwitchPage({ searchParams }: SwitchPageProps) {
   const params = await searchParams
-  const prices = await getPrices({ timeoutMs: 4_000 })
+  const demo = demoFromParams(params)
+  const prices = await getPrices({ timeoutMs: 4_000, demo })
   const model = buildSwitchModel(params, prices)
   const providers = loadProviders()
   const plan = outreachPlan(providers)
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader demo={demo} />
 
       <main id="main" className="flex-1">
         <div className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <p className="text-eyebrow uppercase text-ink-muted">The decision</p>
             <div className="flex flex-wrap items-center gap-4 text-micro text-ink-muted">
-              <Link href="/dashboard" className="underline decoration-rule-strong underline-offset-4 hover:text-ink">
+              <Link
+                href={withDemo('/dashboard', demo)}
+                className="underline decoration-rule-strong underline-offset-4 hover:text-ink"
+              >
                 Dashboard
               </Link>
-              <Link href="/start" className="underline decoration-rule-strong underline-offset-4 hover:text-ink">
+              <Link
+                href={withDemo('/start', demo)}
+                className="underline decoration-rule-strong underline-offset-4 hover:text-ink"
+              >
                 Change the numbers
               </Link>
             </div>
@@ -76,12 +88,15 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
-                    href={model.query ? `/start?${model.query}` : '/start'}
+                    href={withDemo(model.query ? `/start?${model.query}` : '/start', demo)}
                     className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
                   >
                     Enter the numbers
                   </Link>
-                  <Link href="/start" className="text-small text-ink-muted underline underline-offset-4">
+                  <Link
+                    href={withDemo('/start', demo)}
+                    className="text-small text-ink-muted underline underline-offset-4"
+                  >
                     Start from a bill
                   </Link>
                 </div>

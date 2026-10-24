@@ -8,6 +8,7 @@ import { BillUpload } from '@/components/bill-upload'
 import { FreshnessBadge } from '@/components/freshness-badge'
 import { DEMO_BILL_SAMPLES } from './sample-bills'
 import { matchTown } from '@/lib/address/nominatim'
+import { demoFromLocation, withDemo } from '@/lib/demo'
 import { countyOfTown } from '@/lib/geo'
 import {
   defaultInstallYear,
@@ -40,6 +41,8 @@ import type { AnnualMethod, BillFuel } from '@/lib/parse/types'
 /**
  * @built F-137 the four-step wizard — profile, bill, house, review
  * @built F-138 synthetic sample bills load into the same reader as a photo
+ * @built F-49 the wizard's geocode, bill and verdict links all carry `?demo=1`, so
+ * a demo profile never reaches a provider; every refusal has a manual path here
  *
  * Addendum B's flow (`docs/superpowers/specs/2026-10-24-onboarding-and-switch-design.md`
  * §3) with one honest substitution: there is no database in this build, so the
@@ -153,7 +156,7 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
   async function lookupTypedAddress(query: string) {
     setAddressNote('Looking that address up…')
     try {
-      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`)
+      const response = await fetch(withDemo(`/api/geocode?q=${encodeURIComponent(query)}`, demoFromLocation()))
       const payload = (await response.json()) as {
         ok: boolean
         message?: string
@@ -269,7 +272,7 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       weatherizationBonus: false,
       sizingBonus: false,
     }
-    router.push(`/verdict?${toQuery(values).toString()}`)
+    router.push(withDemo(`/verdict?${toQuery(values).toString()}`, demoFromLocation()))
   }
 
   return (

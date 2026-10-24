@@ -1,5 +1,8 @@
 /**
  * @built F-26 /api/parse-bill — one vision call, in memory, nothing stored
+ * @built F-49 `?demo=1` or a `demo=1` form field returns a typed
+ * `demo_unavailable` refusal (200) before any credential is read or file is
+ * decoded; the manual two-number path is the documented fallback
  * @built F-77 route options — the household facts the photograph cannot carry
  * @built F-79 three readers — the Babson gateway, a console API key, or OpenRouter, same contract
  * @built F-108 up to three pages/photos of one bill in one vision call; county + heating wiring
@@ -41,6 +44,7 @@
  * refused by name with "export as JPG": neither provider reads it. GET is a 405.
  */
 
+import { DEMO_MESSAGES, demoFromRequest, demoUnavailable, isDemoFlag } from '@/lib/demo'
 import { readBill, type ReadBillOptions } from '@/lib/parse/plausibility'
 import { BILL_PROMPT, readJsonBody } from '@/lib/parse/prompt'
 import type { BillReadResult } from '@/lib/parse/types'
@@ -338,13 +342,26 @@ function optionalCounty(value: FormDataEntryValue | null): string | null {
   return /^250(?:0[13579]|1[13579]|2[1357])$/.test(trimmed) ? trimmed : null
 }
 
+/** Demo is expected behaviour, not an outage, so it is a 200 with `ok: false`. */
+function demoRefusal(): Response {
+  return Response.json(demoUnavailable(DEMO_MESSAGES.parseBill, 'manual_entry'), {
+    headers: { 'cache-control': 'no-store' },
+  })
+}
+
 export async function POST(request: Request): Promise<Response> {
+  // Query/header first: in demo mode the body is never parsed, let alone decoded.
+  if (demoFromRequest(request)) return demoRefusal()
+
   let form: FormData
   try {
     form = await request.formData()
   } catch {
     return fail(400, 'bad_request', 'Send the bill as multipart/form-data in a `file` field.')
   }
+
+  // The body flag, for a client that cannot append to the query string.
+  if (isDemoFlag(form.get('demo'))) return demoRefusal()
 
   const files = form.getAll('file').filter((entry): entry is File => entry instanceof File)
   if (files.length === 0) {

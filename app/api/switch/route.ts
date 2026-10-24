@@ -1,5 +1,7 @@
 /**
  * @built F-147 POST /api/switch — the only way a provider is contacted, and it refuses
+ * @built F-49 `?demo=1` or `"demo": true` validates the same closed fact list, then
+ * returns baked `queued` statuses with mode `demo` — no email, no call, no fetch
  *
  * The route is a gate, not an integration. It validates a closed fact list (R18.1),
  * rejects anything that identifies a person (R18.2), caps the provider count (R18.3),
@@ -15,6 +17,7 @@
  * No storage, no database, no PII. The browser keeps the consent snapshot.
  */
 
+import { DEMO_MESSAGES, demoFromRequest, isDemoFlag } from '@/lib/demo'
 import { nextCallWindow, validateOutreachRequest, withinBusinessHours } from '@/lib/switch/consent'
 import { sendEmail } from '@/lib/switch/outreach'
 import { loadProviders, outreachPlan } from '@/lib/switch/providers'
@@ -59,6 +62,10 @@ export async function POST(request: Request): Promise<Response> {
   if (!validated.ok) return refuse(400, validated.code, validated.message)
   const payload = validated.value
 
+  const demo =
+    demoFromRequest(request) ||
+    (typeof body === 'object' && body !== null && isDemoFlag((body as { demo?: unknown }).demo))
+
   const providers = loadProviders()
   const byId = new Map(providers.map((provider) => [provider.id, provider]))
   const selected: { provider: SwitchProvider; channel: 'email' | 'phone' }[] = []
@@ -79,6 +86,29 @@ export async function POST(request: Request): Promise<Response> {
 
   const plan = outreachPlan(providers)
   const now = new Date()
+
+  // F-49: a demo demonstrates the flow without touching the plan or the network.
+  // The request has already passed the same validation as a live one, so the
+  // screen shows the real provider names and the real channels — only the send
+  // is replaced by a baked status.
+  if (demo) {
+    const statuses = selected.map(({ provider, channel }) =>
+      statusFor(
+        provider,
+        channel,
+        'queued',
+        'Demo mode — baked status. Nothing was dialled, emailed or sent.',
+        now,
+      ),
+    )
+    const result: OutreachResult = {
+      ok: true,
+      mode: 'demo',
+      notice: DEMO_MESSAGES.switch,
+      statuses,
+    }
+    return Response.json(result, { headers: NO_STORE })
+  }
 
   if (plan.mode === 'off') {
     const result: OutreachResult = {

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 
 import { FreshnessBadge } from '@/components/freshness-badge'
+import { demoFromLocation, isDemo, withDemo } from '@/lib/demo'
 import { CHOICE_COPY, kindOf } from '@/lib/switch/choices'
 import { DEFAULT_DELIVERY_GALLONS, NEVER_SAID, buildFacts, disclosureRows } from '@/lib/switch/consent'
 import type { SwitchModel } from '@/lib/switch/model'
@@ -42,6 +43,10 @@ import { SwitchKit } from './switch-kit'
  *  3. Outreach is opt-in twice: the household ticks providers, reads the exact
  *     facts, then confirms. With no sender configured, no request leaves the page
  *     and the switch kit is the complete path.
+ *
+ * @built F-49 in demo mode `/api/switch` is called with the flag and answers
+ * `mode: 'demo'` with baked queued statuses; no email is sent and the links back
+ * to the verdict and dashboard keep the flag
  *
  * The browser keeps the request in session storage (see `lib/switch/session.ts`),
  * so `/dashboard` can show the status without a server account.
@@ -170,10 +175,11 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
         })),
         consentAt: new Date().toISOString(),
       }
-      const response = await fetch('/api/switch', {
+      const demo = demoFromLocation()
+      const response = await fetch(withDemo('/api/switch', demo), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(demo ? { ...body, demo: true } : body),
       })
       const payload = (await response.json()) as OutreachResult & { message?: string }
       if (!response.ok || payload.ok !== true) {
@@ -196,7 +202,7 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <p className="text-eyebrow uppercase text-ink-muted">Step five · Best case</p>
           <Link
-            href={`/verdict?${model.query}`}
+            href={withDemo(`/verdict?${model.query}`, isDemo(model.query))}
             className="text-micro text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
           >
             ← Back to the verdict
@@ -542,7 +548,7 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
                 >
                   Not now
                 </button>
-                <Link href="/dashboard" className="text-micro text-ink-muted underline">
+                <Link href={withDemo('/dashboard', isDemo(model.query))} className="text-micro text-ink-muted underline">
                   See the dashboard
                 </Link>
                 {storedStage === 'decided' ? <span className="text-micro text-ink-faint">Saved in this tab.</span> : null}
@@ -602,7 +608,7 @@ function StayPanel({ model, onSave, saved }: { model: SwitchModel; onSave: () =>
         >
           Save this decision
         </button>
-        <Link href="/dashboard" className="text-micro text-ink-muted underline">
+        <Link href={withDemo('/dashboard', isDemo(model.query))} className="text-micro text-ink-muted underline">
           See the dashboard
         </Link>
         {saved ? <span className="text-micro text-ink-faint">Saved in this tab.</span> : null}
@@ -742,7 +748,7 @@ function SupplyPanel({
         >
           I&rsquo;ve checked my supply
         </button>
-        <Link href="/dashboard" className="text-micro text-ink-muted underline">
+        <Link href={withDemo('/dashboard', isDemo(model.query))} className="text-micro text-ink-muted underline">
           See the dashboard
         </Link>
         {saved ? <span className="text-micro text-ink-faint">Saved in this tab.</span> : null}

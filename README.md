@@ -49,8 +49,15 @@ Router, Turbopack), Tailwind v4 tokens, Geist self-hosted through the `geist`
 package so no font request leaves the page.
 
 No keys? It still works: fuel prices fall back to a dated DOER snapshot, and
-manual entry replaces bill OCR. `?demo=1` disables all network calls and uses
-baked data only.
+manual entry replaces bill OCR. `?demo=1` removes the network entirely: prices
+come from the baked 2026-10-19 snapshot, the plain-English panel returns the
+verdict's own sentences, and `/api/switch` returns baked statuses without
+sending. There is no baked geocoder, address search, parcel record or bill
+reader, so those routes answer with a typed `demo_unavailable` refusal and the UI falls back to
+the manual path it already has — town from the list, year built typed, two
+numbers instead of a photo. The verdict is identical because the engine never
+changes; only the source of the prices does. Links carry the flag, so one
+`?demo=1` click stays offline for the rest of the flow.
 
 ## The build log
 
