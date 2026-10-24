@@ -5,7 +5,8 @@
  * @built F-42 tract choropleth (Heat lens; layers live in `layers.ts`)
  * @built F-44 hover tooltip and click-a-tract → Town tab
  * @built F-71 lenses (Street | Energy | Heat), whoosh, camera
- * @built F-72 Energy lens: 3D town columns, timeline, polar clock, mock model
+ * @built F-72 Energy lens: 3D town columns, timeline, polar clock
+ * @built F-75 Energy lens on real usage, solar and zonal load data
  *
  * One map instance, three lenses. A lens is a basemap plus the sources and layers
  * in `layers.ts`; switching calls `setStyle(url, { diff: false })`, which drops every
@@ -31,11 +32,12 @@ import { townKey, type SponsorKey } from '@/lib/elec-label'
 import { GEO_META, displayTown, stateTotals, townsOfTract } from '@/lib/geo'
 import { SPONSOR_NAME } from '@/lib/utility'
 import {
-  LOAD_SHAPE,
+  METRIC_LABEL,
   ZONE_LABEL,
-  formatMW,
+  dayLabel,
+  describeTown,
   hourLabel,
-  valueAt,
+  sourceLine,
   type Metric,
   type Zone,
 } from '@/lib/map/energy-model'
@@ -78,7 +80,8 @@ export default function MapView() {
   const [selectedTract, setSelectedTract] = useState<string | null>(null)
   const [hour, setHour] = useState(18)
   const [playing, setPlaying] = useState(false)
-  const [metric, setMetric] = useState<Metric>('demand')
+  const [metric, setMetric] = useState<Metric>('usage')
+  const [day, setDay] = useState<string | null>(null)
   const [colourBy, setColourBy] = useState<'provider' | 'intensity'>('provider')
   const [region, setRegion] = useState<Zone | 'ALL'>('ALL')
   const [showSolar, setShowSolar] = useState(false)
@@ -296,7 +299,7 @@ export default function MapView() {
         return void popup?.remove()
       }
       const p = hit.properties ?? {}
-      const id = lens === 'heat' ? `t${String(p.geoid)}` : `k${String(p.key)}|${hour}|${metric}`
+      const id = lens === 'heat' ? `t${String(p.geoid)}` : `k${String(p.key)}|${metric}`
       if (id === hoverKey.current) return void popup.setLngLat(e.lngLat)
       const box = document.createElement('div')
       const line = (text: string, strong = false) => {
@@ -316,7 +319,7 @@ export default function MapView() {
         const t = entry.energy
         line(entry.name, true)
         line(`${t.mixed ? t.sponsors.map((sp) => SPONSOR_NAME[sp]).join(' / ') : SPONSOR_NAME[t.sponsors[0]]}`)
-        line(`${formatMW(valueAt(t, hour, metric))} at ${hourLabel(hour)} (invented)`)
+        if (towns) line(describeTown(t, metric, towns.baked._meta))
       }
       hoverKey.current = id
       popup.setLngLat(e.lngLat).setDOMContent(box).addTo(map)
@@ -408,8 +411,8 @@ export default function MapView() {
   }, [])
 
   const lensState = useMemo<LensState>(
-    () => ({ lens, towns, tracts, hour, metric, colourBy, region, showSolar, showLabels, ejOn, selectedKey, selectedTract }),
-    [lens, towns, tracts, hour, metric, colourBy, region, showSolar, showLabels, ejOn, selectedKey, selectedTract],
+    () => ({ lens, towns, tracts, metric, colourBy, region, showSolar, showLabels, ejOn, selectedKey, selectedTract }),
+    [lens, towns, tracts, metric, colourBy, region, showSolar, showLabels, ejOn, selectedKey, selectedTract],
   )
   // `ejReady` re-syncs after `markEj` stamps the tract properties.
   useEffect(() => {
@@ -432,6 +435,8 @@ export default function MapView() {
     return towns.entries.map((e) => e.energy).filter((t) => region === 'ALL' || t.zone === region)
   }, [towns, selectedEntry, region])
 
+  const days = towns?.baked._meta.sources.load.days ?? []
+  const activeDay = day ?? days[0]
   const energy = lens === 'energy'
   const vars = { '--mb': energy ? '124px' : '36px', '--cb': energy ? '112px' : '40px' } as React.CSSProperties
 
@@ -495,6 +500,9 @@ export default function MapView() {
               }}
               metric={metric}
               onMetric={setMetric}
+              days={days}
+              day={activeDay}
+              onDay={setDay}
               colourBy={colourBy}
               onColourBy={setColourBy}
               showSolar={showSolar}
@@ -548,9 +556,11 @@ export default function MapView() {
             hidden={tab !== 'grid'}
             className="min-h-0 flex-1 overflow-y-auto p-4"
           >
-            {tab === 'grid' ? (
+            {tab === 'grid' && towns && activeDay && gridTowns.length > 0 ? (
               <GridPanel
                 towns={gridTowns}
+                baked={towns.baked}
+                day={activeDay}
                 scopeLabel={selectedName ?? 'Massachusetts'}
                 region={region}
                 hour={hour}
@@ -569,9 +579,11 @@ export default function MapView() {
       {/* Energy: note and timeline */}
       {energy ? (
         <>
-          <p className="absolute left-3 bottom-[88px] z-10 rounded-md bg-surface/95 px-2.5 py-1 text-micro font-medium text-deadline shadow-sm lg:bottom-auto lg:left-1/2 lg:top-3 lg:-translate-x-1/2">
-            Demand and solar figures are invented.
-          </p>
+          {towns && activeDay ? (
+            <p className="absolute left-3 bottom-[88px] z-10 rounded-md bg-surface/95 px-2.5 py-1 text-micro text-ink-muted shadow-sm lg:bottom-auto lg:left-1/2 lg:top-3 lg:-translate-x-1/2">
+              {sourceLine(towns.baked._meta, activeDay)}
+            </p>
+          ) : null}
           <Timeline hour={hour} playing={playing} onHour={(h) => { setPlaying(false); setHour(h) }} onPlay={() => setPlaying((p) => !p)} ready={ready} />
         </>
       ) : null}
@@ -631,6 +643,9 @@ function EnergyControls(props: {
   onRegion: (z: Zone | 'ALL') => void
   metric: Metric
   onMetric: (m: Metric) => void
+  days: string[]
+  day: string | undefined
+  onDay: (d: string) => void
   colourBy: 'provider' | 'intensity'
   onColourBy: (c: 'provider' | 'intensity') => void
   showSolar: boolean
@@ -639,11 +654,7 @@ function EnergyControls(props: {
   onLabels: (b: boolean) => void
   ready: boolean
 }) {
-  const metrics: { id: Metric; label: string }[] = [
-    { id: 'demand', label: 'Demand' },
-    { id: 'solar', label: 'Solar output' },
-    { id: 'net', label: 'Net load' },
-  ]
+  const metrics = Object.keys(METRIC_LABEL) as Metric[]
   const legend = (Object.keys(PROVIDER_COLOUR) as (SponsorKey | 'mixed')[]).filter((k) => k !== 'other' && k !== 'cape_light')
   return (
     <div className="flex flex-col gap-3 border-t border-rule pt-3">
@@ -669,8 +680,18 @@ function EnergyControls(props: {
         <p className="text-micro font-medium text-ink">Metric</p>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {metrics.map((m) => (
-            <button key={m.id} type="button" className={CHIP} aria-pressed={props.metric === m.id} onClick={() => props.onMetric(m.id)}>
-              {m.label}
+            <button key={m} type="button" className={CHIP} aria-pressed={props.metric === m} onClick={() => props.onMetric(m)}>
+              {METRIC_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="text-micro font-medium text-ink">Grid load day</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {props.days.map((d) => (
+            <button key={d} type="button" className={CHIP} aria-pressed={props.day === d} onClick={() => props.onDay(d)}>
+              {dayLabel(d)}
             </button>
           ))}
         </div>
@@ -687,7 +708,7 @@ function EnergyControls(props: {
       </div>
       <div className="flex flex-col gap-1.5 text-micro text-ink">
         <label className="inline-flex items-center gap-2">
-          <input type="checkbox" checked={props.showSolar} onChange={(e) => props.onSolar(e.target.checked)} /> Solar sites
+          <input type="checkbox" checked={props.showSolar} onChange={(e) => props.onSolar(e.target.checked)} /> Solar capacity
         </label>
         <label className="inline-flex items-center gap-2">
           <input type="checkbox" checked={props.showLabels} onChange={(e) => props.onLabels(e.target.checked)} /> Town labels
@@ -706,7 +727,7 @@ function EnergyControls(props: {
         <p className="text-micro text-ink-muted">Brighter columns carry more load. Height is the square root of MW.</p>
       )}
       <p className="text-micro text-ink-faint">
-        Boundaries: US Census. Utilities: MassGIS Electricity Providers. Mixed towns split evenly.
+        Boundaries: US Census. Utilities: MassGIS Electricity Providers.
       </p>
     </div>
   )
@@ -782,7 +803,7 @@ function Timeline({
       >
         {playing ? '❚❚' : '▶'}
       </button>
-      {LOAD_SHAPE.map((_, h) => (
+      {Array.from({ length: 24 }, (_, h) => (
         <button
           key={h}
           type="button"

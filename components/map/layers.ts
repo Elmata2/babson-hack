@@ -11,8 +11,7 @@
 import type { ExpressionSpecification, GeoJSONSource, Map as MlMap } from 'maplibre-gl'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { Lens } from './types'
-import type { SponsorKey } from '@/lib/elec-label'
-import { formatMW, solarAt, valueAt, type Metric, type Zone } from '@/lib/map/energy-model'
+import { metricMax, metricValue, type Metric, type Zone } from '@/lib/map/energy-model'
 import type { TownData, TractData } from './map-data'
 import { EJ_OPACITY, EJ_VIOLET, ENERGY_BG, HEAT_BREAKS, HEAT_RAMP, LIGHT_BG, NO_DATA, PROVIDER_COLOUR, SOLAR_COLOUR } from './palette'
 
@@ -28,7 +27,6 @@ export interface LensState {
   lens: Lens
   towns: TownData | null
   tracts: TractData | null
-  hour: number
   metric: Metric
   colourBy: 'provider' | 'intensity'
   region: Zone | 'ALL'
@@ -58,8 +56,10 @@ export const HIT_LAYERS: Record<Lens, string[]> = { street: [], heat: ['tracts-f
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 
-/** MW to metres: √MW, so a town ten times the load is about 3x as tall. */
-const HEIGHT_PER_ROOT_MW = 2600
+/** Metres for the metric's tallest town at the widest zoom. Height goes as the square root of the value. */
+const MAX_HEIGHT_M = 40000
+/** Towns labelled per metric: the tallest ones in the shown region. */
+const LABEL_TOP_N = 15
 const HEIGHT_EXPR: ExpressionSpecification = [
   'interpolate',
   ['linear'],
@@ -104,24 +104,33 @@ function selectedFeature(state: LensState): FeatureCollection {
 function energyData(state: LensState): { towns: FeatureCollection; points: FeatureCollection } | null {
   const data = state.towns
   if (!data) return null
-  const max = Math.max(...data.entries.map((e) => valueAt(e.energy, 17, 'demand')))
+  const max = metricMax(
+    data.entries.map((e) => e.energy),
+    state.metric,
+  )
+  const ranked = data.entries
+    .filter((e) => state.region === 'ALL' || e.energy.zone === state.region)
+    .map((e) => ({ key: e.key, v: metricValue(e.energy, state.metric) ?? 0 }))
+    .sort((a, b) => b.v - a.v)
+  const rank = new Map(ranked.map((r, i) => [r.key, i]))
   const points: Feature[] = []
   data.entries.forEach((e, i) => {
     const t = e.energy
     const inRegion = state.region === 'ALL' || t.zone === state.region
     const dim = !inRegion && e.key !== state.selectedKey
-    const v = valueAt(t, state.hour, state.metric)
+    const v = metricValue(t, state.metric)
     const props = data.collection.features[i].properties as Record<string, unknown>
-    props.height = dim ? 0 : Math.sqrt(v) * HEIGHT_PER_ROOT_MW
-    props.colour = dim
-      ? '#222c3d'
-      : state.colourBy === 'provider'
-        ? PROVIDER_COLOUR[t.provider as SponsorKey | 'mixed']
-        : intensityColour(Math.sqrt(v / max))
+    props.height = dim || v === null ? 0 : Math.sqrt(v / max) * MAX_HEIGHT_M
+    props.colour =
+      dim || v === null
+        ? '#222c3d'
+        : state.colourBy === 'provider'
+          ? PROVIDER_COLOUR[t.provider]
+          : intensityColour(Math.sqrt(v / max))
     points.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: t.centroid },
-      properties: { name: e.name, peakMW: t.peakMW, solar: solarAt(t, state.hour), mw: formatMW(v) },
+      properties: { name: e.name, rank: v === null ? 9999 : (rank.get(e.key) ?? 9999), solar: t.solarMW },
     })
   })
   return { towns: data.collection, points: { type: 'FeatureCollection', features: points } }
@@ -230,14 +239,14 @@ export function applyLens(map: MlMap, state: LensState): void {
       'circle-color': SOLAR_COLOUR,
       'circle-opacity': 0.75,
       'circle-blur': 0.3,
-      'circle-radius': ['interpolate', ['linear'], ['get', 'solar'], 0, 0, 20, 4, 120, 12],
+      'circle-radius': ['interpolate', ['linear'], ['get', 'solar'], 0, 0, 10, 4, 70, 12],
     },
   })
   addLayerOnce(map, {
     id: 'labels',
     type: 'symbol',
     source: 'points',
-    filter: ['>', ['get', 'peakMW'], 60],
+    filter: ['<', ['get', 'rank'], LABEL_TOP_N],
     layout: { 'text-field': ['get', 'name'], 'text-size': 11, 'text-font': ['Open Sans Regular'] },
     paint: { 'text-color': '#e6edf7', 'text-halo-color': '#0b1220', 'text-halo-width': 1.2 },
   })

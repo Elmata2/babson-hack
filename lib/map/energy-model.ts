@@ -1,33 +1,49 @@
 /**
- * @built F-72 the Energy lens's MOCK demand and solar model
+ * @built F-72 the Energy lens's model of town usage, solar and zonal load
+ * @built F-75 real figures: Mass Save usage, MassCEC solar, ISO-NE zonal load
  *
- * Nothing here is measured. Town demand is the statewide annual constant spread by
- * area and a hand-placed urban index; solar likewise. The shape of the day is a
- * fixed curve. It exists so the 3D columns and the polar clock have something to
- * move, and every surface that shows it says "Demand and solar figures are invented."
+ * Every number is read from `public/data/ma-town-energy.json` (see scripts/bake-town-energy.mjs)
+ * and carries its source and date in `_meta`. Nothing here estimates. A town that has no
+ * residential figure says why instead of getting one.
  *
- * Deterministic: a town name seeds its own jitter, so a reload draws the same map.
  * Pure: no clock, no network, no DOM.
  */
 
 import type { SponsorKey } from '@/lib/elec-label'
 
-export type Metric = 'demand' | 'solar' | 'net'
+export type Metric = 'usage' | 'solar'
 export type Zone = 'NEMA' | 'SEMA' | 'WCMA'
+export type Provider = SponsorKey | 'mixed'
 
-/** Statewide anchors the town figures must sum to. Invented, like the rest. */
-export const MA_ANNUAL_TWH = 55
-export const MA_SOLAR_MW = 4500
-/** Share of nameplate that reaches the grid at the sun's peak. */
-const SOLAR_DERATE = 0.8
+export type UsageStatus = 'reported' | 'municipal' | 'suppressed'
 
-/** Relative hourly demand, index 0 = midnight. */
-export const LOAD_SHAPE: readonly number[] = [
-  0.62, 0.58, 0.56, 0.55, 0.57, 0.63, 0.74, 0.84, 0.88, 0.89, 0.9, 0.9, 0.89, 0.88, 0.88, 0.9, 0.95, 1, 1, 0.97, 0.92, 0.84,
-  0.75, 0.67,
-]
-/** Relative hourly solar output, zero at night. */
-export const SOLAR_SHAPE: readonly number[] = Array.from({ length: 24 }, (_, h) => Math.max(0, Math.sin(((h - 6) / 12) * Math.PI)) ** 1.5)
+export interface BakedTown {
+  residentialMWh: number | null
+  usageStatus: UsageStatus
+  solarMW: number
+  solarSystems: number
+}
+
+/** MW per hour, index 0 = hour ending 1 AM, index 23 = hour ending midnight. */
+export type ZoneLoad = Record<Zone, number[]>
+
+export interface EnergyMeta {
+  sources: {
+    usage: { label: string; url: string; year: number; units: string; note: string }
+    solar: { label: string; url: string; asOf: string; units: string; note: string }
+    load: { label: string; url: string; days: string[]; units: string; note: string }
+  }
+}
+
+/** The shape of `ma-town-energy.json`, keyed by MassGIS upper-case town name. */
+export interface BakedEnergy {
+  _meta: EnergyMeta
+  towns: Record<string, BakedTown>
+  load: Record<string, ZoneLoad>
+}
+
+/** A town's residential electricity use, or the reason there is none. */
+export type Usage = { status: 'reported'; mwh: number } | { status: 'municipal' } | { status: 'suppressed' }
 
 /** ISO-NE load zone by county name. Bristol sits in SEMA, as in the prototype. */
 export const ZONE_BY_COUNTY: Record<string, Zone> = {
@@ -54,26 +70,15 @@ export const ZONE_LABEL: Record<Zone | 'ALL', string> = {
   WCMA: 'WCMA · Central & Western',
 }
 
-/** [lat, lng, weight]: where the mock puts the cities. */
-const CITIES: readonly [number, number, number][] = [
-  [42.36, -71.06, 12],
-  [42.37, -71.11, 5],
-  [42.26, -71.8, 3],
-  [42.1, -72.59, 3],
-  [42.64, -71.32, 2],
-  [41.64, -70.93, 1.5],
-  [42.08, -71.02, 1.5],
-  [41.7, -71.15, 1.5],
-  [42.71, -71.16, 1.5],
-  [42.45, -73.25, 1],
-]
+export const METRIC_LABEL: Record<Metric, string> = { usage: 'Residential use', solar: 'Installed solar' }
 
 export interface TownInput {
-  /** Any stable unique name; it seeds the jitter. */
+  /** MassGIS upper-case name, the key into the baked data. */
+  source: string
+  /** Display name. */
   town: string
   county: string
   centroid: [number, number]
-  areaKm2: number
   /** Sponsors that serve the town. Empty is treated as one unknown sponsor. */
   sponsors: SponsorKey[]
 }
@@ -82,87 +87,135 @@ export interface EnergyTown extends TownInput {
   zone: Zone
   mixed: boolean
   /** The sole sponsor, or 'mixed'. */
-  provider: SponsorKey | 'mixed'
-  annualMWh: number
-  /** MW when the load shape is 1. */
-  peakMW: number
-  /** Nameplate MW. */
+  provider: Provider
+  usage: Usage
+  /** Installed DC MW. */
   solarMW: number
+  solarSystems: number
 }
 
-function hash(text: string): number {
-  let h = 2166136261
-  for (const ch of text) h = Math.imul(h ^ ch.charCodeAt(0), 16777619)
-  return (h >>> 0) / 4294967295
+function usageOf(baked: BakedTown): Usage {
+  if (baked.usageStatus === 'reported') {
+    if (baked.residentialMWh === null) throw new Error('Reported usage has no value')
+    return { status: 'reported', mwh: baked.residentialMWh }
+  }
+  return { status: baked.usageStatus }
 }
 
-const AVG_LOAD = LOAD_SHAPE.reduce((a, b) => a + b, 0) / 24
-
-/** Spread the statewide constants over the towns. Totals equal the constants exactly. */
-export function buildEnergyTowns(inputs: readonly TownInput[]): EnergyTown[] {
-  const raw = inputs.map((t) => {
-    const [lng, lat] = t.centroid
-    const urban = CITIES.reduce((s, [cy, cx, w]) => s + w * Math.exp(-Math.hypot((lat - cy) * 111, (lng - cx) * 82) / 9), 0)
-    return {
-      demand: (t.areaKm2 * 0.4 + 6) * (0.15 + urban) * (0.8 + 0.4 * hash(t.town)),
-      solar: t.areaKm2 * (1.6 - Math.min(urban, 1.2)) * (0.6 + 0.8 * hash(`${t.town}s`)),
-    }
-  })
-  const sumD = raw.reduce((s, r) => s + r.demand, 0) || 1
-  const sumS = raw.reduce((s, r) => s + r.solar, 0) || 1
-  return inputs.map((t, i) => {
+export function buildEnergyTowns(inputs: readonly TownInput[], baked: BakedEnergy): EnergyTown[] {
+  return inputs.map((t) => {
+    const row = baked.towns[t.source]
+    if (!row) throw new Error(`No baked energy data for ${t.source}`)
     const sponsors: SponsorKey[] = t.sponsors.length > 0 ? t.sponsors : ['other']
-    const annualMWh = (raw[i].demand / sumD) * MA_ANNUAL_TWH * 1e6
     return {
       ...t,
       sponsors,
       zone: ZONE_BY_COUNTY[t.county] ?? 'WCMA',
       mixed: sponsors.length > 1,
       provider: sponsors.length > 1 ? 'mixed' : sponsors[0],
-      annualMWh,
-      peakMW: annualMWh / 8760 / AVG_LOAD,
-      solarMW: (raw[i].solar / sumS) * MA_SOLAR_MW,
+      usage: usageOf(row),
+      solarMW: row.solarMW,
+      solarSystems: row.solarSystems,
     }
   })
 }
 
-export function demandAt(t: EnergyTown, hour: number): number {
-  return t.peakMW * LOAD_SHAPE[hour]
+/** The metric's value for one town, or null when the town has none to draw. */
+export function metricValue(t: EnergyTown, metric: Metric): number | null {
+  if (metric === 'solar') return t.solarMW
+  return t.usage.status === 'reported' ? t.usage.mwh : null
 }
 
-export function solarAt(t: EnergyTown, hour: number): number {
-  return t.solarMW * SOLAR_SHAPE[hour] * SOLAR_DERATE
+export function metricMax(towns: readonly EnergyTown[], metric: Metric): number {
+  return towns.reduce((m, t) => Math.max(m, metricValue(t, metric) ?? 0), 0)
 }
 
-/** The metric's MW for one town at one hour. Net load is floored at zero. */
-export function valueAt(t: EnergyTown, hour: number, metric: Metric): number {
-  const demand = demandAt(t, hour)
-  const solar = solarAt(t, hour)
-  return metric === 'demand' ? demand : metric === 'solar' ? solar : Math.max(0, demand - solar)
+/** Why a town has no residential figure, or null when it has one. */
+export function usageNote(t: EnergyTown): string | null {
+  switch (t.usage.status) {
+    case 'reported':
+      return null
+    case 'municipal':
+      return 'Municipal light plant: not reported to Mass Save'
+    case 'suppressed':
+      return 'Suppressed by Mass Save for privacy'
+  }
 }
 
 export interface Totals {
-  demand: number
-  solar: number
-  /** Demand by sponsor; a mixed town splits evenly across its sponsors. */
-  byProvider: Partial<Record<SponsorKey, number>>
+  residentialMWh: number
+  reportedTowns: number
+  townCount: number
+  solarMW: number
+  solarSystems: number
+  /** Residential MWh by sponsor; a town served by several sponsors is its own 'mixed' bucket. */
+  byProvider: Partial<Record<Provider, number>>
 }
 
-export function totalsAt(towns: readonly EnergyTown[], hour: number): Totals {
-  const totals: Totals = { demand: 0, solar: 0, byProvider: {} }
+export function totalsOf(towns: readonly EnergyTown[]): Totals {
+  const totals: Totals = { residentialMWh: 0, reportedTowns: 0, townCount: towns.length, solarMW: 0, solarSystems: 0, byProvider: {} }
   for (const t of towns) {
-    const demand = demandAt(t, hour)
-    totals.demand += demand
-    totals.solar += solarAt(t, hour)
-    for (const s of t.sponsors) totals.byProvider[s] = (totals.byProvider[s] ?? 0) + demand / t.sponsors.length
+    totals.solarMW += t.solarMW
+    totals.solarSystems += t.solarSystems
+    if (t.usage.status !== 'reported') continue
+    totals.reportedTowns += 1
+    totals.residentialMWh += t.usage.mwh
+    totals.byProvider[t.provider] = (totals.byProvider[t.provider] ?? 0) + t.usage.mwh
   }
   return totals
 }
 
+/** Hourly MW for one zone, or the sum of the three for 'ALL'. */
+export function zoneLoad(baked: BakedEnergy, day: string, zone: Zone | 'ALL'): number[] {
+  const load = baked.load[day]
+  if (!load) throw new Error(`No load baked for ${day}`)
+  if (zone !== 'ALL') return load[zone]
+  return load.NEMA.map((mw, h) => mw + load.SEMA[h] + load.WCMA[h])
+}
+
+const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function monthOf(iso: string): number {
+  return Number(iso.slice(5, 7)) - 1
+}
+
+/** "Jan 15 2026". */
+export function formatDay(iso: string): string {
+  return `${MONTH[monthOf(iso)]} ${Number(iso.slice(8, 10))} ${iso.slice(0, 4)}`
+}
+
+/** "Winter" for Dec to Feb, "Summer" for Jun to Aug, else the date alone. */
+export function dayLabel(iso: string): string {
+  const m = monthOf(iso)
+  const season = m === 11 || m <= 1 ? 'Winter' : m >= 5 && m <= 7 ? 'Summer' : null
+  return season ? `${season} · ${formatDay(iso)}` : formatDay(iso)
+}
+
+/** "Residential use: Mass Save, 2023 · Solar: MassCEC, Jan 2025 · Load: ISO-NE via EIA-930, Jan 15 2026". */
+export function sourceLine(meta: EnergyMeta, day: string): string {
+  const { usage, solar, load } = meta.sources
+  const solarDate = `${MONTH[monthOf(solar.asOf)]} ${solar.asOf.slice(0, 4)}`
+  return `Residential use: ${usage.label}, ${usage.year} · Solar: ${solar.label}, ${solarDate} · Load: ${load.label}, ${formatDay(day)}`
+}
+
+/** The metric line for a town's tooltip, with the source and date. */
+export function describeTown(t: EnergyTown, metric: Metric, meta: EnergyMeta): string {
+  const { usage, solar } = meta.sources
+  if (metric === 'solar') return `${formatMW(t.solarMW)} solar installed (${solar.label}, ${MONTH[monthOf(solar.asOf)]} ${solar.asOf.slice(0, 4)})`
+  return t.usage.status === 'reported'
+    ? `${formatMWh(t.usage.mwh)} residential use (${usage.label}, ${usage.year})`
+    : (usageNote(t) ?? '')
+}
+
+/** Names the hour that starts at `h`, the hour the EIA series calls "hour ending h + 1". */
 export function hourLabel(h: number): string {
   return h === 0 ? '12 AM' : h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`
 }
 
 export function formatMW(mw: number): string {
   return mw >= 1000 ? `${(mw / 1000).toFixed(1)} GW` : mw >= 10 ? `${Math.round(mw)} MW` : `${mw.toFixed(1)} MW`
+}
+
+export function formatMWh(mwh: number): string {
+  return mwh >= 1e6 ? `${(mwh / 1e6).toFixed(2)} TWh` : mwh >= 1e3 ? `${Math.round(mwh / 1e3).toLocaleString('en-US')} GWh` : `${Math.round(mwh)} MWh`
 }
