@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import { CashFlow } from '@/components/cash-flow'
 import { FreshnessBadge } from '@/components/freshness-badge'
 import { InstallCostField } from '@/components/install-cost-field'
 import { RebateStack } from '@/components/rebate-stack'
