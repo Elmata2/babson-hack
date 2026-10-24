@@ -3,10 +3,8 @@ import Link from 'next/link'
 import { HeroMap } from '@/components/home/hero-map'
 import { CountUp } from '@/components/motion/count-up'
 import { Reveal } from '@/components/motion/reveal'
-import { FreshnessBadge } from '@/components/freshness-badge'
 import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
-import { DemoPresets } from '@/components/verdict/demo-presets'
 import { VerdictLegend } from '@/components/verdict-legend'
 import { demoFromParams, withDemo } from '@/lib/demo'
 import { formatDateShort } from '@/lib/freshness'
@@ -14,8 +12,8 @@ import { getPrices } from '@/lib/prices'
 
 /**
  * @built F-02 app shell — token-driven landing page
- * @built F-140 the hero and the header's "Create profile" are the two ways in; the
- * anonymous `/start` path stays one click away
+ * @built F-140 the hero's "Create your profile" is the way in; `/start` remains
+ * routable but is no longer linked from the front page
  * @built F-14 the fuel figure and its badge are read from the price adapter, so
  * the front page cannot drift from the verdict screen's source of truth
  * @built F-49 `?demo=1` reads the baked snapshot and threads the flag into every
@@ -76,32 +74,25 @@ export default async function Home({ searchParams }: HomeProps) {
       <SiteHeader demo={demo} quietAtTop />
 
       <main id="main" className="flex-1">
-        <section className="relative isolate overflow-hidden border-b border-rule bg-wash-warm">
+        <section className="relative isolate -mt-14 flex min-h-[min(40rem,88dvh)] items-center overflow-hidden bg-paper sm:-mt-16">
           <HeroMap />
-          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-wash-heat" />
-          <div className="relative mx-auto max-w-[1180px] px-5 pb-14 pt-14 sm:px-8 sm:pb-20 sm:pt-24">
-            <p className="rise text-eyebrow uppercase text-ink-muted" style={step(0)}>
-              Hackachusetts 2026 · Climate Tech · Challenge C2
-            </p>
-
+          <div className="relative mx-auto w-full max-w-[1180px] px-5 pb-20 pt-32 sm:px-8 sm:pb-28 sm:pt-36">
             <h1
-              className="rise mt-6 max-w-[20ch] text-balance text-display font-medium"
-              style={step(1)}
+              className="rise max-w-[15ch] text-balance text-display font-medium"
+              style={step(0)}
             >
               The honest heat pump verdict for Massachusetts.
             </h1>
 
-            <p className="rise mt-6 max-w-[58ch] text-lede text-ink-muted" style={step(2)}>
-              624,510 households here heat with oil — about $2.9 billion a winter. Give
-              Switchpoint an address and a heating bill and it answers one question — switch,
-              switch before 31 December, or leave it alone. When the numbers do not work, it
-              says so and prints the break-even electricity price instead.
+            <p className="rise mt-6 max-w-[44ch] text-lede text-ink-muted" style={step(1)}>
+              Two bills in, one answer out: switch, switch before 31 December, or leave it
+              alone. When the numbers do not work, it says so.
             </p>
 
-            <div className="rise mt-8 flex flex-wrap items-center gap-3" style={step(3)}>
+            <div className="rise mt-9" style={step(2)}>
               <Link
                 href={withDemo('/onboarding', demo)}
-                className="group inline-flex items-center gap-3 rounded-pill bg-ink px-5 py-3 text-small font-medium text-paper transition-[translate,scale,box-shadow] duration-200 ease-out-expo hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.6)] active:scale-[0.97]"
+                className="group inline-flex items-center gap-3 rounded-pill bg-ink px-6 py-3.5 text-small font-medium text-paper shadow-[0_14px_34px_-16px_rgba(0,0,0,0.55)] transition-[translate,scale,box-shadow] duration-200 ease-out-expo hover:-translate-y-0.5 hover:shadow-[0_18px_38px_-16px_rgba(0,0,0,0.6)] active:scale-[0.97]"
               >
                 Create your profile
                 <span
@@ -111,115 +102,84 @@ export default async function Home({ searchParams }: HomeProps) {
                   →
                 </span>
               </Link>
-              <Link
-                href={withDemo('/start', demo)}
-                className="rounded-card border border-rule-strong bg-surface px-5 py-3 text-small font-medium text-ink transition-[border-color,scale] duration-200 ease-out-expo hover:border-ink active:scale-[0.97]"
-              >
-                Try it without an account
-              </Link>
-              <FreshnessBadge
-                kind={prices.mode === 'live' ? 'live' : 'snapshot'}
-                date={prices.asOf}
-                label="Fuel prices"
-              />
             </div>
             {demo ? (
-              <p className="mt-3 max-w-[58ch] text-micro text-ink-muted">
-                <span className="font-medium text-ink">Demo mode.</span> Prices, explanations and provider
-                statuses come from baked data; address, parcel and bill reading fall back to manual entry. The
-                links keep <code className="font-mono text-[11px]">?demo=1</code> so the next screen stays
-                offline too.
+              <p className="mt-4 max-w-[58ch] text-micro text-ink-muted">
+                <span className="font-medium text-ink">Demo mode.</span> Prices and explanations come from
+                baked data; address, parcel and bill reading fall back to manual entry.
               </p>
             ) : null}
-            <p className="rise mt-3 max-w-[58ch] text-micro text-ink-muted" style={step(4)}>
-              A profile takes four steps and about two minutes: your name and email, one photo of a bill, your town,
-              then the verdict. The profile stays in this browser; the bill image is never stored.
-            </p>
-
-            <dl
-              className="rise glass mt-12 grid overflow-hidden rounded-card border border-rule shadow-soft sm:grid-cols-3"
-              style={step(5)}
-            >
-              {facts.map((fact, i) => (
-                <div
-                  key={fact.value}
-                  className={[
-                    'flex flex-col gap-2 p-5 sm:p-6',
-                    i > 0 ? 'border-t border-rule sm:border-l sm:border-t-0' : '',
-                  ].join(' ')}
-                >
-                  <dt className="text-small font-medium text-ink">{fact.label}</dt>
-                  <dd className="order-first">
-                    {fact.countUp ? (
-                      <CountUp
-                        value={fact.value}
-                        delayMs={400}
-                        className="text-title font-medium tracking-[-0.01em] text-ink"
-                      />
-                    ) : (
-                      <span className="text-title font-medium tabular-nums tracking-[-0.01em] text-ink">
-                        {fact.value}
-                      </span>
-                    )}
-                    {fact.unit ? (
-                      <span className="ml-1.5 text-small text-ink-faint">{fact.unit}</span>
-                    ) : null}
-                  </dd>
-                  <dd className="text-micro text-ink-muted">{fact.source}</dd>
-                </div>
-              ))}
-            </dl>
-
-            <p className="rise mt-4 max-w-[70ch] text-micro text-ink-muted" style={step(6)}>
-              The federal 25C heat pump credit expired on 31 December 2025. It is worth $0 on a
-              2026 install, and any calculator still counting it is quoting you money that no
-              longer exists.
-            </p>
           </div>
         </section>
 
-        <section className="border-b border-rule">
-          <div className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
-            <Reveal className="lift-cards">
-              <DemoPresets demo={demo} />
+        <section className="band-wash border-y border-rule">
+          <div className="mx-auto max-w-[1180px] px-5 py-14 sm:px-8 sm:py-20">
+            <Reveal>
+              <dl className="glass grid overflow-hidden rounded-card border border-rule shadow-soft sm:grid-cols-3">
+                {facts.map((fact, i) => (
+                  <div
+                    key={fact.value}
+                    className={[
+                      'flex flex-col gap-2 p-5 sm:p-7',
+                      i > 0 ? 'border-t border-rule sm:border-l sm:border-t-0' : '',
+                    ].join(' ')}
+                  >
+                    <dt className="text-small font-medium text-ink">{fact.label}</dt>
+                    <dd className="order-first">
+                      {fact.countUp ? (
+                        <CountUp
+                          value={fact.value}
+                          delayMs={400}
+                          className="text-title font-medium tracking-[-0.01em] text-ink"
+                        />
+                      ) : (
+                        <span className="text-title font-medium tabular-nums tracking-[-0.01em] text-ink">
+                          {fact.value}
+                        </span>
+                      )}
+                      {fact.unit ? (
+                        <span className="ml-1.5 text-small text-ink-faint">{fact.unit}</span>
+                      ) : null}
+                    </dd>
+                    <dd className="text-micro text-ink-muted">{fact.source}</dd>
+                  </div>
+                ))}
+              </dl>
             </Reveal>
           </div>
         </section>
 
-        <section className="border-b border-rule bg-paper-sunk">
-          <div className="mx-auto max-w-[1180px] px-5 py-14 sm:px-8 sm:py-20">
+        <section>
+          <div className="mx-auto max-w-[1180px] px-5 py-16 sm:px-8 sm:py-24">
             <Reveal>
-              <div className="flex flex-wrap items-baseline justify-between gap-4">
-                <h2 className="text-headline font-medium">Three answers. One of them is no.</h2>
-                <p className="text-micro text-ink-muted">
-                  The verdict palette — switch, deadline, hold
+              <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
+                <h2 className="max-w-[18ch] text-balance text-headline font-medium">
+                  Three answers. One of them is no.
+                </h2>
+                <p className="max-w-[40ch] text-small text-ink-muted">
+                  Rebates are paid by the utility serving the address, and municipal light plant
+                  towns are not eligible at all. Switchpoint resolves the sponsor before it prints a
+                  dollar figure.
                 </p>
               </div>
             </Reveal>
 
             <Reveal index={1} className="lift-cards">
-              <VerdictLegend className="mt-8" />
-            </Reveal>
-
-            <Reveal index={2}>
-              <p className="mt-8 max-w-[62ch] text-small text-ink-muted">
-                Mass Save rebates are paid by the utility sponsor serving the address, and
-                municipal light plant towns — Wellesley, Belmont, Holyoke and dozens more — are not
-                eligible for Mass Save electric rebates at all. Switchpoint resolves the sponsor
-                before it prints a dollar figure.
-              </p>
+              <VerdictLegend className="mt-12" />
             </Reveal>
           </div>
         </section>
 
-        <section className="bg-wash-switch">
-          <div className="mx-auto grid max-w-[1180px] gap-10 px-5 py-14 sm:px-8 sm:py-20 md:grid-cols-[1fr_1.2fr]">
+        <section className="band-wash border-t border-rule">
+          <div className="mx-auto grid max-w-[1180px] gap-12 px-5 py-16 sm:px-8 sm:py-24 md:grid-cols-[1fr_1.2fr]">
             <Reveal>
-              <h2 className="text-title font-medium">Every figure carries its source and its date.</h2>
-              <p className="mt-3 max-w-[42ch] text-small text-ink-muted">
-                Any number on screen expands to the formula, the values that went into it, and
-                the day the source published them. If a source is missing, the screen says
-                <span className="text-ink"> verify</span> rather than guessing.
+              <h2 className="max-w-[16ch] text-balance text-headline font-medium">
+                Every figure carries its source.
+              </h2>
+              <p className="mt-4 max-w-[40ch] text-small text-ink-muted">
+                Any number on screen expands to the formula, its inputs and the day the source
+                published them. When a source is missing, the screen says
+                <span className="text-ink"> verify</span> instead of guessing.
               </p>
             </Reveal>
 
@@ -232,7 +192,7 @@ export default async function Home({ searchParams }: HomeProps) {
               <SourceRow
                 index={2}
                 term="Rebate rules"
-                detail="Mass Save program documents, encoded as versioned JSON — 2026 and 2027 — and property-tested so a wrong tier cannot reach the screen."
+                detail="Mass Save program documents, encoded as versioned JSON for 2026 and 2027 and property-tested so a wrong tier cannot reach the screen."
               />
               <SourceRow
                 index={3}

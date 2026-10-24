@@ -1,10 +1,12 @@
 import Link from 'next/link'
 
 import { HeaderShell } from '@/components/motion/header-shell'
+import { ProfileLink } from '@/components/profile/profile-link'
 import { withDemo } from '@/lib/demo'
 
 /*
- * Site header — wordmark and one profile button. Sticky, hairline-bordered, and
+ * Site header — wordmark, and a profile button that appears only once a household
+ * has finished the profile (see `lib/profile/completion`). Sticky, hairline-bordered,
  * deliberately thin: the page belongs to the verdict, not to chrome.
  *
  * @built F-49 the optional `demo` prop keeps `?demo=1` on the wordmark and the
@@ -25,24 +27,9 @@ export function SiteHeader({ demo = false, quietAtTop = false }: { demo?: boolea
           <span className="text-small font-medium tracking-[-0.01em]">Switchpoint</span>
         </Link>
 
-        <Link
-          href={withDemo('/onboarding', demo)}
-          aria-label="Your profile"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-pill border border-rule-strong text-ink transition-colors hover:bg-ink hover:text-paper"
-        >
-          <ProfileIcon className="h-[18px] w-[18px]" />
-        </Link>
+        <ProfileLink demo={demo} />
       </div>
     </HeaderShell>
-  )
-}
-
-function ProfileIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-      <circle cx="12" cy="8.5" r="3.5" />
-      <path d="M5 20c.8-3.6 3.7-5.5 7-5.5s6.2 1.9 7 5.5" />
-    </svg>
   )
 }
 
