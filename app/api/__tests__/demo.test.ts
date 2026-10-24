@@ -72,7 +72,7 @@ function outreachBody(overrides: Partial<OutreachRequest> = {}): OutreachRequest
       unit: 'gal',
       deliverySizeGal: 150,
       tankSizeGal: 275,
-      deliveryWindow: 'next two weeks',
+      deliveryWindow: 'morning',
       sqft: null,
       tons: null,
     },

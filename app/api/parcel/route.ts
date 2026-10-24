@@ -20,7 +20,9 @@
 import { DEMO_MESSAGES, demoFromRequest, demoUnavailable } from '@/lib/demo'
 import { parcelAt } from '@/lib/parcel'
 
-export const revalidate = 86_400
+export const dynamic = 'force-dynamic'
+
+const NO_STORE = { 'cache-control': 'no-store' }
 
 const TIMEOUT_MS = 4_000
 
@@ -46,7 +48,7 @@ export async function GET(request: Request): Promise<Response> {
   if (lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
     return Response.json(
       { ok: false, code: 'bad_request', message: 'Pass a decimal coordinate: /api/parcel?lat=42.2992&lon=-71.4342' },
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
     )
   }
 
@@ -73,7 +75,7 @@ export async function GET(request: Request): Promise<Response> {
               : 'parcel: no assessor record at this coordinate — enter the year built by hand',
           ],
         },
-        { headers: { 'cache-control': 'public, s-maxage=604800' } },
+        { headers: NO_STORE },
       )
     }
     if (outcome.error.code === 'invalid') {
@@ -85,7 +87,7 @@ export async function GET(request: Request): Promise<Response> {
         code: 'upstream_error',
         message: `MassGIS parcels did not answer within ${TIMEOUT_MS / 1000}s. Continue without the parcel prefill; nothing in the verdict depends on it.`,
       },
-      { status: 504 },
+      { status: 504, headers: NO_STORE },
     )
   }
 
@@ -106,6 +108,6 @@ export async function GET(request: Request): Promise<Response> {
       },
       degraded: [],
     },
-    { headers: { 'cache-control': 'public, s-maxage=2592000' } },
+    { headers: NO_STORE },
   )
 }

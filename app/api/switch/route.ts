@@ -18,6 +18,11 @@
  */
 
 import { DEMO_MESSAGES, demoFromRequest, isDemoFlag } from '@/lib/demo'
+import { chargeOutbound } from '@/lib/security/outbound-cap'
+import { clientIp } from '@/lib/security/rate-limit'
+import { outreachMode } from '@/lib/security/operator'
+import { consentSecretReady } from '@/lib/security/secret'
+import { consumeConsentToken, verifyConsentToken } from '@/lib/switch/consent-token'
 import { nextCallWindow, validateOutreachRequest, withinBusinessHours } from '@/lib/switch/consent'
 import { sendEmail } from '@/lib/switch/outreach'
 import { loadProviders, outreachPlan } from '@/lib/switch/providers'
@@ -27,6 +32,7 @@ import type { OutreachResult, ProviderStatus, SwitchProvider } from '@/lib/switc
 export const dynamic = 'force-dynamic'
 
 const NO_STORE = { 'cache-control': 'no-store' }
+const SESSION_ID = /^[a-z0-9][a-z0-9-]{7,63}$/
 
 function refuse(status: number, code: string, message: string): Response {
   return Response.json({ ok: false, code, message }, { status, headers: NO_STORE })
@@ -65,6 +71,20 @@ export async function POST(request: Request): Promise<Response> {
   const demo =
     demoFromRequest(request) ||
     (typeof body === 'object' && body !== null && isDemoFlag((body as { demo?: unknown }).demo))
+
+  const mode = demo ? 'off' : outreachMode(payload.facts.town)
+  if (mode !== 'off') {
+    const raw = body as { sessionId?: unknown; consentToken?: unknown }
+    const sessionId = typeof raw.sessionId === 'string' && SESSION_ID.test(raw.sessionId) ? raw.sessionId : null
+    if (sessionId === null) return refuse(400, 'bad_session', 'A live request needs a session id.')
+    if (!consentSecretReady()) {
+      return refuse(503, 'consent_secret_not_configured', 'Live outreach needs CONSENT_SECRET (32+ characters). Nothing was sent.')
+    }
+    const consent = verifyConsentToken(raw.consentToken, payload, sessionId, mode)
+    if (!consent.ok) {
+      return refuse(403, consent.code, 'Consent could not be verified. Approve the facts on the consent screen again.')
+    }
+  }
 
   const providers = loadProviders()
   const byId = new Map(providers.map((provider) => [provider.id, provider]))
@@ -120,6 +140,10 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(result, { headers: NO_STORE })
   }
 
+  if (!consumeConsentToken((body as { consentToken?: unknown }).consentToken, now)) {
+    return refuse(403, 'used_consent', 'That consent was already used. Approve the facts on the consent screen again.')
+  }
+
   if (plan.mode === 'allowlist') {
     const statuses = selected.map(({ provider, channel }) =>
       statusFor(
@@ -140,6 +164,14 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // ---- live: email only. Phone is stated as unsupported, never simulated. ----
+  const charged = chargeOutbound(clientIp(request.headers), selected.length, now.getTime())
+  if (!charged.ok) {
+    return Response.json(
+      { ok: false, code: 'outbound_cap', message: 'Sending limit reached. Try again later; the switch kit still works.' },
+      { status: 429, headers: { ...NO_STORE, 'retry-after': String(charged.retryAfterSeconds) } },
+    )
+  }
+
   const text =
     payload.kind === 'fuel' ? fuelRequestText(payload.facts) : installerRequestText(payload.facts)
   const subject = requestSubject(payload.kind, payload.facts)

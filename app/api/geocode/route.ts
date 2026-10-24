@@ -22,7 +22,10 @@ import { DEMO_MESSAGES, demoFromRequest, demoUnavailable } from '@/lib/demo'
 import { geocodeAddress } from '@/lib/geocode'
 import { countyOfFips, locateTown } from '@/lib/geo'
 
-export const revalidate = 2_592_000
+export const dynamic = 'force-dynamic'
+
+const MAX_QUERY = 120
+const NO_STORE = { 'cache-control': 'no-store' }
 
 /** Census matches "…, WELLESLEY, MA, 02482": the town is the third part from the end. */
 function townFromMatchedAddress(matchedAddress: string): { town: string | null; known: boolean } {
@@ -46,7 +49,7 @@ export async function GET(request: Request): Promise<Response> {
     // No baked address index exists, and inventing one would be worse than the
     // manual path the form already offers.
     return Response.json(demoUnavailable(DEMO_MESSAGES.geocode, 'town_list'), {
-      headers: { 'cache-control': 'no-store' },
+      headers: NO_STORE,
     })
   }
 
@@ -59,7 +62,13 @@ export async function GET(request: Request): Promise<Response> {
         code: 'missing_address',
         message: 'Pass a street address: /api/geocode?q=1+Main+St,+Framingham,+MA',
       },
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
+    )
+  }
+  if (address.length > MAX_QUERY) {
+    return Response.json(
+      { ok: false, code: 'bad_request', message: 'That query is too long for a street address.' },
+      { status: 400, headers: NO_STORE },
     )
   }
 
@@ -77,7 +86,7 @@ export async function GET(request: Request): Promise<Response> {
             ? 'The Census geocoder did not match that address. Enter the town and heating details by hand — the verdict does not need the coordinate.'
             : 'The Census geocoder is unreachable. Enter the town and heating details by hand.',
       },
-      { status: error.code === 'no_match' ? 404 : 502 },
+      { status: error.code === 'no_match' ? 404 : 502, headers: NO_STORE },
     )
   }
 
@@ -99,6 +108,6 @@ export async function GET(request: Request): Promise<Response> {
       tract: result.tract,
       degraded: town.known ? [] : ['town: the matched place name is not a Massachusetts municipality'],
     },
-    { headers: { 'cache-control': 'public, s-maxage=2592000, stale-while-revalidate=604800' } },
+    { headers: NO_STORE },
   )
 }

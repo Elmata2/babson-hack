@@ -70,6 +70,9 @@ export interface SwitchProvider {
   towns?: string[]
 }
 
+export const DELIVERY_WINDOWS = ['any', 'morning', 'afternoon', 'evening'] as const
+export type DeliveryWindow = (typeof DELIVERY_WINDOWS)[number]
+
 /**
  * R18.1: every fact the agent may share, and nothing else.
  * `null` means "we do not know it", not "leave it out of the sentence".
@@ -84,7 +87,7 @@ export interface SharedFacts {
   /** Default 150 gal, editable (R18.1). */
   deliverySizeGal: number
   tankSizeGal: number | null
-  deliveryWindow: string | null
+  deliveryWindow: DeliveryWindow | null
   /** Installer questions only, but carried in one object so one validator covers both. */
   sqft: number | null
   tons: number | null

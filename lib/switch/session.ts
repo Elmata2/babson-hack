@@ -11,14 +11,15 @@
  * rather than half-trusted.
  */
 
-import type {
-  ContactStatus,
-  ProviderStatus,
-  SharedFacts,
-  StoredSwitch,
-  SwitchChoice,
-  SwitchKind,
-  SwitchStage,
+import {
+  DELIVERY_WINDOWS,
+  type ContactStatus,
+  type ProviderStatus,
+  type SharedFacts,
+  type StoredSwitch,
+  type SwitchChoice,
+  type SwitchKind,
+  type SwitchStage,
 } from './types'
 
 export const SWITCH_KEY = 'switchpoint.switch.v1'
@@ -107,7 +108,7 @@ function readFacts(value: unknown): SharedFacts | null {
     unit: (value.unit as SharedFacts['unit']) ?? null,
     deliverySizeGal: value.deliverySizeGal,
     tankSizeGal: typeof value.tankSizeGal === 'number' ? value.tankSizeGal : null,
-    deliveryWindow: typeof value.deliveryWindow === 'string' ? value.deliveryWindow : null,
+    deliveryWindow: DELIVERY_WINDOWS.find((window) => window === value.deliveryWindow) ?? null,
     sqft: typeof value.sqft === 'number' ? value.sqft : null,
     tons: typeof value.tons === 'number' ? value.tons : null,
   }

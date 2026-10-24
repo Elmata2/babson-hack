@@ -17,6 +17,7 @@ import { parseConversation } from '@/lib/calls/parse'
 import { agentReady, agentFrom, callPlan } from '@/lib/calls/plan'
 import { callRecord, elapsedOf, parseRefs, type CallRef } from '@/lib/calls/route-model'
 import type { CallPoll, CallRecord, Vertical } from '@/lib/calls/types'
+import { openCallId } from '@/lib/switch/consent-token'
 import { directoryFor } from '@/lib/switch/directory'
 import type { SwitchProvider } from '@/lib/switch/types'
 
@@ -24,6 +25,39 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const NO_STORE = { 'cache-control': 'no-store' }
+const SESSION_ID = /^[a-z0-9][a-z0-9-]{7,63}$/
+
+type OpenRef = CallRef & { signed: string }
+
+function badRef(): Response {
+  return Response.json(
+    { ok: false, code: 'bad_call_ref', message: 'That call reference was not issued for this session.' },
+    { status: 403, headers: NO_STORE },
+  )
+}
+
+/** Vendor ids for refs this session issued; null if any ref is foreign. Demo ids pass through. */
+function openRefs(refs: CallRef[], sessionId: string): OpenRef[] | null {
+  const opened: OpenRef[] = []
+  for (const ref of refs) {
+    if (isDemoConversationId(ref.conversationId)) {
+      opened.push({ ...ref, signed: ref.conversationId })
+      continue
+    }
+    const id = openCallId(ref.conversationId, sessionId)
+    if (id === null) return null
+    opened.push({ ...ref, conversationId: id, signed: ref.conversationId })
+  }
+  return opened
+}
+
+/** An ISO-8601 instant within a week of now, normalised; anything else is now. */
+function sinceOf(raw: string | null): string {
+  const parsed = raw === null ? Number.NaN : Date.parse(raw)
+  return Number.isNaN(parsed) || Math.abs(parsed - Date.now()) > 7 * 24 * 60 * 60_000
+    ? new Date().toISOString()
+    : new Date(parsed).toISOString()
+}
 
 function providerFor(ref: CallRef, town: string): SwitchProvider | null {
   return directoryFor(town).find((provider) => provider.id === ref.providerId) ?? null
@@ -34,20 +68,26 @@ function verticalOf(provider: SwitchProvider | null): Vertical {
 }
 
 export async function GET(request: Request, ctx: { params: Promise<{ sessionId: string }> }): Promise<Response> {
-  await ctx.params
+  const { sessionId } = await ctx.params
+  if (!SESSION_ID.test(sessionId)) return badRef()
   const url = new URL(request.url)
-  const refs = parseRefs(url)
+  const parsedRefs = parseRefs(url)
   const town = url.searchParams.get('town') ?? ''
-  const startedAt = url.searchParams.get('since') ?? new Date().toISOString()
+  const startedAt = sinceOf(url.searchParams.get('since'))
   const elapsed = elapsedOf(url)
-  const demo = demoFromRequest(request) || refs.some((ref) => isDemoConversationId(ref.conversationId))
+  const demo = demoFromRequest(request) || parsedRefs.some((ref) => isDemoConversationId(ref.conversationId))
 
-  if (refs.length === 0) {
+  if (parsedRefs.length === 0) {
     return Response.json(
       { ok: false, code: 'no_calls', message: 'Send the conversation ids to poll: ?call=<id>:<providerId>.' },
       { status: 400, headers: NO_STORE },
     )
   }
+
+  const refs: OpenRef[] | null = demo
+    ? parsedRefs.map((ref) => ({ ...ref, signed: ref.conversationId }))
+    : openRefs(parsedRefs, sessionId)
+  if (refs === null) return badRef()
 
   if (demo) {
     const records = refs.map((ref) => {
@@ -88,7 +128,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ sessionId: 
     if (!fetched.ok) {
       records.push({
         ...callRecord(provider ?? stubProvider(ref.providerId), 'failed', fetched.message),
-        conversationId: ref.conversationId,
+        conversationId: ref.signed,
       })
       continue
     }
@@ -100,7 +140,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ sessionId: 
       providerId: ref.providerId,
       providerName: provider?.name ?? ref.providerId,
       vertical: verticalOf(provider),
-      conversationId: ref.conversationId,
+      conversationId: ref.signed,
       status: parsed.status,
       at: new Date().toISOString(),
       durationSeconds: parsed.durationSeconds,
@@ -123,15 +163,19 @@ export async function GET(request: Request, ctx: { params: Promise<{ sessionId: 
 }
 
 export async function DELETE(request: Request, ctx: { params: Promise<{ sessionId: string }> }): Promise<Response> {
-  await ctx.params
+  const { sessionId } = await ctx.params
+  if (!SESSION_ID.test(sessionId)) return badRef()
   const url = new URL(request.url)
-  const refs = parseRefs(url)
-  if (refs.length === 0) {
+  const parsedRefs = parseRefs(url)
+  if (parsedRefs.length === 0) {
     return Response.json(
       { ok: false, code: 'no_calls', message: 'Name the conversations to delete: ?call=<conversationId>.' },
       { status: 400, headers: NO_STORE },
     )
   }
+
+  const refs = openRefs(parsedRefs, sessionId)
+  if (refs === null) return badRef()
 
   const agent = agentFrom()
   const deleted: string[] = []
@@ -140,16 +184,16 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ sessionI
 
   for (const ref of refs) {
     if (isDemoConversationId(ref.conversationId)) {
-      skipped.push(ref.conversationId)
+      skipped.push(ref.signed)
       continue
     }
     if (!agentReady(agent)) {
-      failed.push({ conversationId: ref.conversationId, message: 'No voice platform key is configured on this deployment.' })
+      failed.push({ conversationId: ref.signed, message: 'No voice platform key is configured on this deployment.' })
       continue
     }
     const result = await deleteConversation(ref.conversationId, agent)
-    if (result.ok) deleted.push(ref.conversationId)
-    else failed.push({ conversationId: ref.conversationId, message: result.message })
+    if (result.ok) deleted.push(ref.signed)
+    else failed.push({ conversationId: ref.signed, message: result.message })
   }
 
   return Response.json({ ok: failed.length === 0, deleted, skipped, failed }, { headers: NO_STORE })

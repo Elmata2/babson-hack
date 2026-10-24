@@ -6,7 +6,9 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { FreshnessBadge } from '@/components/freshness-badge'
 import { demoFromLocation, isDemo, withDemo } from '@/lib/demo'
 import { CHOICE_COPY, kindOf } from '@/lib/switch/choices'
-import { DEFAULT_DELIVERY_GALLONS, NEVER_SAID, buildFacts, disclosureRows } from '@/lib/switch/consent'
+import { DEFAULT_DELIVERY_GALLONS, NEVER_SAID, WINDOW_LABEL, buildFacts, disclosureRows } from '@/lib/switch/consent'
+import { requestConsentToken } from '@/lib/switch/consent-client'
+import { DELIVERY_WINDOWS, type DeliveryWindow } from '@/lib/switch/types'
 import type { SwitchModel } from '@/lib/switch/model'
 import {
   CONTACT_STATUS_LABEL,
@@ -96,7 +98,7 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
   const [zip, setZip] = useState('')
   const [delivery, setDelivery] = useState(String(DEFAULT_DELIVERY_GALLONS))
   const [tank, setTank] = useState('')
-  const [deliveryWindow, setDeliveryWindow] = useState('')
+  const [deliveryWindow, setDeliveryWindow] = useState<DeliveryWindow | ''>('')
   const [outreachOverride, setOutreachOverride] = useState<OutreachResult | null>(
     entry.kit && (choice === 'SHOP_FUEL' || choice === 'SWITCH_HEAT_PUMP') ? KIT_NOTICE : null,
   )
@@ -137,7 +139,7 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
         tons: model.tons,
         deliverySizeGal: clampDelivery(delivery),
         tankSizeGal: Number(tank) > 0 ? Number(tank) : null,
-        deliveryWindow: deliveryWindow.trim() || null,
+        deliveryWindow: deliveryWindow || null,
       }),
     [model.town, model.fuel, model.annualUnits, model.sqft, model.tons, zip, delivery, tank, deliveryWindow],
   )
@@ -202,12 +204,22 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
           channel: channel[provider.id] ?? provider.channels[0] ?? 'email',
         })),
         consentAt: new Date().toISOString(),
+        sessionId,
       }
       const demo = demoFromLocation()
+      let consentToken: string | undefined
+      if (!demo) {
+        const receipt = await requestConsentToken(body)
+        if (!receipt.ok) {
+          setError(receipt.message)
+          return
+        }
+        consentToken = receipt.consentToken
+      }
       const response = await fetch(withDemo('/api/switch', demo), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(demo ? { ...body, demo: true } : body),
+        body: JSON.stringify(demo ? { ...body, demo: true } : { ...body, consentToken }),
       })
       const payload = (await response.json()) as OutreachResult & { message?: string }
       if (!response.ok || payload.ok !== true) {
@@ -318,12 +330,18 @@ export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowPr
                   />
                 </Labeled>
                 <Labeled label="Delivery window (optional)">
-                  <input
+                  <select
                     value={deliveryWindow}
-                    onChange={(event) => setDeliveryWindow(event.target.value.slice(0, 40))}
-                    placeholder="next two weeks"
+                    onChange={(event) => setDeliveryWindow(event.target.value as DeliveryWindow | '')}
                     className={INPUT}
-                  />
+                  >
+                    <option value="">Not specified</option>
+                    {DELIVERY_WINDOWS.map((window) => (
+                      <option key={window} value={window}>
+                        {WINDOW_LABEL[window]}
+                      </option>
+                    ))}
+                  </select>
                 </Labeled>
                 <label className="flex items-center gap-2 text-small text-ink-muted sm:col-span-2">
                   <input

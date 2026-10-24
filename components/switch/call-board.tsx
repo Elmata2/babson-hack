@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildBoard, type CallBoard as Board } from '@/lib/calls/board'
 import { demoDurationMs, fixtureRecord, isDemoConversationId } from '@/lib/calls/fixtures'
 import type { CallMode, CallPoll, CallRecord, CallStart } from '@/lib/calls/types'
+import { requestConsentToken } from '@/lib/switch/consent-client'
 import type { SharedFacts, SwitchProvider } from '@/lib/switch/types'
 import { withDemo } from '@/lib/demo'
 import { withUnitPrice } from '@/lib/intake/params'
@@ -137,10 +138,16 @@ export function CallBoard({ mode, providers, facts, usage, query, sessionId, dem
         consentAt: new Date().toISOString(),
         sessionId,
       }
+      const receipt = await requestConsentToken(body)
+      if (!receipt.ok) {
+        setError(receipt.message)
+        setRunning(false)
+        return
+      }
       const response = await fetch(withDemo('/api/calls', false), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, consentToken: receipt.consentToken }),
       })
       const payload = (await response.json()) as CallStart & { message?: string }
       if (!response.ok || payload.ok !== true) {
