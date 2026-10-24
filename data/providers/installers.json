@@ -1,0 +1,26 @@
+[
+  {
+    "id": "test-installer-a",
+    "name": "Team test line — installer A",
+    "kind": "installer",
+    "channels": ["phone"],
+    "phone": "+15550100011",
+    "email": null,
+    "towns": [],
+    "source": "Team allowlist · 555-0100–555-0199 is the reserved fiction range, so this is not a real business",
+    "asOf": "2026-10-24",
+    "allowlist": true
+  },
+  {
+    "id": "test-installer-b",
+    "name": "Team test line — installer B",
+    "kind": "installer",
+    "channels": ["phone"],
+    "phone": "+15550100012",
+    "email": null,
+    "towns": [],
+    "source": "Team allowlist · 555-0100–555-0199 is the reserved fiction range, so this is not a real business",
+    "asOf": "2026-10-24",
+    "allowlist": true
+  }
+]

@@ -26,7 +26,7 @@ const EVENTS_FILE = path.join(LOG_DIR, 'events.jsonl')
 const TASKS_FILE = path.join(ROOT, '.kiro', 'specs', 'switchpoint', 'tasks.md')
 const OUT_FILE = path.join(ROOT, 'BUILDLOG.md')
 
-const SCAN_DIRS = ['src', 'lib', 'app', 'components', 'data', 'scripts', '.kiro/specs']
+const SCAN_DIRS = ['src', 'lib', 'app', 'components', 'data', 'scripts', 'agents', '.kiro/specs']
 const SCAN_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json', '.css', '.md'])
 const SKIP = new Set(['node_modules', '.next', '.git', '.vercel', 'dist', 'out', '.buildlog'])
 

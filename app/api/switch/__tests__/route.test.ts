@@ -176,3 +176,21 @@ describe('POST /api/switch', () => {
     expect((await read(response)).ok).toBe(false)
   })
 })
+
+describe('@built F-49 demo mode on the send path', () => {
+  it('accepts the demo flag in the body — the shape the switch screen actually sends', async () => {
+    // Regression: `demo` was not on the closed key list, so the demo body was refused
+    // as an unknown field before the flag could be read. The screen sent exactly this.
+    vi.stubEnv('PROVIDER_ALLOWLIST_JSON', JSON.stringify([TEAM_LINE]))
+    const body = await read(await POST(post({ ...payload(), demo: true })))
+    expect(body.ok).toBe(true)
+    expect(body.mode).toBe('demo')
+    expect(String(body.notice)).toMatch(/nothing was dialled/i)
+  })
+
+  it('accepts a session id, which the call flow carries alongside the same consent body', async () => {
+    vi.stubEnv('PROVIDER_ALLOWLIST_JSON', JSON.stringify([TEAM_LINE]))
+    const body = await read(await POST(post({ ...payload(), sessionId: 'session-abc123', demo: true })))
+    expect(body.mode).toBe('demo')
+  })
+})

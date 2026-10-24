@@ -30,10 +30,12 @@ import type {
   SwitchProvider,
 } from '@/lib/switch/types'
 import { monthlyDifferenceUsd } from '@/lib/supply'
+import { CallBoard } from './call-board'
 import { SwitchKit } from './switch-kit'
 
 /**
  * @built F-148 / F-149 the switch flow — best case, decision gate, consent, quotes, decision
+ * @built F-126 the consent screen — what an agent may say, to whom, and only after a confirm (R18)
  *
  * Addendum B steps 5–6, on the same numbers the verdict screen rendered. Three
  * rules shape the whole screen:
@@ -56,6 +58,8 @@ export interface SwitchFlowProps {
   model: SwitchModel
   providers: SwitchProvider[]
   plan: { mode: 'off' | 'allowlist' | 'live'; reason: string | null; notice: string | null }
+  /** The dial plan from `lib/calls/plan.ts`. Separate from the email plan: R19.8. */
+  call: { mode: 'off' | 'allowlist' | 'live'; reason: string | null; notice: string | null }
   entry: { choice: SwitchChoice; kit: boolean }
 }
 
@@ -85,7 +89,7 @@ function statusTone(status: ContactStatus): string {
   return 'text-switch border-switch-edge bg-switch-tint'
 }
 
-export function SwitchFlow({ model, providers, plan, entry }: SwitchFlowProps) {
+export function SwitchFlow({ model, providers, plan, call, entry }: SwitchFlowProps) {
   const choice = entry.choice
   const [picked, setPicked] = useState<Record<string, boolean>>({})
   const [channel, setChannel] = useState<Record<string, 'email' | 'phone'>>({})
@@ -100,6 +104,10 @@ export function SwitchFlow({ model, providers, plan, entry }: SwitchFlowProps) {
   const [error, setError] = useState<string | null>(null)
   const [supplierCents, setSupplierCents] = useState('')
   const [monthlyKwh, setMonthlyKwh] = useState('')
+  const [paysByCard, setPaysByCard] = useState(false)
+  const [callOpen, setCallOpen] = useState(false)
+  // Opaque, per-tab, and never sent to a provider. It names the poll URL (ADR-010).
+  const [sessionId] = useState(() => (globalThis.crypto?.randomUUID ? `s-${globalThis.crypto.randomUUID()}` : 's-local-session'))
 
   // The request is an external store, so it hydrates without an effect and without
   // a cascading render. A request from another house must not show up as this one's.
@@ -134,11 +142,16 @@ export function SwitchFlow({ model, providers, plan, entry }: SwitchFlowProps) {
     [model.town, model.fuel, model.annualUnits, model.sqft, model.tons, zip, delivery, tank, deliveryWindow],
   )
 
-  // A provider is only actionable when this deployment can actually reach it.
-  // With outreach off the list is shown as context in the plan reason instead.
-  const contactable = plan.mode === 'off' ? [] : providers
+  const demoNow = demoFromLocation()
+  // A provider is reachable when either path can reach it: an email sender, or an
+  // agent that may dial. With both off the list is shown as context in the reason.
+  const contactable = plan.mode === 'off' && call.mode === 'off' && !demoNow ? [] : providers
   const selectedProviders = contactable.filter((provider) => picked[provider.id])
   const selectedKind = kindOf(choice)
+  const channelOf = (provider: SwitchProvider) => channel[provider.id] ?? provider.channels[0] ?? 'email'
+  const allPhoneSelected =
+    selectedProviders.length > 0 && selectedProviders.every((provider) => channelOf(provider) === 'phone')
+  const callAllowed = call.mode !== 'off' || demoNow
   const kitSupply = {
     basicCents: model.supply.basic?.centsPerKwh ?? null,
     basicSource: model.supply.basic
@@ -312,6 +325,15 @@ export function SwitchFlow({ model, providers, plan, entry }: SwitchFlowProps) {
                     className={INPUT}
                   />
                 </Labeled>
+                <label className="flex items-center gap-2 text-small text-ink-muted sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={paysByCard}
+                    onChange={(event) => setPaysByCard(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  I pay by card, so a card surcharge counts in the comparison.
+                </label>
               </>
             ) : null}
           </div>
@@ -394,13 +416,23 @@ export function SwitchFlow({ model, providers, plan, entry }: SwitchFlowProps) {
             {contactable.length > 0 ? (
               <button
                 type="button"
-                onClick={contact}
+                onClick={() => {
+                  // A phone row is dialled by the agent; an email row is sent. Both
+                  // are behind the same confirm, and neither happens on a tick alone.
+                  if (allPhoneSelected && callAllowed) {
+                    setCallOpen(true)
+                    return
+                  }
+                  void contact()
+                }}
                 disabled={submitting || selectedProviders.length === 0}
                 className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper disabled:opacity-40"
               >
                 {submitting
                   ? 'Sending…'
-                  : `Confirm and contact ${selectedProviders.length || ''} provider${selectedProviders.length === 1 ? '' : 's'}`}
+                  : allPhoneSelected && callAllowed
+                    ? `Confirm and call ${selectedProviders.length} provider${selectedProviders.length === 1 ? '' : 's'}`
+                    : `Confirm and contact ${selectedProviders.length || ''} provider${selectedProviders.length === 1 ? '' : 's'}`}
               </button>
             ) : null}
             <button
@@ -446,13 +478,32 @@ export function SwitchFlow({ model, providers, plan, entry }: SwitchFlowProps) {
                 </div>
               ) : null}
 
-              <div className="rounded-card border border-rule bg-paper-sunk/40 p-4">
-                <p className="text-small font-medium">Quotes</p>
-                <p className="mt-1 text-small text-ink-muted">
-                  Nothing came back yet. A quote is a reply or a call transcript, and this build does not invent one.
-                  The switch kit below is how you get a real number now.
-                </p>
-              </div>
+              {callOpen ? (
+                <CallBoard
+                  mode={demoNow ? 'demo' : call.mode}
+                  providers={selectedProviders}
+                  facts={facts}
+                  usage={{
+                    annualGallons:
+                      model.fuel === 'oil' || model.fuel === 'propane' ? model.annualUnits : null,
+                    deliveryGallons: clampDelivery(delivery),
+                    paysByCard,
+                    tons: model.tons,
+                    averagePerGal: model.market.price,
+                  }}
+                  query={model.query}
+                  sessionId={sessionId}
+                  demo={demoNow}
+                />
+              ) : (
+                <div className="rounded-card border border-rule bg-paper-sunk/40 p-4">
+                  <p className="text-small font-medium">Quotes</p>
+                  <p className="mt-1 text-small text-ink-muted">
+                    Nothing came back yet. A quote is a reply or a call transcript, and this build does not invent one.
+                    The switch kit below is how you get a real number now.
+                  </p>
+                </div>
+              )}
 
               <SwitchKit
                 kind={selectedKind === 'fuel' ? 'fuel' : 'installer'}

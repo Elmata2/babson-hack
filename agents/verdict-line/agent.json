@@ -1,0 +1,33 @@
+{
+  "name": "Switchpoint verdict line",
+  "description": "Inbound line: a Massachusetts resident asks whether a heat pump would save money. The agent collects four facts, calls compute_verdict, and reads the answer back.",
+  "direction": "inbound",
+  "languages": ["en", "es", "pt", "ht"],
+  "prompt_file": "prompt.md",
+  "max_duration_seconds": 240,
+  "tools": ["end_call"],
+  "server_tools": [
+    {
+      "name": "compute_verdict",
+      "endpoint": "/api/voice/verdict",
+      "method": "POST",
+      "auth_header": "x-voice-secret",
+      "auth_env": "VOICE_TOOL_SECRET",
+      "schema": {
+        "town": "string — one of the 351 Massachusetts municipalities",
+        "fuel": "oil | propane | gas | resistance",
+        "units": "number — annual gallons, therms or kWh from the caller's bill",
+        "price": "number — dollars per gallon, per therm or per kWh",
+        "year": "2026 | 2027 (optional, default 2026)",
+        "lang": "en | es | pt | ht"
+      },
+      "returns": ["line", "disclaimer", "decision", "numbers", "source"],
+      "rule": "The model reads the line verbatim. It never computes or edits a figure (ADR-005, R23.2)."
+    }
+  ],
+  "notes": [
+    "The tool is off unless VOICE_TOOL_SECRET is set on the deployment; with no secret it answers 503.",
+    "Numbers come from the baked snapshot: a phone answer has three seconds (R3.4).",
+    "Every call reads the disclaimer after the answer (R15.2)."
+  ]
+}

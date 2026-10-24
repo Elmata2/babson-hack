@@ -1,0 +1,1 @@
+Hi, this is an automated AI assistant calling on behalf of a homeowner in {town}. This call is recorded and transcribed. I'd like to ask a few quick questions about your {fuel} prices. Is that OK?

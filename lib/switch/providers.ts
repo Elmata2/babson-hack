@@ -34,6 +34,11 @@ export function parseProviders(raw: string | undefined): SwitchProvider[] {
   } catch {
     return []
   }
+  return parseProviderList(parsed)
+}
+
+/** The same validation over an already-parsed list — the committed seed arrives this way. */
+export function parseProviderList(parsed: unknown): SwitchProvider[] {
   if (!Array.isArray(parsed)) return []
 
   const providers: SwitchProvider[] = []
@@ -63,6 +68,9 @@ export function parseProviders(raw: string | undefined): SwitchProvider[] {
     if (typedChannels.includes('email') && email === null) continue
 
     seen.add(id)
+    const towns = Array.isArray(entry.towns)
+      ? entry.towns.filter((town): town is string => typeof town === 'string' && town.trim() !== '').map((town) => town.trim())
+      : []
     providers.push({
       id,
       name: name.trim(),
@@ -73,6 +81,7 @@ export function parseProviders(raw: string | undefined): SwitchProvider[] {
       source: source.trim(),
       asOf,
       allowlist: entry.allowlist === true,
+      ...(towns.length > 0 ? { towns } : {}),
     })
   }
 

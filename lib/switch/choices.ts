@@ -1,5 +1,6 @@
 /**
  * @built F-143 choicesFor — R17.2, a pure function of verdict, fuel and utility
+ * @built F-120 the decision gate: four choices, nothing preselected (R17)
  *
  * Which choices appear is not a design decision made per screen: it is arithmetic
  * over three facts. Oil and propane have dealers to shop; gas and electricity do

@@ -1,5 +1,6 @@
 /**
  * @built F-145 quote arithmetic and ranking — R20, pure and property-testable
+ * @built F-121 effectivePerGal, plausible(), rankFuel, rankInstallers — P13–P16 in quotes-properties.test.ts
  *
  * The model extracts a number from a call; this file decides whether that number
  * is believable and what it costs at the household's usage. Nothing here reads the

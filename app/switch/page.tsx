@@ -9,7 +9,9 @@ import { demoFromParams, withDemo } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
 import { buildSwitchModel } from '@/lib/switch/model'
 import { buildOptionInput } from '@/lib/switch/option-input'
-import { loadProviders, outreachPlan } from '@/lib/switch/providers'
+import { callPlan } from '@/lib/calls/plan'
+import { directoryFor } from '@/lib/switch/directory'
+import { outreachPlan } from '@/lib/switch/providers'
 import { parseSwitchChoice } from '@/lib/switch/types'
 import { recommend } from '@/lib/verdict/recommendation'
 
@@ -49,8 +51,12 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
   const demo = demoFromParams(params)
   const prices = await getPrices({ timeoutMs: 4_000, demo })
   const model = buildSwitchModel(params, prices)
-  const providers = loadProviders()
+  // The directory is the committed seed plus this deployment's own rows, narrowed to
+  // the town the verdict is about. Two plans sit beside it: what may be emailed
+  // (R19.8's outreach switch) and what may be dialled (the agent's own switch).
+  const providers = directoryFor(model.town)
   const plan = outreachPlan(providers)
+  const call = callPlan(providers)
   const choice = parseSwitchChoice(first(params.choice))
   const entryChoice = choice && model.choices.includes(choice) ? choice : null
   const optionInput = buildOptionInput(model, providers, plan)
@@ -93,6 +99,7 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
                 model={model}
                 providers={providers}
                 plan={plan}
+                call={call}
                 entry={{ choice: entryChoice, kit: first(params.mode) === 'kit' }}
               />
             ) : model.ready && optionInput ? (

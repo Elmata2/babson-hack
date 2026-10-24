@@ -1,0 +1,23 @@
+{
+  "name": "Switchpoint quote caller",
+  "description": "Outbound, consented quote-gathering call for a Massachusetts household. Fuel dealers and heat pump installers, one call each, four minutes maximum.",
+  "language": "en",
+  "first_message_file": "first-message.txt",
+  "prompt_by_vertical": {
+    "fuel": "prompt.fuel.md",
+    "installer": "prompt.installer.md"
+  },
+  "vertical_variable": "vertical",
+  "data_collection_file": "data-collection.json",
+  "max_duration_seconds": 240,
+  "tools": ["end_call", "voicemail_detection"],
+  "server_tools": [],
+  "voicemail": "detect_and_end_without_leaving_a_message",
+  "retention_days": 7,
+  "recording": "platform_default_audio_and_transcript",
+  "notes": [
+    "ADR-010: no webhooks, no database. The browser holds the conversation id and polls.",
+    "R19.8: real businesses are dialled only when PROVIDER_CALLS_ENABLED=true.",
+    "R22.2: the browser deletes each conversation with DELETE /api/calls/[sessionId]."
+  ]
+}

@@ -1,3 +1,4 @@
+/** @built F-120 the decision gate UI — four choices, nothing preselected, STAY the same weight */
 import Link from 'next/link'
 
 import { ReminderButton } from '@/components/verdict/reminder-button'

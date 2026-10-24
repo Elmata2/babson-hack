@@ -1,0 +1,74 @@
+# Agent sync — R25.7, row F-136.
+#
+# @built F-136 on merge to master, the reviewed config in agents/ is pushed to
+#          ElevenLabs, so the deployed agent is the one that passed review
+#
+# The direction of trust is the whole design: the repository is the source of truth,
+# and the platform is downstream. A prompt change that merges to master becomes the
+# live agent in one step; a prompt change that does not merge never reaches a phone.
+#
+# With no ELEVENLABS_API_KEY the script prints a typed skip and exits 0 — a public
+# fork merging to its own master must not fail for a secret it cannot have.
+
+name: Agent sync
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'agents/**'
+      - 'scripts/agents/sync.mjs'
+      - '.github/workflows/agent-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: validate (no network)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Config check — disclosure, duration, no server tools
+        run: node scripts/agents/sync.mjs --check
+
+  push:
+    name: push to ElevenLabs
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Push the reviewed config
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_AGENT_ID: ${{ secrets.ELEVENLABS_AGENT_ID }}
+        run: node scripts/agents/sync.mjs

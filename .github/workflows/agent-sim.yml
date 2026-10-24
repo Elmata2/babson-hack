@@ -1,0 +1,62 @@
+# Agent simulation — R25.6, row F-135.
+#
+# @built F-135 simulation tests for the voice agent, on PRs that touch agents/**
+#
+# Two halves, and the second one is honest about its absence:
+#
+#   offline  — always runs. Proves the three behaviours that are decidable from the
+#              reviewed config: turn-one disclosure, no unprompted competing price,
+#              and an opt-out rule that ends the call.
+#   platform — runs only when ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID and
+#              ELEVENLABS_SIMULATION_ID exist. Without an account the script says so
+#              and exits 0, so a fork cannot go red for a secret it cannot have.
+#
+# The trigger is the point of the row: a prompt edit is the change most likely to
+# break a disclosure, and it is the change that `npm run check` cannot see.
+
+name: Agent simulation
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'agents/**'
+      - 'lib/calls/**'
+      - 'lib/voice/**'
+      - '.github/workflows/agent-sim.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-sim-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulate:
+    name: simulate (offline contract + optional platform run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Contract tests — the same files vitest runs
+        run: npx vitest run agents
+
+      - name: Simulation — offline half always, platform half only with an account
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_AGENT_ID: ${{ secrets.ELEVENLABS_AGENT_ID }}
+          ELEVENLABS_SIMULATION_ID: ${{ secrets.ELEVENLABS_SIMULATION_ID }}
+        run: node scripts/agents/simulate.mjs

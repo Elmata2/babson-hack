@@ -63,6 +63,11 @@ export interface SwitchProvider {
   asOf: string
   /** True when this is a team test line, not a real business (R19.8). */
   allowlist: boolean
+  /**
+   * Towns this provider will drive to. Absent or empty means "not restricted", which
+   * is what a test line is; a real dealer list is narrowed to where it delivers.
+   */
+  towns?: string[]
 }
 
 /**

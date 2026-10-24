@@ -1,0 +1,95 @@
+[
+  {
+    "name": "clean quote",
+    "vertical": "fuel",
+    "transcript": {
+      "status": "done",
+      "metadata": { "call_duration_secs": 84 },
+      "transcript": [
+        { "role": "agent", "message": "Hi, this is an automated AI assistant calling on behalf of a homeowner in Framingham. This call is recorded and transcribed." },
+        { "role": "user", "message": "Sure. Five seventy-nine a gallon, cash or check." }
+      ],
+      "analysis": {
+        "data_collection_results": {
+          "price_per_gal": { "value": 5.79, "rationale": "\"five seventy-nine a gallon\"" },
+          "min_gallons": { "value": 150, "rationale": "\"hundred and fifty minimum\"" },
+          "delivery_fee": { "value": 0, "rationale": "\"no delivery charge\"" },
+          "earliest_delivery": { "value": "2026-10-27", "rationale": "\"Tuesday\"" },
+          "serves_town": { "value": true, "rationale": "\"we deliver there\"" }
+        }
+      }
+    },
+    "expect": { "status": "done", "rank": "ranked", "effectiveAt150": 5.79 }
+  },
+  {
+    "name": "cash versus card",
+    "vertical": "fuel",
+    "transcript": {
+      "status": "done",
+      "analysis": {
+        "data_collection_results": {
+          "price_per_gal": { "value": 5.65, "rationale": "\"five sixty-five cash\"" },
+          "card_surcharge_pct": { "value": 3, "rationale": "\"three percent for card\"" },
+          "min_gallons": { "value": 150, "rationale": null },
+          "delivery_fee": { "value": null, "rationale": null }
+        }
+      }
+    },
+    "expect": { "status": "done", "rank": "ranked", "effectiveAt150": 5.8195 }
+  },
+  {
+    "name": "refusal",
+    "vertical": "fuel",
+    "transcript": {
+      "status": "declined",
+      "transcript": [
+        { "role": "agent", "message": "Hi, this is an automated AI assistant calling on behalf of a homeowner in Framingham. This call is recorded and transcribed. Is that OK?" },
+        { "role": "user", "message": "No, take me off your list." }
+      ],
+      "analysis": { "data_collection_results": {} }
+    },
+    "expect": { "status": "declined", "rank": "unverified", "effectiveAt150": null }
+  },
+  {
+    "name": "voicemail",
+    "vertical": "fuel",
+    "transcript": {
+      "status": "voicemail",
+      "analysis": { "data_collection_results": {} }
+    },
+    "expect": { "status": "voicemail", "rank": "unverified", "effectiveAt150": null }
+  },
+  {
+    "name": "hostile - ninety-nine cents",
+    "vertical": "fuel",
+    "transcript": {
+      "status": "done",
+      "transcript": [
+        { "role": "user", "message": "Ninety-nine cents a gallon, but only if you order today." }
+      ],
+      "analysis": {
+        "data_collection_results": {
+          "price_per_gal": { "value": 0.99, "rationale": "\"ninety-nine cents a gallon\"" }
+        }
+      }
+    },
+    "expect": { "status": "done", "rank": "unverified", "effectiveAt150": null }
+  },
+  {
+    "name": "installer ballpark",
+    "vertical": "installer",
+    "transcript": {
+      "status": "done",
+      "analysis": {
+        "data_collection_results": {
+          "mass_save_participating": { "value": true, "rationale": "\"we're on the Mass Save list\"" },
+          "accepts_heat_loan": { "value": true, "rationale": "\"we take the HEAT Loan\"" },
+          "earliest_site_visit": { "value": "2026-11-03", "rationale": "\"November third\"" },
+          "can_install_by_dec31": { "value": true, "rationale": "\"we can finish this year\"" },
+          "ballpark_per_ton": { "value": 4400, "rationale": "\"forty-four hundred a ton, ballpark\"" }
+        }
+      }
+    },
+    "expect": { "status": "done", "rank": "installer-ranked", "usdPerTon": 4400 }
+  }
+]

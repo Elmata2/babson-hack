@@ -1,0 +1,38 @@
+[
+  {
+    "id": "test-fuel-a",
+    "name": "Team test line — fuel A",
+    "kind": "fuel",
+    "channels": ["phone"],
+    "phone": "+15550100001",
+    "email": null,
+    "towns": ["Framingham", "Natick", "Ashland", "Holliston", "Sherborn"],
+    "source": "Team allowlist · 555-0100–555-0199 is the reserved fiction range, so this is not a real business",
+    "asOf": "2026-10-24",
+    "allowlist": true
+  },
+  {
+    "id": "test-fuel-b",
+    "name": "Team test line — fuel B",
+    "kind": "fuel",
+    "channels": ["phone"],
+    "phone": "+15550100002",
+    "email": null,
+    "towns": [],
+    "source": "Team allowlist · 555-0100–555-0199 is the reserved fiction range, so this is not a real business",
+    "asOf": "2026-10-24",
+    "allowlist": true
+  },
+  {
+    "id": "test-fuel-c",
+    "name": "Team test line — fuel C",
+    "kind": "fuel",
+    "channels": ["phone"],
+    "phone": "+15550100003",
+    "email": null,
+    "towns": [],
+    "source": "Team allowlist · 555-0100–555-0199 is the reserved fiction range, so this is not a real business",
+    "asOf": "2026-10-24",
+    "allowlist": true
+  }
+]

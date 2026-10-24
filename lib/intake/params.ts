@@ -272,6 +272,22 @@ export function withInstallCost(query: string, value: number): string {
 }
 
 /**
+ * The verdict's query with the charged price per unit replaced (R20.7).
+ *
+ * "Use this price" on the comparison screen writes the effective price from the
+ * call into `price`, which is the same key the intake form writes, so the verdict
+ * recomputes from one number and the household can still change it afterwards.
+ * Guarantee: every other key survives, and a non-positive or non-finite price is
+ * refused rather than written.
+ */
+export function withUnitPrice(query: string, value: number): string {
+  const next = new URLSearchParams(query)
+  if (!Number.isFinite(value) || value <= 0) return next.toString()
+  next.set('price', String(Math.round(value * 100) / 100))
+  return next.toString()
+}
+
+/**
  * A link from a place on the map to the intake form, with that address already in it.
  *
  * R10.6: picking an address on the map prefills the address form. `src=map` says

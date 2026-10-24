@@ -45,7 +45,7 @@ const UNITS_BY_FUEL: Record<Fuel, SharedFacts['unit']> = {
   resistance: 'kWh',
 }
 
-const TOP_LEVEL_KEYS = new Set(['kind', 'choice', 'facts', 'providers', 'consentAt'])
+const TOP_LEVEL_KEYS = new Set(['kind', 'choice', 'facts', 'providers', 'consentAt', 'demo', 'sessionId'])
 const FACT_KEYS = new Set([
   'town',
   'zip',

@@ -42,3 +42,6 @@ coverage/
 !.kiro/**
 .vercel
 .env*
+
+# The demo video's working directory (stills + narration). The cut is committed.
+.demo-build/

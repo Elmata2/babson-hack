@@ -1,0 +1,82 @@
+{
+  "note": "Post-call extraction. Every field is nullable and every value is untrusted: lib/calls/parse.ts reads it, lib/switch/quotes.ts decides whether it is believable.",
+  "fuel": [
+    {
+      "name": "price_per_gal",
+      "type": "number",
+      "description": "The cash or COD price per gallon the dealer said today. If they only gave a card price, leave null and record the surcharge."
+    },
+    {
+      "name": "card_surcharge_pct",
+      "type": "number",
+      "description": "Card surcharge in percent, e.g. 2.5 for 'two and a half percent'. Null when they charge the same either way."
+    },
+    {
+      "name": "min_gallons",
+      "type": "number",
+      "description": "Minimum delivery in gallons. Null when the dealer named no minimum."
+    },
+    {
+      "name": "delivery_fee",
+      "type": "number",
+      "description": "Delivery or small-load fee in dollars at the household's delivery size. Null when there is none."
+    },
+    {
+      "name": "price_cap_per_gal",
+      "type": "number",
+      "description": "Prebuy or price-cap price per gallon for the winter. Null when not offered. Never a substitute for the cash price."
+    },
+    {
+      "name": "price_cap_fee",
+      "type": "number",
+      "description": "The fee for the prebuy or cap, in dollars. Null when not offered."
+    },
+    {
+      "name": "earliest_delivery",
+      "type": "string",
+      "description": "Earliest delivery date as YYYY-MM-DD. Convert 'Tuesday' only when the date is unambiguous; otherwise leave null."
+    },
+    {
+      "name": "serves_town",
+      "type": "boolean",
+      "description": "Whether the dealer says they deliver to the homeowner's town."
+    },
+    {
+      "name": "needs_callback",
+      "type": "boolean",
+      "description": "True when the dealer asked to call the homeowner back instead of quoting. The homeowner is told to call them."
+    }
+  ],
+  "installer": [
+    {
+      "name": "mass_save_participating",
+      "type": "boolean",
+      "description": "Whether the installer says they are on the Mass Save participating contractor list."
+    },
+    {
+      "name": "accepts_heat_loan",
+      "type": "boolean",
+      "description": "Whether the installer accepts the 0% HEAT Loan."
+    },
+    {
+      "name": "earliest_site_visit",
+      "type": "string",
+      "description": "Earliest site visit date as YYYY-MM-DD, or null when they would not commit to one."
+    },
+    {
+      "name": "can_install_by_dec31",
+      "type": "boolean",
+      "description": "Whether they say they can finish an install by 2026-12-31."
+    },
+    {
+      "name": "ballpark_per_ton",
+      "type": "number",
+      "description": "Installed cost per ton in dollars, as a ballpark. Never a quote: the screen labels it as one."
+    },
+    {
+      "name": "needs_callback",
+      "type": "boolean",
+      "description": "True when they asked to call the homeowner back instead of answering."
+    }
+  ]
+}

@@ -189,4 +189,6 @@ export const DEMO_MESSAGES = {
     'Demo mode: the plain-English sentences come from the verdict itself. No model is called.',
   switch:
     'Demo mode: nothing was dialled, emailed or sent. These statuses are baked so the flow can be shown offline.',
+  calls:
+    'Demo mode: three conversations are replayed from a fixture. Nothing was dialled and no audio exists.',
 } as const
