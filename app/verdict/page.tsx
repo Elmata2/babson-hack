@@ -1,13 +1,16 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import { CashFlow } from '@/components/cash-flow'
 import { FreshnessBadge } from '@/components/freshness-badge'
+import { InstallCostField } from '@/components/install-cost-field'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { computeVerdict, refusalFor } from '@/lib/calc'
+import { HEAT_LOAN_APR, HEAT_LOAN_MONTHS } from '@/lib/calc/constants'
 import type { Fuel, Tier } from '@/lib/calc/types'
 import { displayTown, hdd65ForTown } from '@/lib/geo'
-import { plausibleElectricRate, provenanceLine, queryString } from '@/lib/intake/params'
+import { plausibleElectricRate, plausibleInstallCost, provenanceLine, queryString } from '@/lib/intake/params'
 import { getPrices } from '@/lib/prices'
 import { resolveUtility, SPONSOR_NAME, seasonalHeatPumpRate } from '@/lib/utility'
 import { VERDICT_META } from '@/lib/verdicts'
@@ -16,6 +19,10 @@ import { VERDICT_META } from '@/lib/verdicts'
  * @built F-106 round-trip + provenance: the change link carries the whole query; the bill's
  * method, note and confidence, and a household electricity rate (`er`), show up here
  * @built F-32 verdict screen shell — one number, big, unmissable
+ * @built F-37 the 0% HEAT Loan beside the monthly saving, with a sentence that
+ * is honest when the difference is negative
+ * @built F-143 the install cost is editable here, badged with where it came from,
+ * and carried in the link so the verdict recomputes without a reload
  *
  * Server-rendered from the URL and `lib/calc`. No client JavaScript is needed to
  * see the answer, no API route is involved, and the same link recomputes the same
@@ -120,6 +127,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const utilityKey = first(params.ut)
   const provenance = provenanceLine((first(params.mn) ?? '').slice(0, 160) || null, number(params.mc))
   const buildingUnits = number(params.bu)
+  // A quote the household typed, not a program average. Outside the band the
+  // default wins, and the screen keeps saying it is the average.
+  const quote = plausibleInstallCost(first(params.ic))
   const changeHref = `/start?${queryString(params)}`
   const seasonal = seasonalHeatPumpRate(standardRate, townRaw)
   const utility = resolveUtility(townRaw)
@@ -139,6 +149,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
     installYear,
     heatPumpRate: seasonal.rate,
     standardRate,
+    installCost: quote ?? undefined,
   }
 
   const result = computeVerdict(heating, upgrade)
@@ -166,6 +177,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
             <FreshnessBadge kind="assessor" label="Year built" />
           ) : null}
           {billRate !== null ? <FreshnessBadge kind="manual" label="Electricity rate: your bill" /> : null}
+          {quote !== null ? <FreshnessBadge kind="manual" label="Install cost: your quote" /> : null}
         </div>
       </div>
 
@@ -249,6 +261,20 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                   treat {usd(result.annualSavings)} as the optimistic half of the answer.
                 </p>
               ) : null}
+
+              <div className="mt-5 border-t border-rule pt-4">
+                <h2 className="text-micro uppercase text-ink-muted">Why this verdict</h2>
+                <ul className="mt-2 grid max-w-[70ch] gap-1.5 text-small text-ink">
+                  {result.reasons.map((reason) => (
+                    <li key={reason} className="flex gap-2">
+                      <span aria-hidden className="text-ink-faint">
+                        ·
+                      </span>
+                      <span>{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </section>
           )}
 
@@ -272,18 +298,38 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
               muted={noMassSave}
             />
             <Stat
-              label="0% heat loan"
-              value={noMassSave ? 'not quoted' : usd(result.monthlyLoan)}
-              note={
-                noMassSave
-                  ? 'the loan is not the issue'
-                  : result.cashFlowPositive
-                    ? `+${usd(result.monthlySavings)} a month in pocket`
-                    : `${usd(Math.abs(result.monthlySavings))} a month short`
-              }
-              muted={noMassSave}
+              label="Installed cost"
+              value={usd(result.installCost)}
+              note={quote === null ? 'Mass Save average' : 'your contractor quote'}
             />
           </section>
+
+          {noMassSave ? null : (
+            <div className="mt-4 grid gap-3 lg:grid-cols-[22rem_minmax(0,1fr)]">
+              <section className="rounded-card border border-rule bg-surface p-5 sm:p-6">
+                <h2 className="text-small font-medium">What the install costs</h2>
+                <p className="mt-1 text-micro text-ink-muted">
+                  The rebate is subtracted from this number, so a quote changes the net cost, the payback and the
+                  loan — not the verdict&rsquo;s honesty.
+                </p>
+                <div className="mt-4">
+                  <InstallCostField value={result.installCost} fromQuote={quote !== null} query={queryString(params)} />
+                </div>
+              </section>
+
+              <CashFlow
+                input={{
+                  netCost: result.netCost,
+                  monthlyLoan: result.monthlyLoan,
+                  monthlySavings: result.monthlySavings,
+                  monthlyCashFlow: result.monthlyCashFlow,
+                  months: HEAT_LOAN_MONTHS,
+                  apr: HEAT_LOAN_APR,
+                  paybackYears: result.paybackYears,
+                }}
+              />
+            </div>
+          )}
 
           <section className="mt-4 rounded-card border border-rule bg-surface p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -341,6 +387,16 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                     {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]}
                   </dd>
                   <dd className="text-micro text-ink-muted">{provenance}</dd>
+                </div>
+              ) : null}
+              {quote !== null ? (
+                <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
+                  <dt className="text-micro text-ink-faint">Install cost</dt>
+                  <dd className="text-small tabular-nums text-ink">{usd(result.installCost)}</dd>
+                  <dd className="text-micro text-ink-muted">
+                    Your contractor quote, typed on this screen. The rebate is subtracted from it; the phone quote
+                    rule applies — confirm the price before you sign.
+                  </dd>
                 </div>
               ) : null}
               {billRate !== null ? (

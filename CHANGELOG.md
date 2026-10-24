@@ -14,6 +14,18 @@ because that is when the hackathon clock runs.
 
 ### Added
 
+- **F-37, F-143** — R7's payback and cash flow, end to end. The verdict screen
+  puts the 0% HEAT Loan payment next to the monthly saving and says, in one
+  sentence, whether the household is ahead or short; the loss branch has the same
+  shape, the same weight and a real minus sign, and when the heat pump costs more
+  to run than the fuel it replaces the block says there is no payback at all. The
+  installed cost is now editable on the verdict screen and on the intake form,
+  defaults to the Mass Save average of $22,000 with a program-data badge, and
+  travels in the link as `ic`, so the verdict recomputes in place and "Change the
+  numbers" keeps a typed quote. The verdict's own reasons are on the screen, which
+  is where the "past the 15-year limit" explanation lives. `cashFlow()` in
+  `lib/calc/finance.ts` owns the division; `lib/verdict/cash-flow.ts` owns only
+  the words, and both are property-tested (R7.1, R7.2, R7.3, R7.4).
 - **F-137–F-141** — `/onboarding`: the four-step wizard from Addendum B, steps
   1–4. A profile (name, email, optional phone) kept in this browser via
   `useSyncExternalStore` — no server account, no password, and the screen says so;

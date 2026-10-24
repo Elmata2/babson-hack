@@ -1,11 +1,14 @@
 /**
  * @built F-105 plain-question rebate tier + install-year default
+ * @built F-143 the install cost in the link: a plausible `ic`, and one pure
+ * function that sets or clears it without disturbing any other input
  * @built F-106 verdict round-trip — the form and the verdict speak one query string
  *
  * The URL is the only state this app has, so "Change the numbers" has to hand
  * the exact query back to /start and /start has to read all of it. Everything
  * here is pure so both pages and the tests share one definition.
  */
+import { DEFAULT_INSTALL_COST_USD } from '../calc/constants'
 import type { AnnualMethod, BillFuel } from '../parse/types'
 import type { BillUtility } from '../parse/contract'
 
@@ -47,6 +50,21 @@ export function plausibleElectricRate(raw: string | number | null | undefined): 
   return Number.isFinite(value) && value >= ELECTRIC_RATE_MIN && value <= ELECTRIC_RATE_MAX ? value : null
 }
 
+/**
+ * The install cost the engine will accept (`MAX_INSTALL_COST_USD`). A cost is
+ * typed by the household, not read off a bill, so the band only has to catch a
+ * slipped zero — the engine's own ceiling is the bound, so nothing the engine
+ * would compute is silently dropped on the way back from `/verdict`.
+ */
+export const INSTALL_COST_MIN = 1_000
+export const INSTALL_COST_MAX = 250_000
+
+export function plausibleInstallCost(raw: string | number | null | undefined): number | null {
+  if (raw === null || raw === undefined || raw === '') return null
+  const value = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, ''))
+  return Number.isFinite(value) && value >= INSTALL_COST_MIN && value <= INSTALL_COST_MAX ? value : null
+}
+
 const METHODS: readonly AnnualMethod[] = ['printed_history', 'degree_days', 'tank_cadence', 'hdd_scaled', 'monthly_x12']
 const UTILITIES: readonly BillUtility[] = [
   'eversource', 'national_grid', 'unitil', 'liberty', 'berkshire_gas', 'municipal', 'oil_dealer', 'propane_dealer', 'other',
@@ -74,6 +92,8 @@ export interface IntakeValues {
   utility: BillUtility | null
   electricRate: string
   lowIncome: boolean | null
+  /** A contractor quote, if the household has one. Blank means the Mass Save average. */
+  installCost: string
 }
 
 export function toQuery(v: IntakeValues): URLSearchParams {
@@ -96,6 +116,8 @@ export function toQuery(v: IntakeValues): URLSearchParams {
   if (v.utility) p.set('ut', v.utility)
   if (plausibleElectricRate(v.electricRate) !== null) p.set('er', v.electricRate.trim())
   if (v.lowIncome !== null) p.set('li', v.lowIncome ? '1' : '0')
+  const cost = plausibleInstallCost(v.installCost)
+  if (cost !== null) p.set('ic', String(cost))
   return p
 }
 
@@ -143,6 +165,8 @@ export function fromSearchParams(r: Raw): Partial<IntakeValues> {
   if (plausibleElectricRate(er) !== null) out.electricRate = er as string
   const li = one(r, 'li')
   if (li === '1' || li === '0') out.lowIncome = li === '1'
+  const ic = plausibleInstallCost(one(r, 'ic'))
+  if (ic !== null) out.installCost = String(ic)
   return out
 }
 
@@ -154,6 +178,19 @@ export function queryString(r: Raw): string {
     if (val !== undefined) p.set(k, val)
   }
   return p.toString()
+}
+
+/**
+ * The verdict's query with the install cost set, or with the program average
+ * restored. Stateless and pure so the editable field and the tests share one
+ * definition: setting the default deletes the key instead of pinning a number
+ * the household never typed.
+ */
+export function withInstallCost(query: string, value: number): string {
+  const next = new URLSearchParams(query)
+  if (value === DEFAULT_INSTALL_COST_USD) next.delete('ic')
+  else next.set('ic', String(value))
+  return next.toString()
 }
 
 /** Plain-English provenance for the verdict's assumptions area. */

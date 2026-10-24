@@ -259,6 +259,7 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       sqft,
       src: yearBuilt.trim() ? 'manual' : null,
       buildingUnits: null,
+      installCost: '',
       method,
       methodConfidence,
       note,

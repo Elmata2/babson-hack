@@ -117,6 +117,8 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
   const [utility, setUtility] = useState<BillUtility | null>(initial.utility ?? null)
   const [lowIncome, setLowIncome] = useState<boolean | null>(initial.lowIncome ?? null)
   const [electricRate, setElectricRate] = useState(initial.electricRate ?? '')
+  // Blank means the Mass Save average; the verdict labels which one it used.
+  const [installCost, setInstallCost] = useState(initial.installCost ?? '')
   const [electricNote, setElectricNote] = useState<string | null>(
     initial.electricRate ? `Your electricity: $${initial.electricRate}/kWh from your bill` : null,
   )
@@ -356,6 +358,7 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
     const values: IntakeValues = {
       fuel, units, price, town, tier, income, year: installYear, yearBuilt, sqft,
       src: envelopeSource, buildingUnits, method, methodConfidence, note, utility, electricRate, lowIncome,
+      installCost,
     }
     router.push(`/verdict?${toQuery(values).toString()}`)
   }
@@ -642,6 +645,24 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
             in dollars, not adjectives.
           </p>
         </details>
+
+        <label className="grid max-w-sm gap-1.5 text-small">
+          <span className="font-medium">
+            A contractor&rsquo;s quote? <span className="font-normal text-ink-faint">(optional)</span>
+          </span>
+          <input
+            value={installCost}
+            onChange={(event) => setInstallCost(event.target.value)}
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="22,000"
+            className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
+          />
+          <span className="text-micro text-ink-faint">
+            Leave it blank and the verdict uses the Mass Save average of $22,000, labelled as the average. A quote
+            replaces it and moves the rebate, the payback and the loan.
+          </span>
+        </label>
       </section>
 
       {/* -------------------------------------------------------------- cta */}

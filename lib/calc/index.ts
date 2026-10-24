@@ -1,5 +1,7 @@
 /**
  * @built F-23 computeVerdict — assembles one result from a bill and an upgrade
+ * @built F-37 the monthly cash flow is computed by `cashFlow()` once and carried
+ * in the result, so the screen never does the division itself
  *
  * This is the only function the UI needs. It is pure: no clock, no network, no
  * environment. Inputs are validated first (`refusalFor`), and a refusal is a
@@ -30,8 +32,8 @@ import {
   SCOP_MIN,
   UNIT_LABEL_BY_FUEL,
 } from './constants'
-import { annualKWh, fuelCost, monthly, operatingCost } from './cost'
-import { breakEvenElectricPrice, heatLoan, payback } from './finance'
+import { annualKWh, fuelCost, operatingCost } from './cost'
+import { breakEvenElectricPrice, cashFlow, payback } from './finance'
 import { deliveredHeat, designLoad, isOversized, resolveAfue, sizeTons } from './heat'
 import { FUEL_SNAPSHOT_2026_10_19, HEAT_PUMP_RULES_2026, isFuel, isTier, rulesForYear } from './rules'
 import { rebate } from './rebate'
@@ -300,10 +302,9 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
   const annualSavings = oldCost - newHp
   const annualSavingsAtStandardRate = oldCost - newStd
   const paybackYears = payback(netCost, annualSavings)
-  const loan = heatLoan(netCost, HEAT_LOAN_MONTHS, HEAT_LOAN_APR)
-  if (!loan) return null
-  const monthlySavings = monthly(annualSavings)
-  if (monthlySavings === null) return null
+  const flow = cashFlow(netCost, annualSavings, HEAT_LOAN_MONTHS, HEAT_LOAN_APR)
+  if (!flow) return null
+  const monthlySavings = flow.monthlySavings
   const breakEven = breakEvenElectricPrice({ btu: delivered.btu, oldCost, scop })
 
   // ---- reasons -------------------------------------------------------------
@@ -341,9 +342,10 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
     rebateBreakdown: activeRebate.breakdown,
     netCost,
     paybackYears,
-    monthlyLoan: loan.monthly,
+    monthlyLoan: flow.monthlyLoan,
     monthlySavings,
-    cashFlowPositive: monthlySavings >= loan.monthly,
+    monthlyCashFlow: flow.monthlyCashFlow,
+    cashFlowPositive: flow.monthlyCashFlow >= 0,
     breakEvenElectricPrice: breakEven,
     rebate2026,
     rebate2027,
@@ -374,7 +376,7 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
     )
   } else if (verdict === 'SWITCH_NOW') {
     reasons.push(
-      `Net cost is repaid in ${one(paybackYears ?? 0)} years, and the ${HEAT_LOAN_MONTHS}-month ${HEAT_LOAN_APR === 0 ? '0% ' : ''}HEAT Loan payment of ${usd(loan.monthly)}/mo is ${draft.cashFlowPositive ? 'below' : 'above'} the ${usd(monthlySavings)}/mo you save.`,
+      `Net cost is repaid in ${one(paybackYears ?? 0)} years, and the ${HEAT_LOAN_MONTHS}-month ${HEAT_LOAN_APR === 0 ? '0% ' : ''}HEAT Loan payment of ${usd(flow.monthlyLoan)}/mo is ${draft.cashFlowPositive ? 'below' : 'above'} the ${usd(monthlySavings)}/mo you save.`,
     )
   } else if (annualSavings <= 0) {
     reasons.push(
@@ -411,7 +413,7 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
 
   if (monthlySavings > 0 && !draft.cashFlowPositive) {
     caveats.push(
-      `Cash flow is negative: the loan payment of ${usd(loan.monthly)}/mo exceeds the ${usd(monthlySavings)}/mo saved until the loan is repaid at month ${HEAT_LOAN_MONTHS}. You are buying the next 15 winters, not a monthly win.`,
+      `Cash flow is negative: the loan payment of ${usd(flow.monthlyLoan)}/mo exceeds the ${usd(monthlySavings)}/mo saved until the loan is repaid at month ${HEAT_LOAN_MONTHS}. You are buying the next 15 winters, not a monthly win.`,
     )
   }
   if (upgrade.tier === 'basic') {

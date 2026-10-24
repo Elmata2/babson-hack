@@ -93,6 +93,8 @@ marked ✂ until P4 is green.
 | F-38 | P4 | Assumptions strip + disclaimer, always visible | A | 15m | F-23 |
 | F-39 | P4 | `/api/explain` — three sentences of plain English, no numbers invented | C | 25m | F-23 |
 | F-40 | P4 | Three demo presets: oil-enhanced, propane, gas-do-not-switch | D | 20m | F-32 |
+| F-37 | P4 | Cash-flow module — 0% loan payment next to the monthly saving, one sentence either way, and `monthlyCashFlow` in the engine | A | 25m | F-20 |
+| F-143 | P4 | Install cost editable on the verdict screen and the form, default $22,000 badged as Mass Save program data, carried in the link as `ic` | A | 20m | F-37 |
 
 ## P5 — Map ✂ (cut these first if behind)
 

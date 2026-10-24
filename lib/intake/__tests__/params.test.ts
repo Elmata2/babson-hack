@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  defaultInstallYear, fromSearchParams, plausibleElectricRate, provenanceLine, queryString, tierFor, toQuery,
+  defaultInstallYear, fromSearchParams, plausibleElectricRate, plausibleInstallCost, provenanceLine, queryString,
+  tierFor, toQuery, withInstallCost,
   type IntakeValues,
 } from '../params'
 
@@ -9,6 +10,7 @@ const values: IntakeValues = {
   fuel: 'gas', units: '1,020', price: '1.62', town: 'Worcester', tier: 'whole', income: 'unsure', year: '2026',
   yearBuilt: '1952', sqft: '1,600', src: 'assessor', buildingUnits: 3, method: 'hdd_scaled', methodConfidence: 0.5,
   note: 'Yearly gas from your Jan bill; scaled & shifted', utility: 'eversource', electricRate: '0.305', lowIncome: true,
+  installCost: '26,000',
 }
 
 describe('tierFor', () => {
@@ -29,6 +31,15 @@ describe('electric rate', () => {
   })
 })
 
+describe('install cost', () => {
+  it.each([
+    ['26,000', 26_000], [22000, 22_000], ['1000', 1_000], ['250000', 250_000],
+    ['999', null], ['250001', null], ['abc', null], ['', null], [null, null],
+  ])('%s', (input, expected) => {
+    expect(plausibleInstallCost(input as never)).toBe(expected)
+  })
+})
+
 describe('round trip', () => {
   it('survives toQuery → search params → fromSearchParams', () => {
     const q = toQuery(values)
@@ -36,14 +47,27 @@ describe('round trip', () => {
     expect(back).toMatchObject({
       fuel: 'gas', units: '1020', price: '1.62', town: 'Worcester', year: '2026', yearBuilt: '1952', sqft: '1600',
       src: 'assessor', buildingUnits: 3, method: 'hdd_scaled', methodConfidence: 0.5, utility: 'eversource',
-      electricRate: '0.305', lowIncome: true, income: 'unsure',
+      electricRate: '0.305', lowIncome: true, income: 'unsure', installCost: '26000',
     })
     expect(back.note).toBe(values.note)
   })
   it('caps the note at 160 and drops junk', () => {
     expect(toQuery({ ...values, note: 'x'.repeat(300) }).get('mn')).toHaveLength(160)
-    const back = fromSearchParams({ m: 'nope', ut: 'nope', er: '5', mc: '2', li: 'x' })
+    const back = fromSearchParams({ m: 'nope', ut: 'nope', er: '5', mc: '2', li: 'x', ic: '2' })
     expect(back).toEqual({})
+  })
+  it('drops an implausible install cost instead of carrying a slipped zero', () => {
+    expect(toQuery({ ...values, installCost: '2200000' }).get('ic')).toBeNull()
+    expect(toQuery({ ...values, installCost: '' }).get('ic')).toBeNull()
+  })
+  it('sets and clears the install cost without touching the rest of the link', () => {
+    const base = 'fuel=oil&units=800&price=6.23&town=Framingham'
+    const quoted = new URLSearchParams(withInstallCost(base, 40_000))
+    expect(quoted.get('ic')).toBe('40000')
+    expect(quoted.get('units')).toBe('800')
+    const restored = new URLSearchParams(withInstallCost(quoted.toString(), 22_000))
+    expect(restored.get('ic')).toBeNull()
+    expect(restored.get('price')).toBe('6.23')
   })
   it('queryString keeps every key', () => {
     expect(new URLSearchParams(queryString({ a: '1', b: ['2', '3'], c: undefined })).toString()).toBe('a=1&b=2')

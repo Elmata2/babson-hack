@@ -1,14 +1,15 @@
 /**
  * @built F-20 payback years and the 84-month 0% HEAT Loan
  * @built F-21 break-even electric price — the honesty number
+ * @built F-37 the monthly cash flow under the loan: payment, saving, difference
  *
- * All three are single formulas, kept apart from the assembler so the property
+ * All of these are single formulas, kept apart from the assembler so the property
  * tests can hit them directly.
  */
 
 import { HEAT_LOAN_APR, HEAT_LOAN_MONTHS, MONTHS_PER_YEAR } from './constants'
-import { annualKWh } from './cost'
-import type { HeatLoan } from './types'
+import { annualKWh, monthly } from './cost'
+import type { CashFlow, HeatLoan } from './types'
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -52,6 +53,29 @@ export function heatLoan(
   const payment = (netCost * monthlyRate * factor) / (factor - 1)
   if (!isFiniteNumber(payment)) return null
   return { monthly: payment, totalInterest: payment * months - netCost, months, apr }
+}
+
+/**
+ * Month-by-month cash flow under the HEAT Loan.
+ * Input: net cost USD after rebate, annual savings USD (signed), term months
+ * (default 84), APR (default 0). Output: the loan payment, the same savings
+ * expressed monthly, and their difference. Guarantee: `monthlyLoan` is exactly
+ * `netCost / months` at 0% APR and `monthlyCashFlow` is exactly
+ * `monthlySavings − monthlyLoan`; `null` when either side has no honest value.
+ */
+export function cashFlow(
+  netCost: number,
+  annualSavings: number,
+  months: number = HEAT_LOAN_MONTHS,
+  apr: number = HEAT_LOAN_APR,
+): CashFlow | null {
+  const loan = heatLoan(netCost, months, apr)
+  if (!loan) return null
+  const perMonth = monthly(annualSavings)
+  if (perMonth === null) return null
+  const monthlyCashFlow = perMonth - loan.monthly
+  if (!isFiniteNumber(monthlyCashFlow)) return null
+  return { monthlyLoan: loan.monthly, monthlySavings: perMonth, monthlyCashFlow }
 }
 
 /**
