@@ -211,3 +211,31 @@ describe('parcelAt', () => {
     expect(calls).toHaveLength(2)
   })
 })
+
+describe('buffered lookup (address point on a street centreline)', () => {
+  it('adds no distance parameter for an exact point query', () => {
+    const url = new URL(parcelUrl(42.279618, -71.308457))
+    expect(url.searchParams.get('distance')).toBeNull()
+    expect(url.searchParams.get('units')).toBeNull()
+  })
+
+  it('buffers in metres when asked, so a geocoded point still finds its parcel', () => {
+    const url = new URL(parcelUrl(42.279618, -71.308457, 20))
+    expect(url.searchParams.get('distance')).toBe('20')
+    expect(url.searchParams.get('units')).toBe('esriSRUnit_Meter')
+  })
+
+  it('keeps exact and buffered results in separate cache entries', async () => {
+    resetParcelCache()
+    const calls: string[] = []
+    const fetchImpl = mockFetch(REAL_PARCEL, calls)
+    const now = () => 1_000
+
+    await parcelAt(42.279618, -71.308457, { fetchImpl, now })
+    await parcelAt(42.279618, -71.308457, { fetchImpl, now, bufferMeters: 20 })
+    expect(calls).toHaveLength(2)
+
+    await parcelAt(42.279618, -71.308457, { fetchImpl, now, bufferMeters: 20 })
+    expect(calls).toHaveLength(2)
+  })
+})

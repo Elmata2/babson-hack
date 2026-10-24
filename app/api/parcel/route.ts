@@ -39,7 +39,13 @@ export async function GET(request: Request): Promise<Response> {
     )
   }
 
-  const outcome = await parcelAt(lat, lon, { timeoutMs: TIMEOUT_MS })
+  // An address point from a geocoder often sits on the street centreline, outside
+  // the parcel. `buffer=20` asks for the nearest parcel within 20 metres; the
+  // response says `buffered` so the UI can label it honestly.
+  const bufferRaw = parseCoordinate(params.get('buffer'))
+  const buffer = bufferRaw === null ? 0 : Math.min(Math.max(bufferRaw, 0), 50)
+
+  const outcome = await parcelAt(lat, lon, { timeoutMs: TIMEOUT_MS, bufferMeters: buffer })
 
   if (!outcome.ok) {
     if (outcome.error.code === 'no_match') {
@@ -49,7 +55,12 @@ export async function GET(request: Request): Promise<Response> {
         {
           ok: true,
           parcel: null,
-          degraded: ['parcel: no assessor record at this coordinate — enter the year built by hand'],
+          match: buffer > 0 ? 'buffered' : 'exact',
+          degraded: [
+            buffer > 0
+              ? `parcel: no assessor record within ${buffer}m — enter the year built by hand`
+              : 'parcel: no assessor record at this coordinate — enter the year built by hand',
+          ],
         },
         { headers: { 'cache-control': 'public, s-maxage=604800' } },
       )
@@ -71,6 +82,7 @@ export async function GET(request: Request): Promise<Response> {
   return Response.json(
     {
       ok: true,
+      match: buffer > 0 ? 'buffered' : 'exact',
       parcel: {
         yearBuilt: parcel.yearBuilt,
         useCode: parcel.useCode,

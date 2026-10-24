@@ -53,6 +53,12 @@ export interface IntakeFormProps {
 
 type Source = 'assessor' | 'manual' | null
 
+/** `106 CHANDLER ST` → `106`. Used to refuse a buffered parcel for the wrong house. */
+function houseNumberOf(line: string): string | null {
+  const match = /^\s*(\d+[A-Za-z-]?)\b/.exec(line)
+  return match?.[1] ?? null
+}
+
 interface AddressState {
   status: 'idle' | 'loading' | 'found' | 'error'
   message: string | null
@@ -76,6 +82,7 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
   const [yearBuilt, setYearBuilt] = useState('')
   const [sqft, setSqft] = useState('')
   const [envelopeSource, setEnvelopeSource] = useState<Source>(null)
+  const [envelopeMatch, setEnvelopeMatch] = useState<'exact' | 'buffered' | null>(null)
   const [tier, setTier] = useState('whole')
   const [installYear, setInstallYear] = useState<'2026' | '2027'>('2026')
 
@@ -92,17 +99,38 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
   }
 
   /** Parcel prefill: year built and floor area, never a price. 4s abort inside the route. */
-  async function prefillFromParcel(lat: number, lon: number) {
-    try {
-      const response = await fetch(`/api/parcel?lat=${lat}&lon=${lon}`)
-      const payload = (await response.json()) as {
+  async function prefillFromParcel(lat: number, lon: number, expectedHouse?: string | null) {
+    const ask = async (buffer: number) => {
+      const query = `lat=${lat}&lon=${lon}${buffer > 0 ? `&buffer=${buffer}` : ''}`
+      const response = await fetch(`/api/parcel?${query}`)
+      return (await response.json()) as {
         ok: boolean
-        parcel?: { yearBuilt: number | null; bldAreaSqft: number | null }
+        match?: 'exact' | 'buffered'
+        parcel?: { yearBuilt: number | null; bldAreaSqft: number | null; siteAddr?: string }
+      }
+    }
+
+    try {
+      // Exact point first. A geocoded address point usually sits on the street
+      // centreline, so a miss is normal; a 20m buffer finds the parcel, and only
+      // counts when the house number agrees.
+      let payload = await ask(0)
+      let buffered = false
+      if (!payload.ok || !payload.parcel) {
+        payload = await ask(20)
+        buffered = true
       }
       if (!payload.ok || !payload.parcel) return
+
+      if (buffered) {
+        const parcelHouse = houseNumberOf(payload.parcel.siteAddr ?? '')
+        if (!expectedHouse || !parcelHouse || parcelHouse !== expectedHouse) return
+      }
+
       if (payload.parcel.yearBuilt) {
         setYearBuilt(String(payload.parcel.yearBuilt))
         setEnvelopeSource('assessor')
+        setEnvelopeMatch(buffered ? 'buffered' : 'exact')
       }
       if (payload.parcel.bldAreaSqft) setSqft(String(payload.parcel.bldAreaSqft))
     } catch {
@@ -118,7 +146,7 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
 
     const [geo, parcel] = await Promise.allSettled([
       fetch(`/api/geocode?q=${encodeURIComponent(suggestion.label)}`).then((response) => response.json()),
-      prefillFromParcel(suggestion.lat, suggestion.lon),
+      prefillFromParcel(suggestion.lat, suggestion.lon, houseNumberOf(suggestion.line1)),
     ])
 
     if (geo.status === 'fulfilled') {
@@ -258,7 +286,16 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
             <span className="flex items-center justify-between gap-2 font-medium">
               Year built
               {envelopeSource ? (
-                <FreshnessBadge kind={envelopeSource} label={envelopeSource === 'assessor' ? 'Assessor' : 'You'} />
+                <FreshnessBadge
+                  kind={envelopeSource}
+                  label={
+                    envelopeSource === 'assessor'
+                      ? envelopeMatch === 'buffered'
+                        ? 'Assessor (nearby)'
+                        : 'Assessor'
+                      : 'You'
+                  }
+                />
               ) : null}
             </span>
             <input
@@ -266,6 +303,7 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
               onChange={(event) => {
                 setYearBuilt(event.target.value)
                 setEnvelopeSource(event.target.value.trim() ? 'manual' : null)
+                setEnvelopeMatch(null)
               }}
               inputMode="numeric"
               placeholder="e.g. 1952"
@@ -323,7 +361,7 @@ export function IntakeForm({ towns, prices }: IntakeFormProps) {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="grid gap-1.5 text-small">
-            <span className="font-medium">How much, per year ({fuelMeta.unit})</span>
+            <span className="font-medium">How much? ({fuelMeta.unit})</span>
             <input
               value={units}
               onChange={(event) => setUnits(event.target.value)}

@@ -50,12 +50,34 @@ because that is when the hackathon clock runs.
   back of the room, with the conservative standard-rate view, the utility at the
   address, and the arithmetic in a `<details>`. Server-rendered from the URL, so
   the answer needs no JavaScript and the link is shareable.
+- **F-64** — address type-ahead over OpenStreetMap Nominatim, bounded to
+  Massachusetts. Type `106 Chandler` and every Chandler Street in the state is
+  listed with its town, because there are nine of them and only one is your
+  house. Click one and the town fills, the Census geocoder resolves the tract,
+  and the MassGIS parcel supplies year built. ARIA combobox with arrow keys,
+  Enter, Escape; attribution rendered inside the list; one upstream request per
+  second enforced by a queue; results cached in-process only and served
+  `no-store`.
+- **F-65** — bill upload beside the numbers: one photo to `/api/parse-bill`,
+  the fields it read, then "Use these numbers" to fill the form. Unconfigured
+  OCR says so and points at the two inputs; there is no dead end. The image is
+  never previewed, kept or re-sent.
 - `CHANGELOG.md` — this file.
 
 ### Changed
 
-- The front page's oil figure is now read from the price adapter instead of
-  hardcoded, and carries its badge and date.
+- The address field is a dropdown that updates while typing, not a button that
+  guesses one address. The town select stays as the offline fallback, and a
+  typed address the dropdown did not list can still be sent to the Census
+  geocoder.
+- The submit control is a summary card: what will be sent (`800 gal at $6.23 ·
+  Framingham`), why it can or cannot go, and a single `See the verdict →`
+  action. The old full-width black button was the ugliest thing on the page.
+- `lib/parcel` accepts an optional `bufferMeters`. A geocoded address point sits
+  on the street centreline, outside the parcel polygon, so `buffer=20` asks
+  MassGIS for the nearest parcel — and the client only accepts a buffered hit
+  when the house number matches. `match: 'exact' | 'buffered'` is in the
+  response so the UI can say "Assessor (nearby)".
 - `/start` and `/` revalidate daily; `/verdict` is dynamic because it reads the
   URL.
 - `npm run check` restored to include ESLint after a concurrent edit dropped it.
@@ -63,6 +85,8 @@ because that is when the hackathon clock runs.
 
 ### Fixed
 
+- The freshness badge printed its kind twice when the caller passed the same
+  word as the label (`Assessor · Assessor`). Duplicate parts are collapsed.
 - `lib/geo.ts` asserted that every tract a town lists shares the town's county
   FIPS. Ninety-one legitimate links cross a county line (Taunton into Plymouth,
   Holyoke into Hampshire) and killed `next build` before it had ever run. The

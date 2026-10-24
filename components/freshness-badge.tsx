@@ -51,7 +51,7 @@ export function FreshnessBadge({ kind, date, label, className = '' }: FreshnessB
   const short = formatDateShort(date ?? null)
   // The kind is always said in words. Colour alone would hide `live` from a
   // greyscale projector or a reader who cannot distinguish the tints.
-  const parts = label ? [label, style.label] : [style.label]
+  const parts = label && label !== style.label ? [label, style.label] : [style.label]
   if (short) parts.push(short)
   const text = parts.join(' · ')
 

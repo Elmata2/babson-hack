@@ -81,6 +81,14 @@ export interface ParcelOptions {
   timeoutMs?: number
   now?: () => number
   bypassCache?: boolean
+  /**
+   * Buffer the query point by this many metres. Zero (the default) is an exact
+   * point-in-parcel test. A street address point — what a geocoder returns —
+   * often sits on the centreline, outside the parcel, so a small radius is the
+   * difference between "no record" and the actual house. Callers must treat a
+   * buffered hit as *nearby*, not as the exact parcel.
+   */
+  bufferMeters?: number
 }
 
 const cache = ttlCache<Parcel>()
@@ -112,7 +120,7 @@ function str(value: unknown): string | null {
 }
 
 /** Build the point-query URL. Exported so the layer number and field list are testable. */
-export function parcelUrl(lat: number, lon: number): string {
+export function parcelUrl(lat: number, lon: number, bufferMeters = 0): string {
   const geometry = JSON.stringify({
     x: lon,
     y: lat,
@@ -127,6 +135,12 @@ export function parcelUrl(lat: number, lon: number): string {
     returnGeometry: 'false',
     f: 'json',
   })
+  if (bufferMeters > 0) {
+    // ArcGIS buffers the point when a distance is supplied, which is how an
+    // address point on the street centreline still finds its parcel.
+    params.set('distance', String(bufferMeters))
+    params.set('units', 'esriSRUnit_Meter')
+  }
   return `${SERVICE}/${PARCEL_LAYER}/query?${params.toString()}`
 }
 
@@ -188,13 +202,14 @@ export async function parcelAt(
 
   // ~11m grid: enough to dedupe repeat lookups, coarse enough to be honest about it.
   const now = options.now ?? Date.now
-  const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`
+  const buffer = options.bufferMeters ?? 0
+  const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)},${buffer}`
   if (!options.bypassCache) {
     const hit = cache.get(cacheKey, now())
     if (hit) return { ok: true, parcel: hit }
   }
 
-  const response = await fetchJson(parcelUrl(lat, lon), {
+  const response = await fetchJson(parcelUrl(lat, lon, buffer), {
     fetchImpl: options.fetchImpl,
     timeoutMs: options.timeoutMs ?? TIMEOUT_MS,
   })
