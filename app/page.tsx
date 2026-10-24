@@ -123,15 +123,10 @@ export default async function Home({ searchParams }: HomeProps) {
               </a>
             </div>
 
-            <p className="rise mt-5 max-w-[58ch] text-micro text-ink-muted" style={step(4)}>
-              Free · no account · your bill photo is read once and discarded · oil, propane, gas and
-              electric baseboard, in all 351 Massachusetts towns
-            </p>
-
             <div
               data-tone="deadline"
               className="rise mt-6 max-w-[56ch] border-l-2 border-l-(--tone) pl-4 text-small text-ink-muted"
-              style={step(4)}
+              style={step(3)}
             >
               <span className="font-medium text-ink">The deadline is real.</span> The whole-home
               rebate drops from $2,650 to $2,350 a ton on 1 January — up to $1,000 less for the same
@@ -224,7 +219,7 @@ export default async function Home({ searchParams }: HomeProps) {
             <Reveal>
               <p className="text-eyebrow uppercase text-ink-muted">How it works</p>
               <h2 className="mt-4 max-w-[22ch] text-balance text-headline font-medium">
-                Two bills in. One answer out. Nothing to sign up for.
+                Two bills in. One answer out.
               </h2>
               <p className="mt-3 max-w-[54ch] text-small text-ink-muted">
                 The first screen asks what to call you and an email. No password, and both stay in this
@@ -385,9 +380,9 @@ export default async function Home({ searchParams }: HomeProps) {
  */
 const FAQS = [
   {
-    question: 'Do I need to create an account?',
+    question: 'What do you need from me?',
     answer:
-      'No. No password, no server-side profile: what you enter stays in this browser, and clearing the site data clears it. The bill photo is read once and then discarded.',
+      'A name, an email, and a tick to say you have read the privacy summary. There is no password, and the profile is kept in this browser rather than on a server — clearing the site data clears it. The bill photo is read once and then discarded.',
   },
   {
     question: 'What if my house is a bad fit?',
