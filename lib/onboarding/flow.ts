@@ -223,7 +223,7 @@ export function detailsNeeds(input: {
     town: !input.townRead,
     fuel: fuelFromBill(input.heating) === null,
     numbers: input.heating === null || !input.numbersReady,
-    income: !input.incomeDetected,
+    income: !input.incomeDetected && fuelFromBill(input.heating) !== 'gas',
   }
 }
 

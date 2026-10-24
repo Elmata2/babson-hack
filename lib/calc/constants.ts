@@ -104,11 +104,15 @@ export const OVERSIZE_WARN_TONS = 5
 
 /** Mass Save average whole-home install cost, USD (mass-save-rules §2). */
 export const DEFAULT_INSTALL_COST_USD = 22_000
-/** HEAT Loan term, months (mass-save-rules §2). */
+/**
+ * HEAT Loan term, months. An assumption: the longest term a participating lender
+ * lists (Energy Credit Union, read 2026-10-24); masssave.com states no term
+ * (mass-save-rules §2). Shorter terms may apply to a given household.
+ */
 export const HEAT_LOAN_MONTHS = 84
 /** HEAT Loan APR: 0% promotional rate (mass-save-rules §2). */
 export const HEAT_LOAN_APR = 0
-/** HEAT Loan maximum, USD. Not a rebate; informational only. */
+/** HEAT Loan maximum, USD, lifetime (masssave.com, effective 2025-01-01). Not a rebate. */
 export const HEAT_LOAN_MAX_USD = 25_000
 /** Months in a year, for monthly savings. */
 export const MONTHS_PER_YEAR = 12

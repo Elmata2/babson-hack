@@ -46,6 +46,13 @@ not confirmed that day is listed under "Do not claim".
 - **Average whole-home installation cost: $22,000.** Mass Save program data,
   installs completed 2022 (`masssave.com` cost example).
 - **HEAT Loan: 0%, up to $25,000**, for qualified improvements. Not a rebate.
+  The $25,000 maximum is lifetime across a customer's upgrades, effective
+  2025-01-01 (masssave.com HEAT Loan page, read 2026-10-24). That page does not
+  state a term. A participating lender, Energy Credit Union
+  (`energycreditunion.org/mass-save-heat-loan`, read 2026-10-24), lists
+  "terms up to 7 years" / up to 84 months at 0%, with terms "based on finance
+  amount" and subject to credit approval. We therefore **assume the longest
+  term, 84 months**, and say so wherever it is shown.
 - **Seasonal Heat Pump Rate:** electric usage **Nov 1 – Apr 30**. Estimate from
   your own rate using Mass Save's published method:
   - Eversource / Unitil: `rate − $0.07`
@@ -76,8 +83,12 @@ error, not a bargain.
 
 ## 5. Do not claim (unverified as of 2026-10-24)
 
-- **Income thresholds.** Not published. Never invent a FPL percentage. Emit
-  `check eligibility` and the verification number (888-714-3990).
+- **Income thresholds.** Published by household size in
+  `data/rules/income-limits-2026.json` (Mass Save, 2026 – 2027 Heating Season,
+  https://www.masssave.com/residential/rebates-offers-services/income-based-offers,
+  read 2026-10-24). Statewide table; Mass Save says limits can vary by area. Never
+  invent a FPL or SMI percentage. Treat a household within 5% of its limit as
+  `check eligibility` and give the verification number (888-714-3990).
 - **Natural gas $/therm** for a specific home. Derive from the user's bill or
   leave blank.
 - Any **"Super HEAT" $50,000** loan variant. The official page says $25,000.

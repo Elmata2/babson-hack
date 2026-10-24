@@ -15,6 +15,7 @@ import {
   AFUE_BY_FUEL,
   BTU_PER_KWH,
   BTU_PER_UNIT_BY_FUEL,
+  HEAT_LOAN_MAX_USD,
   HEAT_LOAN_MONTHS,
   MAX_PAYBACK_YEARS,
 } from '../calc/constants'
@@ -121,7 +122,7 @@ export function provenanceFor(result: VerdictResult, ctx: ProvenanceContext): Pr
   const payback =
     result.paybackYears === null
       ? 'none'
-      : `${one(result.paybackYears)} yr${result.paybackYears > MAX_PAYBACK_YEARS ? ' — past the limit' : ''}`
+      : `${one(result.paybackYears)} years${result.paybackYears > MAX_PAYBACK_YEARS ? ' — past the limit' : ''}`
 
   const loses = result.annualSavings <= 0
   const lossAbs = Math.abs(result.annualSavings)
@@ -321,9 +322,10 @@ export function provenanceFor(result: VerdictResult, ctx: ProvenanceContext): Pr
       id: 'monthlyLoan',
       label: '0% HEAT Loan payment',
       value: `${usd(result.monthlyLoan)}/mo`,
-      formula: `monthly loan = net cost ÷ ${HEAT_LOAN_MONTHS} months at 0%`,
+      formula: `monthly loan = amount financed ÷ ${HEAT_LOAN_MONTHS} months at 0%; amount financed = net cost, at most ${usd(HEAT_LOAN_MAX_USD)}`,
       substitutes: [
         { label: 'Net cost', value: usd(result.netCost) },
+        { label: 'Amount financed', value: usd(result.loanAmount) },
         { label: 'Term', value: `${HEAT_LOAN_MONTHS} months` },
         { label: 'APR', value: '0%' },
       ],

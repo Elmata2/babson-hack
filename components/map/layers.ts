@@ -88,6 +88,20 @@ function intensityColour(t: number): string {
   return `rgb(${ca.map((c, j) => Math.round(c + (cb[j] - c) * k)).join(',')})`
 }
 
+const uploaded = new WeakMap<object, FeatureCollection>()
+
+/** Uploads `data` once per source: re-sending 1,600 tracts re-tiles them in the worker, and a year change does not touch geometry. */
+function setSourceOnce(map: MlMap, id: string, data: FeatureCollection): void {
+  const src = map.getSource(id) as GeoJSONSource | undefined
+  if (!src) {
+    map.addSource(id, { type: 'geojson', data })
+    uploaded.set(map.getSource(id) as object, data)
+  } else if (uploaded.get(src) !== data) {
+    src.setData(data)
+    uploaded.set(src, data)
+  }
+}
+
 function setSource(map: MlMap, id: string, data: FeatureCollection): void {
   const src = map.getSource(id) as GeoJSONSource | undefined
   if (src) src.setData(data)
@@ -150,7 +164,7 @@ export function applyLens(map: MlMap, state: LensState): void {
 
   if (state.lens === 'heat') {
     if (!state.tracts) return
-    setSource(map, 'tracts', state.tracts.collection)
+    setSourceOnce(map, 'tracts', state.tracts.collection)
     // One function decides what the choropleth encodes for every metric and year,
     // and the legend reads the same function, so a scale cannot describe itself wrong.
     const scale = heatScale(state.heatMetric, state.heatYear)

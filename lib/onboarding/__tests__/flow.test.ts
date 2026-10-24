@@ -266,8 +266,9 @@ describe('two bills', () => {
 
   it('skips the house step when the bills answered everything', () => {
     expect(anyDetailsNeeded(detailsNeeds({ townRead: true, heating: bill({}), incomeDetected: true, numbersReady: true }))).toBe(false)
-    expect(detailsNeeds({ townRead: true, heating: bill({}), incomeDetected: false, numbersReady: true }).income).toBe(true)
+    expect(detailsNeeds({ townRead: true, heating: bill({ fuel: 'oil' }), incomeDetected: false, numbersReady: true }).income).toBe(true)
     expect(detailsNeeds({ townRead: false, heating: bill({}), incomeDetected: true, numbersReady: true }).town).toBe(true)
+    expect(detailsNeeds({ townRead: true, heating: bill({ fuel: 'gas' }), incomeDetected: false, numbersReady: true }).income).toBe(false)
     const unusable = detailsNeeds({ townRead: true, heating: bill({}), incomeDetected: true, numbersReady: false })
     expect(anyDetailsNeeded(unusable)).toBe(true)
     const byHand = detailsNeeds({ townRead: true, heating: null, incomeDetected: true, numbersReady: true })

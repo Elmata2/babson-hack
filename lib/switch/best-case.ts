@@ -15,6 +15,7 @@
  * `allStay` is the one function allowed to decide that.
  */
 
+import { HEAT_LOAN_MONTHS } from '../calc/constants'
 import type { Fuel, VerdictResult } from '../calc/types'
 import type { BasicServiceRate } from '../supply'
 
@@ -242,7 +243,7 @@ function programsRow(input: BestCaseInput): BestCaseRow {
   const result = input.result
   const parts = [
     `${usd(result.totalRebate)} rebate for a ${result.installYear} install`,
-    `${usd(result.monthlyLoan)}/month at 0% over 84 months (HEAT Loan)`,
+    `${usd(result.monthlyLoan)}/month at 0% over ${HEAT_LOAN_MONTHS} months (HEAT Loan${result.netCost > result.loanAmount ? `, on the first ${usd(result.loanAmount)}` : ''})`,
     input.incomeEligible ? 'enhanced tier: up to $16,000 or no-cost turnkey, subject to a Home Energy Assessment' : null,
     input.seasonalApplied ? 'seasonal heat-pump rate applied' : 'seasonal rate not published for this sponsor',
   ].filter(Boolean)

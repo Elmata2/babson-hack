@@ -108,7 +108,15 @@ export function verdictHeadline(result: VerdictResult): VerdictHeadline {
       netCost,
     ]
   } else if (kind === 'save_switch') {
-    why = [runningCost, netCost, payback === null ? [] : ['That pays back in ', years(payback), '.']]
+    why = [
+      runningCost,
+      netCost,
+      result.netCost <= 0
+        ? ['The rebate covers the whole install, so it pays for itself immediately.']
+        : payback === null
+          ? []
+          : ['That pays back in ', years(payback), '.'],
+    ]
   } else if (kind === 'save_but_wait') {
     why = [
       runningCost,

@@ -1,0 +1,27 @@
+{
+  "source": {
+    "url": "https://www.masssave.com/residential/rebates-offers-services/income-based-offers",
+    "publisher": "Mass Save",
+    "readOn": "2026-10-24",
+    "programYear": "2026 – 2027 Heating Season",
+    "note": "Statewide table as shown with no ZIP entered. Mass Save says limits can vary by area and offers a ZIP lookup on the same page. The Enhanced Incentive column is the top of the band that starts one dollar above the Income Eligible limit."
+  },
+  "tiers": [
+    {
+      "name": "Income Eligible Program",
+      "maxIncomeBySize": {
+        "1": 53585, "2": 70073, "3": 86561, "4": 103049, "5": 119536, "6": 136024,
+        "7": 139116, "8": 142207, "9": 145299, "10": 148390, "11": 151482, "12": 154573,
+        "13": 157665, "14": 160756, "15": 163848, "16": 166939, "17": 170031
+      }
+    },
+    {
+      "name": "Enhanced Incentive",
+      "maxIncomeBySize": {
+        "1": 71447, "2": 93431, "3": 115415, "4": 137399, "5": 159382, "6": 181366,
+        "7": 185488, "8": 189610, "9": 193732, "10": 197854, "11": 201976, "12": 206098,
+        "13": 210220, "14": 214342, "15": 218464, "16": 222586, "17": 226708
+      }
+    }
+  ]
+}

@@ -9,8 +9,24 @@
 
 import type { VerdictResult } from '@/lib/calc/types'
 import { one, usd } from '@/lib/verdict/format'
+import { loanSentence, loanView } from '@/lib/verdict/money'
+import type { ProvenanceEntry } from '@/lib/verdict/provenance'
 
-export function CashFlow({ result, noMassSave }: { result: VerdictResult; noMassSave: boolean }) {
+import { ProvenanceFigure } from './provenance-figure'
+
+export function CashFlow({
+  result,
+  noMassSave,
+  loanEntry = null,
+  savingsEntry = null,
+}: {
+  result: VerdictResult
+  noMassSave: boolean
+  loanEntry?: ProvenanceEntry | null
+  savingsEntry?: ProvenanceEntry | null
+}) {
+  const loan = loanView(result)
+  if (noMassSave || loan === null) return null
   const monthlySavings = Math.abs(result.monthlySavings)
   const scale = Math.max(result.monthlyLoan, monthlySavings, 1)
   const loanWidth = Math.max(2, (result.monthlyLoan / scale) * 100)
@@ -23,26 +39,28 @@ export function CashFlow({ result, noMassSave }: { result: VerdictResult; noMass
         <h2 id="cash-flow-heading" className="text-title font-medium">
           Month to month, on the 0% HEAT Loan
         </h2>
-        <p className="text-micro text-ink-muted">84 months · no interest</p>
       </div>
-
-      {noMassSave ? (
-        <p className="mt-3 max-w-[62ch] text-small text-ink-muted">
-          The loan view depends on a rebate, and Mass Save rebates do not exist at this address. The running-cost
-          comparison above is the part that stays true.
+      <p className="mt-1 max-w-[62ch] text-small text-ink-muted">{loanSentence()}</p>
+      {loan.remainder > 0 ? (
+        <p className="mt-1 max-w-[62ch] text-small text-ink-muted">
+          Your net cost is {usd(result.netCost)}, so the loan covers {usd(loan.amount)} and {usd(loan.remainder)} is
+          paid up front.
         </p>
-      ) : (
+      ) : null}
+
         <>
           <dl className="mt-5 grid gap-4">
             <Bar
               label="Loan payment"
               value={`${usd(result.monthlyLoan)}/mo`}
+              entry={loanEntry}
               width={loanWidth}
               tone="ink"
             />
             <Bar
               label={result.monthlySavings >= 0 ? 'Saved on energy' : 'Extra energy cost'}
               value={`${usd(monthlySavings)}/mo`}
+              entry={savingsEntry}
               width={savingsWidth}
               tone={result.monthlySavings >= 0 ? 'gain' : 'loss'}
             />
@@ -54,7 +72,7 @@ export function CashFlow({ result, noMassSave }: { result: VerdictResult; noMass
                 The loan is <span className="tabular-nums">{usd(result.monthlyLoan)}</span> a month and the heat pump
                 saves <span className="tabular-nums">{usd(result.monthlySavings)}</span>, so you are{' '}
                 <span className="tabular-nums">{usd(result.monthlyCashFlow)}</span> a month ahead
-                from the first payment.
+                from the first payment{loan.remainder > 0 ? `, after the ${usd(loan.remainder)} you pay up front` : ''}.
               </>
             ) : (
               <>
@@ -72,7 +90,6 @@ export function CashFlow({ result, noMassSave }: { result: VerdictResult; noMass
             offer from a lender.
           </p>
         </>
-      )}
     </section>
   )
 }
@@ -82,9 +99,11 @@ function Bar({
   value,
   width,
   tone,
+  entry,
 }: {
   label: string
   value: string
+  entry: ProvenanceEntry | null
   width: number
   tone: 'ink' | 'gain' | 'loss'
 }) {
@@ -98,7 +117,7 @@ function Bar({
           <span className={`block h-full rounded-pill ${colour}`} style={{ width: `${width}%` }} />
         </span>
       </dd>
-      <dd className="text-small tabular-nums text-ink sm:text-right">{value}</dd>
+      <dd className="text-small tabular-nums text-ink sm:text-right">{entry ? <ProvenanceFigure entry={entry}>{value}</ProvenanceFigure> : value}</dd>
     </div>
   )
 }

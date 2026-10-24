@@ -7,6 +7,8 @@ import { AddressCombobox } from '@/components/address-combobox'
 import { BillUpload } from '@/components/bill-upload'
 import { FreshnessBadge } from '@/components/freshness-badge'
 import { DEMO_BILL_SAMPLES } from './sample-bills'
+import { HOUSEHOLD_SIZE_MAX, MASS_SAVE_PHONE, eligibilityFor, incomeResultCopy, parseIncome } from '@/lib/onboarding/income'
+import { mapProfileFrom, mergeMapProfile } from '@/lib/onboarding/profile-map'
 import { matchTown } from '@/lib/address/nominatim'
 import { demoFromLocation, withDemo } from '@/lib/demo'
 import { countyOfTown } from '@/lib/geo'
@@ -139,7 +141,9 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
   const [units, setUnits] = useState('')
   const [price, setPrice] = useState('')
   const [priceTouched, setPriceTouched] = useState(false)
-  const [incomeAnswer, setIncomeAnswer] = useState<Income>('unsure')
+  const [householdSize, setHouseholdSize] = useState<number | null>(null)
+  const [incomeText, setIncomeText] = useState('')
+  const [incomeDeclined, setIncomeDeclined] = useState(false)
   const [addressNote, setAddressNote] = useState<string | null>(null)
 
   const [step, setStep] = useState<Step>('account')
@@ -149,7 +153,13 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
   const town = townPick ?? billTown ?? ''
   const fuel: BillFuel = fuelFromBill(heatingBill) ?? manualFuel
   const incomeDetected = lowIncomeDetected(bills)
-  const income: Income = incomeDetected ? 'yes' : incomeAnswer
+  const estimatedIncome = incomeDeclined ? null : parseIncome(incomeText)
+  const income: Income = incomeDetected
+    ? 'yes'
+    : fuel === 'gas'
+      ? 'unsure'
+      : eligibilityFor(householdSize, estimatedIncome)
+  const incomeResult = incomeDeclined ? null : incomeResultCopy(householdSize, estimatedIncome)
   const utility = pickUtility(electricBill, heatingBill, hasSingleSponsor(town))
   const mismatch = townMismatch(electricBill, heatingBill, towns)
   const electricRate =
@@ -287,6 +297,12 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       weatherizationBonus: false,
       sizingBonus: false,
     }
+    writeProfile(
+      mergeMapProfile(
+        profileSnapshot(),
+        mapProfileFrom({ town, fuel, electric: electricBill, income }),
+      ),
+    )
     router.push(withDemo(`/verdict?${toQuery(values).toString()}`, demoFromLocation()))
   }
 
@@ -591,36 +607,71 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
             </div>
           ) : null}
 
-          {needs.income ? (
-            <fieldset className="grid gap-2">
+          {needs.income && fuel !== 'gas' ? (
+            <fieldset className="grid gap-3">
               <legend className="text-small font-medium">Is the household under the Mass Save income limit?</legend>
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ['yes', 'Yes'],
-                    ['no', 'No'],
-                    ['unsure', 'Not sure'],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-pressed={incomeAnswer === value}
-                    onClick={() => setIncomeAnswer(value)}
-                    className={`rounded-pill border px-3.5 py-2 text-small transition-colors ${
-                      incomeAnswer === value
-                        ? 'border-ink bg-ink text-paper'
-                        : 'border-rule-strong bg-surface text-ink-muted hover:border-ink hover:text-ink'
-                    }`}
-                  >
-                    {label}
+              {incomeDeclined ? (
+                <p className="text-small text-ink-muted">
+                  Skipped. We will use the standard rebate until you check with Mass Save.{' '}
+                  <button type="button" onClick={() => setIncomeDeclined(false)} className="underline">
+                    Answer instead
                   </button>
-                ))}
-              </div>
+                </p>
+              ) : (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="People in the household">
+                      <select
+                        value={householdSize ?? ''}
+                        onChange={(event) => setHouseholdSize(event.target.value === '' ? null : Number(event.target.value))}
+                        className="rounded-card border border-rule-strong bg-surface px-3 py-2.5"
+                      >
+                        <option value="">Choose…</option>
+                        {Array.from({ length: HOUSEHOLD_SIZE_MAX }, (_, index) => index + 1).map((count) => (
+                          <option key={count} value={count}>
+                            {count === HOUSEHOLD_SIZE_MAX ? `${count} or more` : count}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Estimated yearly household income" hint="Before taxes. Kept in this session only.">
+                      <input
+                        value={incomeText}
+                        onChange={(event) => setIncomeText(event.target.value)}
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="e.g. 85,000"
+                        className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
+                      />
+                    </Field>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIncomeDeclined(true)
+                        setIncomeText('')
+                        setHouseholdSize(null)
+                      }}
+                      className="rounded-pill border border-rule-strong px-3.5 py-2 text-small text-ink-muted hover:border-ink hover:text-ink"
+                    >
+                      Prefer not to say
+                    </button>
+                  </div>
+                  {incomeText.trim() !== '' && estimatedIncome === null ? (
+                    <p className="text-micro text-deadline">Enter a number like 85000 or 85k.</p>
+                  ) : null}
+                  {incomeResult ? (
+                    <p className="text-small text-ink" role="status">
+                      {incomeResult}
+                    </p>
+                  ) : null}
+                </>
+              )}
               <p className="text-micro text-ink-faint">
-                Check eligibility:{' '}
+                An estimate, not a decision. Check eligibility:{' '}
                 <a href="tel:8887143990" className="underline">
-                  888-714-3990
+                  {MASS_SAVE_PHONE}
                 </a>
                 . Not sure counts as the standard rebate.
               </p>

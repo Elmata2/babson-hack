@@ -116,6 +116,13 @@ describe('verdict headline', () => {
     expect(h.sentence).toContain('0.4 years')
   })
 
+  it('does not print a 0.0 year payback when the rebate covers the install', () => {
+    const h = verdictHeadline(withFields(oilNow, { netCost: 0, paybackYears: 0 }))
+    const text = [h.sentence, h.action, ...h.why].join(' ')
+    expect(text).not.toContain('0.0 years')
+    expect(text).toContain('pays for itself immediately')
+  })
+
   it('branches on raw savings: a rounded-to-zero win under SWITCH_NOW still says switch', () => {
     const h = verdictHeadline(withFields(oilNow, { annualSavings: 0.3, monthlySavings: 0.02 }))
     expect(h.action).toBe('Switch.')
@@ -151,7 +158,7 @@ describe('verdict headline', () => {
         if (['savings', 'oldCost', 'netCost', 'rebate2026', 'rebate2027', 'cliff'].includes(part.id)) {
           expect(entry?.value).toBe(part.text)
         }
-        if (part.id === 'payback') expect(entry?.value).toContain(part.text.replace(' years', ' yr'))
+        if (part.id === 'payback') expect(entry?.value).toContain(part.text)
       }
     }
     const loss = provenanceFor(gas, ctx)

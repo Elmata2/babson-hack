@@ -24,6 +24,7 @@ interface FakeLayer {
 class FakeMap {
   layers = new Map<string, FakeLayer>()
   sources = new Map<string, { setData: (data: unknown) => void }>()
+  setDataCalls: Record<string, number> = {}
   paint: Record<string, unknown> = {}
   filters: Record<string, unknown> = {}
   layout: Record<string, unknown> = {}
@@ -41,7 +42,7 @@ class FakeMap {
   }
 
   addSource(id: string) {
-    this.sources.set(id, { setData: () => {} })
+    this.sources.set(id, { setData: () => (this.setDataCalls[id] = (this.setDataCalls[id] ?? 0) + 1) })
   }
 
   getSource(id: string) {
@@ -121,6 +122,34 @@ describe('the heat fill follows the metric and the year', () => {
     const fill = fillOf(map)
     expect(fill).toContain('cliffHomes2026')
     expect(fill).not.toContain('cliffDollars2027')
+  })
+
+  it('does not re-upload the tract geometry when only the year or metric changes', () => {
+    const map = new FakeMap()
+    applyLens(map as unknown as MlMap, state({ heatYear: 2026 }))
+    applyLens(map as unknown as MlMap, state({ heatYear: 2027 }))
+    applyLens(map as unknown as MlMap, state({ heatYear: 2027, heatMetric: 'oil_spend' }))
+    expect(map.setDataCalls.tracts ?? 0).toBe(0)
+    applyLens(map as unknown as MlMap, state({ tracts: { collection: { ...TRACTS } } }))
+    expect(map.setDataCalls.tracts).toBe(1)
+  })
+
+  it('adds the tract source again, without setData, after a style swap removed it', () => {
+    const map = new FakeMap()
+    let added = 0
+    const addSource = map.addSource.bind(map)
+    map.addSource = (id: string) => {
+      added++
+      addSource(id)
+    }
+    applyLens(map as unknown as MlMap, state())
+    expect(added).toBe(2)
+    map.sources.delete('tracts')
+    map.layers.clear()
+    applyLens(map as unknown as MlMap, state())
+    expect(added).toBe(3)
+    expect(map.setDataCalls.tracts ?? 0).toBe(0)
+    expect(map.layers.has('tracts-fill')).toBe(true)
   })
 
   it('repaints on a metric switch rather than adding a second layer', () => {

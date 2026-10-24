@@ -13,6 +13,8 @@ import { describe, expect, it } from 'vitest'
 import { HeatControls } from '@/components/map/heat-controls'
 import { HeatTable } from '@/components/map/heat-table'
 import { HeatStatic } from '@/components/map/heat-static'
+import { BillPanel } from '@/components/map/bill-panel'
+import { EMPTY_PROFILE } from '@/components/map/types'
 import { TownPanel } from '@/components/map/town-panel'
 import type { EnergyTown } from '@/lib/map/energy-model'
 
@@ -148,16 +150,27 @@ describe('the heat panels', () => {
     expect(ok).toContain('Average home in Worcester: 428 kWh/month')
     expect(ok).toContain('You use roughly 52% more than the average home in Worcester.')
     expect(ok).toContain('Mass Save 2023 ÷ Census ACS 5-yr households')
-    expect(ok).toContain('A rough guide, not an exact average')
+    expect(ok).toContain('A rough guide, not an exact average: each per household figure')
     expect(ok).toContain('Towns with many apartments read low; towns with many seasonal homes read high.')
     expect(ok).toContain('received $5,915,254')
+    expect(ok).toContain('Mass Save paid about $75 per household in Worcester in 2023 for residential electric programs.')
+    expect(ok).toContain('(Mass Save 2023 ÷ Census ACS households)')
     const seasonal = render({ ...energy({ status: 'reported', mwh: 406178 }, ['eversource']), households: 20000 }, 650)
     expect(seasonal).toContain('You: 650 kWh/month')
     expect(seasonal).toContain('Average home in Worcester: 1,692 kWh/month')
     expect(seasonal).toContain('Seasonal homes push this town&#x27;s average up, so compare loosely.')
     expect(seasonal).not.toContain('You use')
     expect(render(energy({ status: 'reported', mwh: 406178 }, ['eversource']), null)).toContain('Add your monthly kWh to compare')
-    expect(render(energy({ status: 'municipal' }, ['municipal']), 650)).toContain('no average home to compare')
+    const none = render({ ...energy({ status: 'reported', mwh: 406178 }, ['eversource']), incentivesUsd: 0 }, 650)
+    expect(none).toContain('No Mass Save incentives reported in 2023.')
+    expect(none).not.toContain('per household in')
+    expect(none).not.toContain('about $0')
+    const municipal = render(energy({ status: 'municipal' }, ['municipal']), 650)
+    expect(municipal).toContain('no average home to compare')
+    expect(municipal).not.toContain('per household in')
+    expect(render(energy({ status: 'suppressed' }, ['eversource']), 650)).not.toContain('per household in')
+    expect(render({ ...energy({ status: 'reported', mwh: 1 }, ['eversource']), incentivesUsd: null }, 650)).not.toContain('per household in')
+    expect(render(energy({ status: 'reported', mwh: 1 }, ['eversource', 'nationalgrid']), 650)).not.toContain('per household in')
     expect(render(energy({ status: 'reported', mwh: 1 }, ['eversource', 'nationalgrid']), 650)).toContain('more than one utility')
   })
 
@@ -168,5 +181,30 @@ describe('the heat panels', () => {
     expect(html).toContain('href="/verdict?fuel=propane"')
     expect(html).toContain('← Back to your verdict')
     expect(html).not.toContain('Grid')
+  })
+})
+
+describe('the Your bill tab', () => {
+  const render = (patch: Partial<typeof EMPTY_PROFILE>) =>
+    renderToStaticMarkup(createElement(BillPanel, { profile: { ...EMPTY_PROFILE, ...patch }, onEditProfile: noop, today: new Date('2026-10-24') }))
+
+  it('asks for My home only when nothing was entered', () => {
+    expect(render({})).toContain('Fill in My home')
+    expect(render({ kwh: 600, kwhIsExample: true })).toContain('Fill in My home')
+  })
+
+  it('renders from a stored kWh alone, without the empty-state prompt', () => {
+    const html = render({ kwh: 540, kwhIsExample: false })
+    expect(html).not.toContain('Fill in My home')
+    expect(html).toContain('What you entered')
+    expect(html).toContain('540 kWh')
+  })
+
+  it('renders the full bill from onboarding fields', () => {
+    const html = render({ town: 'Worcester', kwh: 540, kwhIsExample: false, fuel: 'oil', supply: 'competitive', supplierRateCents: 18, contractEnd: '2027-02-01' })
+    expect(html).not.toContain('Fill in My home')
+    expect(html).toContain('Heating oil')
+    expect(html).toContain('Your supply vs Basic Service')
+    expect(html).toContain('Rebate deadline')
   })
 })

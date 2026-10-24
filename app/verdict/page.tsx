@@ -8,6 +8,7 @@ import { RecommendationCard } from '@/components/verdict/recommendation-card'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { AssumptionsStrip } from '@/components/verdict/assumptions-strip'
+import { paybackView, rebateCapNote, rejectedQuote } from '@/lib/verdict/money'
 import { CashFlow } from '@/components/verdict/cash-flow'
 import { EnhancedOfferLine } from '@/components/verdict/enhanced-offer'
 import { NumberFlip } from '@/components/verdict/number-flip'
@@ -389,7 +390,11 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
             <Stat
               label={`Rebate, ${result.installYear} install`}
               value={noMassSave ? 'not available' : usd(result.totalRebate)}
-              note={noMassSave ? 'municipal light plant' : `2027: ${usd(result.rebate2027)}`}
+              note={
+                noMassSave
+                  ? 'municipal light plant'
+                  : `${rebateCapNote(result) ? `${rebateCapNote(result)} · ` : ''}2027: ${usd(result.rebate2027)}`
+              }
               muted={noMassSave}
               entry={noMassSave ? null : figure('rebate')}
             />
@@ -402,8 +407,8 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
             />
             <Stat
               label="Payback"
-              value={noMassSave ? 'not quoted' : result.paybackYears === null ? 'none' : `${result.paybackYears.toFixed(1)} yr`}
-              note={noMassSave ? 'depends on a rebate' : result.paybackYears === null ? 'no savings, no payback' : 'simple, undiscounted'}
+              value={noMassSave ? 'not quoted' : paybackView(result).value}
+              note={noMassSave ? 'depends on a rebate' : paybackView(result).note}
               muted={noMassSave}
               entry={noMassSave ? null : figure('payback')}
             />
@@ -417,12 +422,22 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 loan. It never changes the answer&rsquo;s honesty.
               </p>
               <div className="mt-4">
-                <InstallCostField value={result.installCost} fromQuote={quote !== null} query={queryString(params)} />
+                <InstallCostField
+                  value={result.installCost}
+                  fromQuote={quote !== null}
+                  query={queryString(params)}
+                  rejected={rejectedQuote(first(params.ic))?.message ?? null}
+                />
               </div>
             </section>
           )}
 
-          <CashFlow result={result} noMassSave={noMassSave} />
+          <CashFlow
+            result={result}
+            noMassSave={noMassSave}
+            loanEntry={figure('monthlyLoan')}
+            savingsEntry={figure('monthlySavings')}
+          />
 
           <section className="mt-10">
             <h2 className="text-title font-medium">How we worked it out</h2>

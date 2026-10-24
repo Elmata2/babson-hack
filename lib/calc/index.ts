@@ -21,6 +21,7 @@ import {
   MAX_ANNUAL_UNITS_BY_FUEL,
   MAX_HDD65,
   MAX_INSTALL_COST_USD,
+  HEAT_LOAN_MAX_USD,
   MAX_PAYBACK_YEARS,
   MAX_SCOP,
   MAX_SQFT,
@@ -295,7 +296,8 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
   const annualSavings = oldCost - newHp
   const annualSavingsAtStandardRate = oldCost - newStd
   const paybackYears = payback(netCost, annualSavings)
-  const flow = cashFlow(netCost, annualSavings, HEAT_LOAN_MONTHS, HEAT_LOAN_APR)
+  const loanAmount = Math.min(Math.max(netCost, 0), HEAT_LOAN_MAX_USD)
+  const flow = cashFlow(loanAmount, annualSavings, HEAT_LOAN_MONTHS, HEAT_LOAN_APR)
   if (!flow) return null
   const monthlySavings = flow.monthlySavings
   const breakEven = breakEvenElectricPrice({ btu: delivered.btu, oldCost, scop })
@@ -335,6 +337,7 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
     rebateBreakdown: activeRebate.breakdown,
     netCost,
     paybackYears,
+    loanAmount,
     monthlyLoan: flow.monthlyLoan,
     monthlySavings,
     monthlyCashFlow: flow.monthlyCashFlow,
@@ -369,7 +372,7 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
     )
   } else if (verdict === 'SWITCH_NOW') {
     reasons.push(
-      `Net cost is repaid in ${one(paybackYears ?? 0)} years, and the ${HEAT_LOAN_MONTHS}-month ${HEAT_LOAN_APR === 0 ? '0% ' : ''}HEAT Loan payment of ${usd(flow.monthlyLoan)}/mo is ${draft.cashFlowPositive ? 'below' : 'above'} the ${usd(monthlySavings)}/mo you save.`,
+      `Net cost is repaid in ${one(paybackYears ?? 0)} years, and the ${HEAT_LOAN_MONTHS}-month ${HEAT_LOAN_APR === 0 ? '0% ' : ''}HEAT Loan payment of ${usd(flow.monthlyLoan)}/mo is ${draft.cashFlowPositive ? 'below' : 'above'} the ${usd(monthlySavings)}/mo you save.${netCost > loanAmount ? ` The loan covers the first ${usd(loanAmount)}; the other ${usd(netCost - loanAmount)} is paid up front.` : ''}`,
     )
   } else if (annualSavings <= 0) {
     reasons.push(

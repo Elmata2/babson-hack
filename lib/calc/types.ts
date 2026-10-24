@@ -164,6 +164,8 @@ export interface VerdictResult {
   netCost: number
   /** null when annualSavings <= 0: no payback exists. */
   paybackYears: number | null
+  /** Amount the HEAT Loan covers: net cost, capped at the program maximum. */
+  loanAmount: number
   monthlyLoan: number
   monthlySavings: number
   /** `monthlySavings − monthlyLoan`: the cash-flow line R7.3 asks for. */

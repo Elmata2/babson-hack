@@ -35,7 +35,7 @@ import {
   seedQuery,
   type HeatYear,
 } from '@/lib/map/heat'
-import { SEASONAL_KWH_PER_MONTH, averageHomeKwh, compareSentence, formatMW, type EnergyMeta, type EnergyTown } from '@/lib/map/energy-model'
+import { SEASONAL_KWH_PER_MONTH, averageHomeKwh, averageIncentiveUsd, compareSentence, formatMW, type EnergyMeta, type EnergyTown } from '@/lib/map/energy-model'
 import { EJ_META, ejSummary, formatEj, offersPlainLanguage, plainLanguageHref } from '@/lib/map/equity'
 
 const int = (n: number) => n.toLocaleString('en-US')
@@ -259,6 +259,8 @@ function YouVsTown({
   if (!energy || !meta) return null
   const avg = averageHomeKwh(energy)
   const src = `${meta.sources.usage.label} ${meta.sources.usage.year} ÷ Census ACS 5-yr households`
+  const incentive = averageIncentiveUsd(energy)
+  const incentivesYear = meta.sources.usage.year
   return (
     <section aria-label="You vs your town" className="flex flex-col gap-2 border-t border-rule pt-4">
       <p className="text-eyebrow uppercase text-ink-muted">You vs your town</p>
@@ -291,8 +293,20 @@ function YouVsTown({
               ) : null}
             </p>
           )}
+          {incentive.status === 'ok' ? (
+            <>
+              <p className="num text-small text-ink">
+                Mass Save paid about {usd(incentive.usdPerHousehold)} per household in {town} in {incentivesYear} for residential electric programs.
+              </p>
+              <p className="text-micro text-ink-faint">
+                ({meta.sources.usage.label} {incentivesYear} ÷ Census ACS households)
+              </p>
+            </>
+          ) : incentive.status === 'none' ? (
+            <p className="text-small text-ink">No Mass Save incentives reported in {incentivesYear}.</p>
+          ) : null}
           <p className="text-micro text-ink-faint">
-            A rough guide, not an exact average: Mass Save&apos;s residential total divided by Census occupied households. Towns with many apartments read low; towns with many seasonal homes read high.
+            A rough guide, not an exact average: each per household figure is Mass Save&apos;s residential total divided by Census occupied households. Towns with many apartments read low; towns with many seasonal homes read high.
           </p>
         </>
       )}

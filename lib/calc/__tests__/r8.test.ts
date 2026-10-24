@@ -31,6 +31,7 @@ const BASE: VerdictResult = {
   rebateBreakdown: [],
   netCost: 14_050,
   paybackYears: 5.16,
+  loanAmount: 14_050,
   monthlyLoan: 167.26,
   monthlySavings: 226.91,
   monthlyCashFlow: 226.91 - 167.26,

@@ -5,6 +5,8 @@ import type { SponsorKey } from '@/lib/elec-label'
 import {
   buildEnergyTowns,
   averageHomeKwh,
+  averageIncentiveUsd,
+  roundIncentiveUsd,
   compareSentence,
   describeTown,
   formatMWh,
@@ -141,6 +143,18 @@ describe('energy model', () => {
     expect(averageHomeKwh(byName('GAMMA'))).toMatchObject({ status: 'hidden', reason: expect.stringMatching(/municipal light plant/) })
     expect(averageHomeKwh(byName('DELTA'))).toMatchObject({ status: 'hidden', reason: expect.stringMatching(/suppressed/) })
     expect(averageHomeKwh(byName('BETA'))).toMatchObject({ status: 'hidden', reason: expect.stringMatching(/more than one utility/) })
+  })
+
+  it('divides Mass Save incentives by households and rounds sensibly', () => {
+    expect(averageIncentiveUsd(byName('ALPHA'))).toEqual({ status: 'ok', usdPerHousehold: 25, households: 2000 })
+    expect(averageIncentiveUsd({ ...byName('ALPHA'), incentivesUsd: 0 })).toEqual({ status: 'none' })
+    expect(roundIncentiveUsd(74.8)).toBe(75)
+    expect(roundIncentiveUsd(99.4)).toBe(99)
+    expect(roundIncentiveUsd(212)).toBe(210)
+    expect(averageIncentiveUsd(byName('GAMMA')).status).toBe('hidden')
+    expect(averageIncentiveUsd(byName('DELTA')).status).toBe('hidden')
+    expect(averageIncentiveUsd(byName('BETA'))).toMatchObject({ status: 'hidden', reason: expect.stringMatching(/more than one utility/) })
+    expect(averageIncentiveUsd(byName('EPSILON'))).toMatchObject({ status: 'hidden', reason: expect.stringMatching(/no incentive total/) })
   })
 
   it('words the comparison plainly', () => {

@@ -202,6 +202,30 @@ export function averageHomeKwh(t: EnergyTown): TownAverage {
   return { status: 'ok', kwhPerMonth: (t.usage.mwh * 1000) / t.households / 12, households: t.households }
 }
 
+export type TownIncentive =
+  | { status: 'ok'; usdPerHousehold: number; households: number }
+  | { status: 'none' }
+  | { status: 'hidden'; reason: string }
+
+/** Whole dollars under $100, nearest $5 above: a rough guide should not claim cents or false precision. */
+export function roundIncentiveUsd(usd: number): number {
+  return usd < 100 ? Math.round(usd) : Math.round(usd / 5) * 5
+}
+
+/**
+ * Mass Save 2023 residential electric incentives divided by ACS households.
+ * Hidden under the same rules as the kWh average, and where Mass Save reports no incentive total.
+ */
+export function averageIncentiveUsd(t: EnergyTown): TownIncentive {
+  const avg = averageHomeKwh(t)
+  if (avg.status === 'hidden') return avg
+  if (t.incentivesUsd === null) {
+    return { status: 'hidden', reason: `Mass Save reports no incentive total for ${t.town}.` }
+  }
+  if (t.incentivesUsd === 0) return { status: 'none' }
+  return { status: 'ok', usdPerHousehold: roundIncentiveUsd(t.incentivesUsd / t.households), households: t.households }
+}
+
 /** Above this monthly average, seasonal homes dominate and a percentage comparison misleads. */
 export const SEASONAL_KWH_PER_MONTH = 1000
 

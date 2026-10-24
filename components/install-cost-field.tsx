@@ -24,9 +24,11 @@ export interface InstallCostFieldProps {
   fromQuote: boolean
   /** The verdict's own query string, so nothing else is lost on the round trip. */
   query: string
+  /** Why a cost in the link was ignored, when it was outside the accepted band. */
+  rejected?: string | null
 }
 
-export function InstallCostField({ value, fromQuote, query }: InstallCostFieldProps) {
+export function InstallCostField({ value, fromQuote, query, rejected = null }: InstallCostFieldProps) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [draft, setDraft] = useState(String(value))
@@ -99,7 +101,9 @@ export function InstallCostField({ value, fromQuote, query }: InstallCostFieldPr
       </div>
 
       <p id="install-cost-hint" className="text-micro text-ink-muted">
-        {invalid ? (
+        {rejected && !invalid ? (
+          <span className="text-deadline">{rejected}</span>
+        ) : invalid ? (
           <span className="text-deadline">
             Enter a dollar figure between $1,000 and $250,000 — a slipped zero would change the payback, not the house.
           </span>
@@ -107,7 +111,7 @@ export function InstallCostField({ value, fromQuote, query }: InstallCostFieldPr
           <>
             The Mass Save average for a whole-home install is $
             {DEFAULT_INSTALL_COST_USD.toLocaleString('en-US')}, on installs completed in 2022. Your contractor quote
-            replaces it and is the only number that applies to this house. The loan below assumes{' '}
+            replaces it and is the only number that applies to this house. The loan below, when it applies, assumes{' '}
             {HEAT_LOAN_MONTHS} months at 0%.
           </>
         )}
