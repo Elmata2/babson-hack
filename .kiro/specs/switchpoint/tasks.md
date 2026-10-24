@@ -30,8 +30,11 @@ marked ✂ until P4 is green.
 | F-09 | P1 | `/api/prices` — EIA v2 adapter using the **verified** series ids in `data-sources.md`; per-series typed parse (`value` vs `price`), 24h cache, snapshot fallback | C | 35m | F-08 |
 | F-10 | P1 | `/api/geocode` — Census onelineaddress → lat/lon/tract | C | 25m | — |
 | F-11 | P1 | `/api/parcel` — MassGIS L3 point query → YEAR_BUILT, USE_CODE | C | 35m | F-10 |
-| F-12 | P1 | `scripts/bake-parcels.mjs` — 5 towns to static JSON | C | 30m | F-11 |
-| F-13 | P1 | `scripts/bake-map.mjs` — ACS B25040 tracts to GeoJSON | C | 40m | — |
+| F-12 | P1 | `scripts/bake-hdd.mjs` — Open-Meteo ERA5, 14 county centroids → `hdd-by-county.json` (verify Middlesex 2024 ≈ 5,599) | C | 25m | — |
+| F-13 | P1 | `scripts/bake-map.mjs` — statewide: TIGERweb tracts + towns, Census Reporter B25040, EJ2020 → committed artefacts at the sizes in design §3 | C | 60m | — |
+| F-60 | P1 | `scripts/bake-utilities.mjs` — 351 towns, parse comma-joined `ELEC_LABEL` → `{sponsors[], hasMunicipal, mixed}` | C | 25m | — |
+| F-61 | P1 | State geometry trim: simplify + quantize `ma-tracts.topo.json` under 2.5 MB, verify gzip < 700 KB | C | 30m | F-13 |
+| F-62 | P1 | `lib/geo.ts` — town → county → tract lookup, statewide, no allow-list | B | 25m | F-13 |
 | F-14 | P1 | Freshness badge component (`live` / `snapshot 10/19` / `assessor`) | A | 15m | F-02 |
 
 ## P2 — Calculation core (the part that must be right)
@@ -103,7 +106,7 @@ marked ✂ until P4 is green.
 
 | ID | Phase | Task | Owner | Est | Depends |
 | --- | --- | --- | --- | --- | --- |
-| F-55 | P7 | `scripts/bake-utilities.mjs` — MassGIS ElectricityProviders → `data/utilities.json`, parse comma-joined `ELEC_LABEL` into `{sponsors[], hasMunicipal, mixed}` | C | 25m | F-13 |
+| F-55 | P7 | Verify utility coverage: all 351 towns present, spot-check 8 MLP towns + 3 `mixed` towns (Lakeville) against masssave.com sponsor list | C | 20m | F-60 |
 | F-56 | P7 | `lib/utility.ts` — sponsor → seasonal rate rule, MLP eligibility gate, `mixed` → ask | B | 20m | F-55 |
 | F-57 | P7 | Verdict screen utility badge + MLP refusal state (the Wellesley beat) | A | 20m | F-56 |
 | F-58 | P7 | EJ2020 bake + `ej-overlay` map layer toggle, no effect on heat values | C | 30m | F-42 |

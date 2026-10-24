@@ -246,10 +246,27 @@ Jan 1`. Animating a loss is the most persuasive 3 seconds in the demo.
 of the same map at build time → accessible table. At no point is the user
 blocked.
 
-**Prebaking.** `scripts/bake-map.mjs` writes `public/data/tracts.geojson`
-(5 towns: Wellesley, Newton, Natick, Needham, Framingham) and
-`public/data/parcels-{town}.json` (capped at 3,000 parcels each). Built once,
-committed, never fetched at runtime in `?demo=1`.
+**Prebaking — statewide.** `scripts/bake-map.mjs` produces committed artefacts
+for all 351 municipalities, because there is no demo borough (ADR-009):
+
+| Artefact | Source | Target size |
+| --- | --- | --- |
+| `public/data/ma-tracts.topo.json` | TIGERweb `Tracts_Blocks/0`, `STATE='25'`, simplified + quantized | ≤ 2.5 MB raw |
+| `public/data/ma-tract-stats.json` | Census Reporter B25040 → `{ geoid: {pop, hh, oilHH, gasHH, elecHH, propaneHH} }` | ≤ 150 KB |
+| `public/data/ma-towns.json` | `AGOL/Census2020_Towns`, 351 polygons, simplified | ≤ 400 KB |
+| `public/data/utilities.json` | `AGOL/ElectricityProviders`, 351 rows → `{town, sponsors[], hasMunicipal, mixed}` | ≤ 30 KB |
+| `data/generated/utilities.json` | same table, imported by `lib/` (the verdict path needs it) | ≤ 30 KB |
+| `data/generated/hdd-by-county.json` | Open-Meteo ERA5, county centroid, 2015–2024 mean | ≤ 3 KB |
+| `public/data/ej-blockgroups.json` | `AGOL/EJ2020`, joined to tract | ≤ 300 KB |
+| `data/hdd-by-county.json` | Open-Meteo ERA5, county centroid, 2015–2024 mean | ≤ 3 KB |
+
+Parcels are **never** baked — 2.5M polygons. Live point query on
+`L3_Parcels_FeatureService_4326/MapServer/1`, 4s abort, verdict proceeds without it.
+Bake once, commit the output, and the runtime needs no keys at all.
+
+**Load order on `/map`:** stats + utilities first (paint county choropleth), then
+town geometry, then tract geometry on demand. The map is a dynamic import; the
+verdict must render with the map chunk never loaded.
 
 ## 4. Build log implementation
 

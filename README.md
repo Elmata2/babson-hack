@@ -17,6 +17,9 @@ leave it alone.
 
 ## What it does
 
+Covers **every one of Massachusetts' 351 municipalities** — no demo borough, no
+allow-list.
+
 1. **Address → parcel.** MassGIS assessor records fill in year built and use code.
    No typing, no guesswork.
 2. **Bill → fields.** Photo of an oil delivery receipt or a utility bill becomes

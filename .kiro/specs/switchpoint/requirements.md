@@ -40,6 +40,12 @@ can find (year built, use code, town) with a per-field source badge.
 - 1.4 Address is never persisted server-side and never sent to the LLM.
 - 1.5 A bad address produces "we could not find that parcel — continue manually",
   not a stack trace.
+- 1.6 **Statewide, no allow-list.** Any of the 351 municipalities resolves.
+  There is no demo borough: Berkshire, Barnstable and Suffolk addresses all work
+  or all fail for a stated reason.
+- 1.7 The parcel step is optional. When MassGIS is slow or the point lands on a
+  right-of-way, the address still resolves to town and tract and the verdict
+  still computes.
 
 ## R2 — Bill ingestion
 
@@ -205,6 +211,12 @@ step-down costs each area.
   rebates do not apply there.
 - 10.11 Where the equity layer shows a high limited-English share, the panel links
   to the plain-language and translated view of the verdict (R14.4).
+- 10.12 **Statewide coverage.** The map opens at state level and drills
+  state → county → town → tract across all of Massachusetts. No town is special-cased
+  and no region is omitted from the data.
+- 10.13 County-level figures are shown before tract geometry loads, so the map is
+  useful within 2s even on a slow connection. Geometry is lazy; a failed chunk
+  load leaves the county view working.
 
 ## R11 — Build log
 

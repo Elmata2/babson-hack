@@ -12,8 +12,10 @@ No spinner between us and a demo that works.
 | **EIA API v2** | machine-readable oil, propane, state electricity | `GET api.eia.gov/v2/seriesid/{id}` | `EIA_API_KEY` | 24h | DOER snapshot |
 | **MA DOER fuel survey** | the number a human reads | snapshot JSON, refreshed by script | none | 7d | `data/snapshots/fuel-2026-10-19.json` |
 | **Census Geocoder** | address → lon/lat, tract GEOID | `geocoding.geo.census.gov` | none | 30d | manual coordinate entry |
-| **MassGIS L3 parcels** | `YEAR_BUILT`, `USE_CODE`, `SITE_ADDR` | ArcGIS FeatureServer | none | 30d | baked `data/parcels/{town}.json` |
-| **MassGIS ElectricityProviders** | **town → electric utility, MLP detection** | ArcGIS FeatureServer | none | build-time | baked `data/utilities.json` |
+| **MassGIS L3 parcels** | `YEAR_BUILT`, `USE_CODE`, `SITE_ADDR` | ArcGIS FeatureServer, **layer 1**, point query, live | none | 30d | manual entry |
+| **TIGERweb tracts** | statewide tract geometry (~1,620) | ArcGIS `Tracts_Blocks/MapServer/0` | none | build-time | committed TopoJSON |
+| **Census Reporter** | ACS B25040 oil-heat share by tract | `api.censusreporter.org` (keyless) | none | build-time | committed JSON |
+| **Open-Meteo archive** | county HDD65 from ERA5 | `archive-api.open-meteo.com` | none | build-time | committed JSON |
 | **MassGIS EJ2020** | equity overlay by block group | ArcGIS FeatureServer | none | build-time | baked into tract GeoJSON |
 | **ACS 5-yr B25040** | oil-heat share by tract | baked from Census API | optional | build-time | bundled static GeoJSON |
 | **Anthropic API** | bill OCR + verdict prose | server route only | `ANTHROPIC_API_KEY` | none | manual entry form |
@@ -94,6 +96,68 @@ It converts the equity claim from a slide into a data layer: `PCT_MINORITY` and
 the plain-language and translation work as a requirement rather than a nice-to-have.
 
 ---
+
+## Statewide build — all 351 towns, not one neighbourhood
+
+**Requirement: every Massachusetts address, not a demo borough.** That changes
+what can be baked and what must be live. Verified 2026-10-24 against live
+endpoints:
+
+| Layer | Volume | Strategy | Verified |
+| --- | --- | --- | --- |
+| Electric utility by town | 351 rows | **bake once, commit** (~25 KB) | `count: 351` |
+| Census tracts (geometry) | ~1,620 | **bake, simplify, commit** (target < 2.5 MB raw) | `TIGERweb/Tracts_Blocks/MapServer/0` |
+| Tract statistics (ACS B25040) | ~1,620 | **bake, strip to 5 fields, commit** (~120 KB) | Census Reporter 800 KB raw → strip |
+| County HDD65 | 14 | **bake, commit** (~2 KB) | Open-Meteo ERA5 |
+| Parcels | **2.5M** | **never bake — live point query**, 4s abort | `L3_Parcels_FeatureService_4326`, **layer 1** |
+| Town boundaries | 351 | bake, commit (drill-down level) | `AGOL/Census2020_Towns` |
+| EJ block groups | ~5,000 | bake at block-group level, join to tract | `AGOL/EJ2020` |
+
+### The three traps, each found the hard way
+
+1. **The Census API now requires a key.** `api.census.gov` returns `302` →
+   `missing_key.html` with header `X-DataWebAPI-KeyError: 1`. Do not build the
+   map on it. **Census Reporter** (`api.censusreporter.org/1.0/data/show/latest?
+   table_ids=B25040&geo_ids=140|04000US25`) returns all Massachusetts tracts,
+   keyless, in one 800 KB response. Bake from that; the committed JSON is what
+   ships, so no runtime key is needed at all.
+2. **Parcels are a live lookup, not a dataset.** 2.5M parcels cannot be baked or
+   shipped. Use `…/L3_Parcels_FeatureService_4326/MapServer/1` with an
+   `esriGeometryPoint` intersect on the geocoded coordinate, `returnGeometry=false`,
+   and only the five fields we need. **Layer 0 is Devens only** — a plausible-looking
+   mistake that returns zero features for the entire rest of the state.
+3. **HDD must be computed, not guessed.** `ERR` the county table only if
+   Open-Meteo is down. Compute from daily means, per county centroid:
+   `HDD65 = Σ max(65 − T̄d, 0)`, averaged over 2015–2024. Sanity anchor verified:
+   Middlesex 2024 = **5,599**, against the 5,600 Boston constant. Label the result
+   *county-centroid degree days* and keep the Manual J caveat.
+
+### Runtime budget, statewide
+
+| Asset | Budget | Note |
+| --- | --- | --- |
+| `ma-tracts.topo.json` | ≤ 2.5 MB raw, ≤ 700 KB brotli | simplified at bake, quantized |
+| `ma-tract-stats.json` | ≤ 150 KB | loaded before geometry |
+| `utilities.json` | ≤ 30 KB | needed on the verdict path, so keep it tiny |
+| `hdd-by-county.json` | ≤ 3 KB | |
+| Map first paint | ≤ 2.0s | state-level paint from stats; geometry lazy |
+
+Never block intake or verdict on a map asset. The map is a second route with a
+dynamic import; the verdict works with the map chunk never loading.
+
+---
+
+## ADR-009 — Statewide or nothing
+
+**Decision:** no town allow-list. Any of the 351 municipalities resolves, or the
+app says why it cannot.
+
+**Why:** a five-town demo invites "does it work in Springfield?" and the honest
+answer would be no. The data is statewide and free; the only cost is baking
+discipline. Correctness scales better than the demo does.
+
+**Consequence:** every layer has a documented degradation path, and the parcel
+step is allowed to fail without failing the verdict.
 
 ## ADR-001 — Zillow is rejected
 
