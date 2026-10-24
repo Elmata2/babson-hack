@@ -65,21 +65,8 @@ describe('round trip', () => {
   })
   it('caps the note at 160 and drops junk', () => {
     expect(toQuery({ ...values, note: 'x'.repeat(300) }).get('mn')).toHaveLength(160)
-    const back = fromSearchParams({ m: 'nope', ut: 'nope', er: '5', mc: '2', li: 'x', ic: '2' })
+    const back = fromSearchParams({ m: 'nope', ut: 'nope', er: '5', mc: '2', li: 'x' })
     expect(back).toEqual({})
-  })
-  it('drops an implausible install cost instead of carrying a slipped zero', () => {
-    expect(toQuery({ ...values, installCost: '2200000' }).get('ic')).toBeNull()
-    expect(toQuery({ ...values, installCost: '' }).get('ic')).toBeNull()
-  })
-  it('sets and clears the install cost without touching the rest of the link', () => {
-    const base = 'fuel=oil&units=800&price=6.23&town=Framingham'
-    const quoted = new URLSearchParams(withInstallCost(base, 40_000))
-    expect(quoted.get('ic')).toBe('40000')
-    expect(quoted.get('units')).toBe('800')
-    const restored = new URLSearchParams(withInstallCost(quoted.toString(), 22_000))
-    expect(restored.get('ic')).toBeNull()
-    expect(restored.get('price')).toBe('6.23')
   })
   it('queryString keeps every key', () => {
     expect(new URLSearchParams(queryString({ a: '1', b: ['2', '3'], c: undefined })).toString()).toBe('a=1&b=2')

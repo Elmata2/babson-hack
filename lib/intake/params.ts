@@ -133,21 +133,6 @@ export function plausibleInstallCost(raw: string | number | null | undefined): n
   return value !== null && value >= INSTALL_COST_MIN && value <= INSTALL_COST_MAX ? value : null
 }
 
-/**
- * The install cost the engine will accept (`MAX_INSTALL_COST_USD`). A cost is
- * typed by the household, not read off a bill, so the band only has to catch a
- * slipped zero — the engine's own ceiling is the bound, so nothing the engine
- * would compute is silently dropped on the way back from `/verdict`.
- */
-export const INSTALL_COST_MIN = 1_000
-export const INSTALL_COST_MAX = 250_000
-
-export function plausibleInstallCost(raw: string | number | null | undefined): number | null {
-  if (raw === null || raw === undefined || raw === '') return null
-  const value = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, ''))
-  return Number.isFinite(value) && value >= INSTALL_COST_MIN && value <= INSTALL_COST_MAX ? value : null
-}
-
 const METHODS: readonly AnnualMethod[] = ['printed_history', 'degree_days', 'tank_cadence', 'hdd_scaled', 'monthly_x12']
 export const BILL_UTILITIES: readonly BillUtility[] = [
   'eversource', 'national_grid', 'unitil', 'liberty', 'berkshire_gas', 'municipal', 'oil_dealer', 'propane_dealer', 'other',
