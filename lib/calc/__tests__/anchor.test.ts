@@ -29,7 +29,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { HEAT_PUMP_RULES_2026, HEAT_PUMP_RULES_2027, FUEL_SNAPSHOT_2026_10_19 } from '../rules'
+import { HEAT_PUMP_RULES_2026, HEAT_PUMP_RULES_2027, FUEL_SNAPSHOT_2026_10_19, rulesSourceLabel } from '../rules'
 import { computeVerdict } from '../index'
 import { deliveredHeat, designLoad, sizeTons } from '../heat'
 import { rebate } from '../rebate'
@@ -247,5 +247,87 @@ describe('rules tables mirror mass-save-rules.md', () => {
     expect(r.eligible).toBe(false)
     expect(r.total).toBe(0)
     expect(r.reason).toMatch(/oil, propane or electric resistance/)
+  })
+
+  it('names the table the way a household should read it', () => {
+    const label = rulesSourceLabel(HEAT_PUMP_RULES_2026)
+    expect(label).toContain('Mass Save')
+    expect(label).toContain('2026 table')
+    expect(label).toContain('2026-10-24')
+    expect(label).not.toContain('.kiro')
+  })
+})
+
+describe('R5 — the rebate stack is auditable in dollars', () => {
+  const sum = (lines: { amount: number }[]): number => lines.reduce((acc, line) => acc + line.amount, 0)
+
+  it('5.1: the table follows the install year, both years implemented', () => {
+    const y2026 = rebate('whole', 3, 2026, { fuel: 'oil' })
+    const y2027 = rebate('whole', 3, 2027, { fuel: 'oil' })
+    expect(y2026?.total).toBe(7_950)
+    expect(y2027?.total).toBe(7_050)
+    expect(rebate('whole', 3, 2028, { fuel: 'oil' })).toBeNull()
+  })
+
+  it('5.2: the enhanced tier is closed to gas and says why', () => {
+    const oil = rebate('enhanced', 3, 2026, { installCost: 22_000, fuel: 'oil' })
+    const gas = rebate('enhanced', 3, 2026, { installCost: 22_000, fuel: 'gas' })
+    expect(oil?.eligible).toBe(true)
+    expect(gas?.eligible).toBe(false)
+    expect(gas?.breakdown).toEqual([])
+    expect(gas?.reason).toMatch(/gas home is not eligible/i)
+  })
+
+  it('5.3: bonuses exist only on whole/partial and each one adds $500', () => {
+    const none = rebate('whole', 2, 2026, { fuel: 'oil' })
+    const weatherized = rebate('whole', 2, 2026, { fuel: 'oil', weatherizationBonus: true })
+    const both = rebate('whole', 2, 2026, { fuel: 'oil', weatherizationBonus: true, sizingBonus: true })
+    expect(none?.total).toBe(5_300)
+    expect(weatherized?.total).toBe(5_800)
+    expect(both?.total).toBe(6_300)
+    expect(both?.bonuses).toBe(1_000)
+
+    for (const tier of ['basic', 'enhanced'] as const) {
+      const r = rebate(tier, 2, 2026, { fuel: 'oil', installCost: 22_000, weatherizationBonus: true, sizingBonus: true })
+      expect(r?.bonuses, `${tier} must not pay bonuses`).toBe(0)
+      expect(r?.breakdown.some((line) => /bonus/i.test(line.label))).toBe(false)
+    }
+  })
+
+  it('5.4: the cap is applied after bonuses and the lines still add up', () => {
+    // 4 tons × $2,650 = $10,600, capped at $8,500 before any bonus.
+    const r = rebate('whole', 4, 2026, { fuel: 'oil', weatherizationBonus: true, sizingBonus: true })
+    expect(r).not.toBeNull()
+    if (!r) return
+    expect(r.base).toBe(8_500)
+    expect(r.total).toBe(8_500)
+    expect(r.bonuses).toBe(0) // the post-bonus cap swallows both bonuses
+    expect(sum(r.breakdown)).toBeCloseTo(r.total, 6)
+    expect(r.breakdown.some((line) => line.amount < 0)).toBe(true)
+    expect(r.breakdown.some((line) => /after bonuses/i.test(line.label))).toBe(true)
+  })
+
+  it('5.4: when the cap bites, the award line stays at the rate and the cap is its own line', () => {
+    const r = rebate('whole', 4, 2026, { fuel: 'oil' })
+    expect(r).not.toBeNull()
+    if (!r) return
+    expect(r.breakdown[0].amount).toBe(10_600)
+    expect(r.breakdown[1].amount).toBe(-2_100)
+    expect(sum(r.breakdown)).toBe(8_500)
+    expect(r.total).toBe(8_500)
+  })
+
+  it('5.5: the Jan 1 delta is quantified for the same household', () => {    const h: HeatingInput = { ...ANCHOR_HEATING }
+    const result2026 = computeVerdict(h, { ...ANCHOR_UPGRADE, installYear: 2026 })
+    const result2027 = computeVerdict(h, { ...ANCHOR_UPGRADE, installYear: 2027 })
+    expect(result2026?.rebate2026).toBe(7_950)
+    expect(result2026?.rebate2027).toBe(7_050)
+    expect(result2026?.cliffCost).toBe(900)
+    expect(result2027?.totalRebate).toBe(7_050)
+    // Basic never steps down, so its cliff is honestly zero rather than a slogan.
+    const basic = rebate('basic', 2, 2026, { fuel: 'oil' })
+    const basic2027 = rebate('basic', 2, 2027, { fuel: 'oil' })
+    expect(basic?.total).toBe(500)
+    expect(basic2027?.total).toBe(500)
   })
 })

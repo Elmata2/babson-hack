@@ -14,6 +14,31 @@ because that is when the hackathon clock runs.
 
 ### Added
 
+- **F-32–F-40 — the verdict screen is the product now.** The answer renders as a
+  three-stop dial (icon, label, colour; the active stop marked) and the household's
+  old annual cost turns over into the heat-pump cost in 900ms — or instantly under
+  `prefers-reduced-motion`. Every headline figure (savings, rebate, net cost,
+  payback, degree days, tonnage, fuel use, SCOP) is a button that opens a drawer
+  with its formula, the values substituted and the publisher/document/date behind
+  it. The two $500 rebate bonuses are URL toggles, the 2026→2027 step-down is
+  stated in dollars for this house, the 0% HEAT Loan payment sits beside the
+  monthly saving (positive or short), the defaults and disclaimer are on the page
+  without a fold, and `/api/explain` returns three plain-English sentences from
+  the page's own numbers — a model may write them, but a sentence that invents a
+  figure is discarded for the deterministic version. Three live demo links (oil +
+  enhanced → switch now, propane → before 31 Dec, gas → don't switch yet) recompute
+  on the real engine rather than replaying a fixture.
+- **F-35** — the rebate stack (R5) is now a screen, not a footnote. It names the
+  tier chosen and why, prints every line item with its source, and shows the cap
+  as its own negative line so the stack adds up to the award it claims. The two
+  +$500 bonuses are individually toggleable and appear only on the tiers that pay
+  them: each toggle is a link carrying `wz`/`sz`, so the verdict stays a server
+  render and "Change the numbers" cannot drop the household's claim. Gas homes
+  that asked for the income-qualified tier get the exclusion and the reason in
+  words, not a silently downgraded number. A "what changes on 1 January 2027"
+  line states the step-down in this household's dollars. The install year now
+  defaults to today, and the engine is handed the $22,000 default quote, which
+  fixes an enhanced-tier selection from `/start` refusing to price at all.
 - **F-137–F-141** — `/onboarding`: the four-step wizard from Addendum B, steps
   1–4. A profile (name, email, optional phone) kept in this browser via
   `useSyncExternalStore` — no server account, no password, and the screen says so;

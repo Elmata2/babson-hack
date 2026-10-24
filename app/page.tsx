@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { FreshnessBadge } from '@/components/freshness-badge'
 import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
+import { DemoPresets } from '@/components/verdict/demo-presets'
 import { VerdictLegend } from '@/components/verdict-legend'
 import { formatDateShort } from '@/lib/freshness'
 import { getPrices } from '@/lib/prices'
@@ -129,6 +130,12 @@ export default async function Home() {
               2026 install, and any calculator still counting it is quoting you money that no
               longer exists.
             </p>
+          </div>
+        </section>
+
+        <section className="border-b border-rule">
+          <div className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
+            <DemoPresets />
           </div>
         </section>
 

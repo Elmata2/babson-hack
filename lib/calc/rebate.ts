@@ -7,7 +7,7 @@
  */
 
 import { MAX_INSTALL_COST_USD } from './constants'
-import { isTier, rulesForYear } from './rules'
+import { isTier, rulesForYear, TIER_LABEL } from './rules'
 import type { Assumption, Fuel, RebateLine, RebateResult, Tier } from './types'
 
 /** Optional context for a rebate calculation. */
@@ -22,19 +22,13 @@ export interface RebateOptions {
   fuel?: Fuel
 }
 
-const TIER_LABEL: Record<Tier, string> = {
-  whole: 'whole-home',
-  partial: 'partial-home',
-  basic: 'basic',
-  enhanced: 'income-qualified enhanced',
-}
-
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
 function usd(amount: number): string {
-  return `$${Math.round(amount).toLocaleString('en-US')}`
+  const abs = Math.abs(amount)
+  return `${amount < 0 ? '-' : ''}$${Math.round(abs).toLocaleString('en-US')}`
 }
 
 /**
@@ -119,9 +113,12 @@ export function rebate(
     const perTon = rule.perTonUsd ?? 0
     const uncapped = tons * perTon
     base = Math.min(uncapped, rule.capUsd)
+    // The award line stays at what the per-ton rate actually pays; the cap is its
+    // own negative line. Showing the capped number twice made the stack sum to
+    // less than the rebate the household receives.
     lines.push({
       label: `${installYear} ${tierLabel} rebate: ${tons} ton × ${usd(perTon)}`,
-      amount: base,
+      amount: uncapped,
       source: `${rules.source} · ${installYear} ${tierLabel} ${usd(perTon)}/ton`,
     })
     if (uncapped > base) {

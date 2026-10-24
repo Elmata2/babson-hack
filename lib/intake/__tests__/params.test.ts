@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  defaultInstallYear, fromSearchParams, plausibleElectricRate, provenanceLine, queryString, tierFor, toQuery,
-  type IntakeValues,
+  bonusOn, defaultInstallYear, enhancedTierNote, fromSearchParams, plausibleElectricRate, provenanceLine,
+  queryString, tierFor, toQuery, withBonus, type IntakeValues,
 } from '../params'
 
 const values: IntakeValues = {
   fuel: 'gas', units: '1,020', price: '1.62', town: 'Worcester', tier: 'whole', income: 'unsure', year: '2026',
   yearBuilt: '1952', sqft: '1,600', src: 'assessor', buildingUnits: 3, method: 'hdd_scaled', methodConfidence: 0.5,
   note: 'Yearly gas from your Jan bill; scaled & shifted', utility: 'eversource', electricRate: '0.305', lowIncome: true,
+  weatherizationBonus: false, sizingBonus: true,
 }
 
 describe('tierFor', () => {
@@ -36,8 +37,10 @@ describe('round trip', () => {
     expect(back).toMatchObject({
       fuel: 'gas', units: '1020', price: '1.62', town: 'Worcester', year: '2026', yearBuilt: '1952', sqft: '1600',
       src: 'assessor', buildingUnits: 3, method: 'hdd_scaled', methodConfidence: 0.5, utility: 'eversource',
-      electricRate: '0.305', lowIncome: true, income: 'unsure',
+      electricRate: '0.305', lowIncome: true, income: 'unsure', sizingBonus: true,
     })
+    // An unticked bonus is absent from the query, not asserted as false.
+    expect(back.weatherizationBonus).toBeUndefined()
     expect(back.note).toBe(values.note)
   })
   it('caps the note at 160 and drops junk', () => {
@@ -58,5 +61,53 @@ describe('misc', () => {
   it('provenance line', () => {
     expect(provenanceLine('Yearly gas from your Jan bill.', 0.5)).toBe('Yearly gas from your Jan bill — estimate, 50% confidence')
     expect(provenanceLine(null, 0.5)).toBeNull()
+  })
+})
+
+describe('R5 — the bonuses are query state, not client state', () => {
+  const query = { fuel: 'oil', units: '800', price: '6.23', town: 'Wellesley', tier: 'whole', year: '2026', wz: '1' }
+
+  it('reads a bonus only when the query says 1', () => {
+    expect(bonusOn(query, 'wz')).toBe(true)
+    expect(bonusOn(query, 'sz')).toBe(false)
+    expect(bonusOn({ wz: '0' }, 'wz')).toBe(false)
+    expect(bonusOn({ wz: ['1', '0'] }, 'wz')).toBe(true)
+  })
+
+  it('flips one bonus and keeps every other key', () => {
+    const off = new URLSearchParams(withBonus(query, 'wz'))
+    expect(off.get('wz')).toBeNull()
+    expect(off.get('town')).toBe('Wellesley')
+    expect(off.get('price')).toBe('6.23')
+
+    const on = new URLSearchParams(withBonus(query, 'sz'))
+    expect(on.get('wz')).toBe('1')
+    expect(on.get('sz')).toBe('1')
+    expect(on.get('units')).toBe('800')
+  })
+
+  it('round-trips the toggles through the form', () => {
+    const back = fromSearchParams(query)
+    expect(back.weatherizationBonus).toBe(true)
+    expect(back.sizingBonus).toBeUndefined()
+    const out = toQuery({ ...values, weatherizationBonus: true, sizingBonus: false })
+    expect(out.get('wz')).toBe('1')
+    expect(out.get('sz')).toBeNull()
+  })
+})
+
+describe('R5.2 — the enhanced tier says no to gas out loud', () => {
+  it('explains the exclusion when the household asked for it', () => {
+    const note = enhancedTierNote('gas', 'yes', 'whole')
+    expect(note).toMatch(/Not eligible for enhanced/)
+    expect(note).toMatch(/oil, propane or electric resistance/)
+    expect(enhancedTierNote('gas', 'unsure', 'enhanced')).toMatch(/Not eligible/)
+  })
+
+  it('stays quiet when the question was not asked, or the fuel can claim it', () => {
+    expect(enhancedTierNote('gas', 'no', 'whole')).toBeNull()
+    expect(enhancedTierNote('gas', 'unsure', 'whole')).toBeNull()
+    expect(enhancedTierNote('oil', 'yes', 'enhanced')).toBeNull()
+    expect(enhancedTierNote('resistance', 'yes', 'enhanced')).toBeNull()
   })
 })

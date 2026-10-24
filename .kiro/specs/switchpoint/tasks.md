@@ -245,3 +245,12 @@ they need an account with a home on a server, which this build does not have.
 | F-141 | P11 | `lib/onboarding/flow.ts` — profile validation, step machine, storage round-trip, 16 tests | A | 30m | — |
 
 | F-142 | P10 | `asDocumentDate` normalises the printed `M/D/YYYY` before validating (year band and impossible-date refusals unchanged); prompt says which way to copy | A | 15m | F-102 |
+| F-143 | P11 | `lib/switch/choices.ts` + `best-case.ts` — R17.2 choice gate and the four best-case rows (supply, fuel, heat pump, programs) | A | 35m | F-23 |
+| F-144 | P11 | `lib/switch/consent.ts` — closed fact list, 50-gal rounding, Eastern business hours, six-provider cap, PII refusal | B | 35m | F-120 |
+| F-145 | P11 | `lib/switch/quotes.ts` — effectivePerGal, plausibility bands, fuel + installer ranking (R20) | B | 40m | F-121 |
+| F-146 | P11 | `lib/switch/session.ts` — tab-scoped switch request and monotonic stage timeline | A | 20m | F-143 |
+| F-147 | P11 | `POST /api/switch` + provider allowlist + typed statuses; nothing sent when outreach is off or no sender exists | C | 35m | F-144 |
+| F-148 | P11 | `/switch` — best case, decision gate (nothing preselected), switch kit, supply comparison with the one allowed formula | A | 60m | F-143 |
+| F-149 | P11 | Consent screen, contact status board, quotes/decision step (Addendum B §3.6 agent path) | A | 45m | F-147 |
+| F-150 | P11 | `/dashboard` — current situation, switch stage timeline, deadlines, forget-this-tab | A | 30m | F-146 |
+| F-151 | P11 | Verdict → switch link carrying the whole query; tests for choices, consent, quotes, session and the switch route | A | 30m | F-148 |

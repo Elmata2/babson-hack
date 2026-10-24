@@ -353,4 +353,18 @@ describe('P1–P12', () => {
       { numRuns: NUM_RUNS },
     )
   })
+
+  it('P13: the rebate stack sums to the total it prints', () => {
+    // Bug class: R5.4 — the cap applied twice, once to the award line and again as
+    // a negative line, so the stack visibly adds up to less than the rebate the
+    // household receives. Nobody trusts the next number after that.
+    fc.assert(
+      fc.property(arbCase, ({ heating, upgrade }) => {
+        const r = must(heating, upgrade)
+        const sum = r.rebateBreakdown.reduce((acc, line) => acc + line.amount, 0)
+        expect(sum).toBeCloseTo(r.totalRebate, 6)
+      }),
+      { numRuns: NUM_RUNS },
+    )
+  })
 })

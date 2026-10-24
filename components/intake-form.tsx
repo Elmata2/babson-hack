@@ -356,6 +356,10 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
     const values: IntakeValues = {
       fuel, units, price, town, tier, income, year: installYear, yearBuilt, sqft,
       src: envelopeSource, buildingUnits, method, methodConfidence, note, utility, electricRate, lowIncome,
+      // The bonuses are asserted on the verdict screen, not here; carry them so a
+      // round trip through "Change the numbers" does not quietly drop them.
+      weatherizationBonus: initial.weatherizationBonus === true,
+      sizingBonus: initial.sizingBonus === true,
     }
     router.push(`/verdict?${toQuery(values).toString()}`)
   }

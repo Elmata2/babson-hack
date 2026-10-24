@@ -1,6 +1,8 @@
 /**
  * @built F-105 plain-question rebate tier + install-year default
  * @built F-106 verdict round-trip — the form and the verdict speak one query string
+ * @built F-35 the two rebate bonuses live in the query, so a toggle on the verdict is a
+ * link and not client state
  *
  * The URL is the only state this app has, so "Change the numbers" has to hand
  * the exact query back to /start and /start has to read all of it. Everything
@@ -13,6 +15,24 @@ export type Scope = 'whole' | 'partial'
 export type Income = 'yes' | 'no' | 'unsure'
 export type TierValue = 'whole' | 'partial' | 'basic' | 'enhanced'
 
+/** The two +$500 bonuses the partial/whole tiers pay, as query keys. */
+export type BonusKey = 'wz' | 'sz'
+export const BONUS_KEYS: readonly BonusKey[] = ['wz', 'sz']
+
+/** What each bonus is, for the two rows the verdict renders. */
+export const BONUS_COPY: Record<BonusKey, { label: string; hint: string; flag: 'weatherizationBonus' | 'sizingBonus' }> = {
+  wz: {
+    label: 'Weatherization',
+    hint: 'Assessment plus the recommended work, within a year before or six months after install.',
+    flag: 'weatherizationBonus',
+  },
+  sz: {
+    label: 'Sizing',
+    hint: 'Equipment sized to 90–120% of the heating load by an ACCA Manual J, with the calc submitted.',
+    flag: 'sizingBonus',
+  },
+}
+
 /** Mass Save's enhanced tier is closed to gas homes, so "yes" only upgrades these. */
 const ENHANCED_FUELS: readonly BillFuel[] = ['oil', 'propane', 'resistance']
 
@@ -23,6 +43,17 @@ const ENHANCED_FUELS: readonly BillFuel[] = ['oil', 'propane', 'resistance']
 export function tierFor(scope: Scope, income: Income, fuel: BillFuel): TierValue {
   if (income === 'yes' && ENHANCED_FUELS.includes(fuel)) return 'enhanced'
   return scope
+}
+
+/**
+ * Why the enhanced tier did not apply, when the household asked for it and the
+ * answer is no. A silent downgrade would look like a bug; R5.2 says say it out
+ * loud. `null` when the question was never asked.
+ */
+export function enhancedTierNote(fuel: BillFuel, income: Income, tier: string | null): string | null {
+  if (fuel !== 'gas') return null
+  if (income !== 'yes' && tier !== 'enhanced') return null
+  return 'Not eligible for enhanced: Mass Save requires the displaced fuel to be oil, propane or electric resistance, so a gas home cannot claim the income-qualified tier. Only the standard tiers are open to a gas home.'
 }
 
 /** Inverse, for hydrating the questions from a saved tier. */
@@ -74,6 +105,10 @@ export interface IntakeValues {
   utility: BillUtility | null
   electricRate: string
   lowIncome: boolean | null
+  /** +$500 weatherization bonus. Toggled on the verdict, carried in the link. */
+  weatherizationBonus: boolean
+  /** +$500 sizing bonus. Toggled on the verdict, carried in the link. */
+  sizingBonus: boolean
 }
 
 export function toQuery(v: IntakeValues): URLSearchParams {
@@ -96,6 +131,7 @@ export function toQuery(v: IntakeValues): URLSearchParams {
   if (v.utility) p.set('ut', v.utility)
   if (plausibleElectricRate(v.electricRate) !== null) p.set('er', v.electricRate.trim())
   if (v.lowIncome !== null) p.set('li', v.lowIncome ? '1' : '0')
+  for (const bonus of BONUS_KEYS) if (v[BONUS_COPY[bonus].flag]) p.set(bonus, '1')
   return p
 }
 
@@ -103,6 +139,11 @@ type Raw = Record<string, string | string[] | undefined>
 const one = (r: Raw, k: string): string | null => {
   const v = r[k]
   return (Array.isArray(v) ? v[0] : v) ?? null
+}
+
+/** True when the query carries a bonus the household asserted on the verdict screen. */
+export function bonusOn(r: Raw, bonus: BonusKey): boolean {
+  return one(r, bonus) === '1'
 }
 
 /** Read a query back into form values. Unknown or out-of-range values drop to the default. */
@@ -143,16 +184,33 @@ export function fromSearchParams(r: Raw): Partial<IntakeValues> {
   if (plausibleElectricRate(er) !== null) out.electricRate = er as string
   const li = one(r, 'li')
   if (li === '1' || li === '0') out.lowIncome = li === '1'
+  for (const bonus of BONUS_KEYS) if (bonusOn(r, bonus)) out[BONUS_COPY[bonus].flag] = true
   return out
 }
 
-/** Re-serialise raw search params for the "Change the numbers" link. */
-export function queryString(r: Raw): string {
+function toParams(r: Raw): URLSearchParams {
   const p = new URLSearchParams()
   for (const [k, v] of Object.entries(r)) {
     const val = Array.isArray(v) ? v[0] : v
     if (val !== undefined) p.set(k, val)
   }
+  return p
+}
+
+/** Re-serialise raw search params for the "Change the numbers" link. */
+export function queryString(r: Raw): string {
+  return toParams(r).toString()
+}
+
+/**
+ * The same query with one bonus flag flipped, as a link.
+ * Input: the verdict's own search params + which bonus. Guarantee: every other
+ * key is preserved, so toggling a bonus cannot lose a bill or a town.
+ */
+export function withBonus(r: Raw, bonus: BonusKey): string {
+  const p = toParams(r)
+  if (p.get(bonus) === '1') p.delete(bonus)
+  else p.set(bonus, '1')
   return p.toString()
 }
 

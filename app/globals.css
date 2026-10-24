@@ -37,6 +37,11 @@
   --color-hold-tint: oklch(0.958 0.008 255);
   --color-hold-edge: oklch(0.84 0.018 255);
 
+  /* Loss — a negative saving is not a muted hold; it is the same weight as a gain */
+  --color-loss: oklch(0.5 0.17 25);
+  --color-loss-tint: oklch(0.965 0.028 25);
+  --color-loss-edge: oklch(0.86 0.07 25);
+
   /* Heat ramp — sequential, warm, for the tract choropleth only */
   --color-heat-1: oklch(0.952 0.028 88);
   --color-heat-2: oklch(0.886 0.062 78);
@@ -144,4 +149,50 @@
     --tone-tint: var(--color-hold-tint);
     --tone-edge: var(--color-hold-edge);
   }
+
+  [data-tone="loss"] {
+    --tone: var(--color-loss);
+    --tone-tint: var(--color-loss-tint);
+    --tone-edge: var(--color-loss-edge);
+  }
 }
+
+/*
+ * F-33 — the number flip. Two 340ms halves around a 900ms switch; the wrapper
+ * carries the perspective, the class carries the turn. Reduced motion is handled
+ * both here and in the component: the value must never be animation-only.
+ */
+@keyframes flip-out {
+  from {
+    opacity: 1;
+    transform: rotateX(0deg);
+  }
+  to {
+    opacity: 0;
+    transform: rotateX(-90deg);
+  }
+}
+
+@keyframes flip-in {
+  from {
+    opacity: 0;
+    transform: rotateX(90deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotateX(0deg);
+  }
+}
+
+@layer components {
+  .flip-out {
+    animation: flip-out 340ms ease-in both;
+    transform-origin: center bottom;
+  }
+
+  .flip-in {
+    animation: flip-in 340ms ease-out both;
+    transform-origin: center top;
+  }
+}
+

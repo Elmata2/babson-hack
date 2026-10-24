@@ -31,6 +31,8 @@ export interface TierRule {
 /** One year of the residential rebate table. */
 export interface RebateRules {
   year: 2026 | 2027
+  /** Programme name as published, e.g. "Mass Save residential air-source heat pump rebates". */
+  program: string
   /** ISO dates describing the install window; `to: null` means open-ended. */
   installWindow: { from: string; to: string | null }
   documentationDeadline: string | null
@@ -75,6 +77,27 @@ export interface FuelSnapshot {
 
 const FUELS: readonly Fuel[] = ['oil', 'propane', 'gas', 'resistance']
 const TIERS: readonly Tier[] = ['whole', 'partial', 'basic', 'enhanced']
+
+/**
+ * The tier as the programme writes it. One definition, shared by the engine and
+ * the screen, so a line item and its explanation can never name different tiers.
+ */
+export const TIER_LABEL: Record<Tier, string> = {
+  whole: 'whole-home',
+  partial: 'partial-home',
+  basic: 'basic',
+  enhanced: 'income-qualified enhanced',
+}
+
+/**
+ * The table as a household should read it: publisher, document, year, read date.
+ * Input: one year's rules. Guarantee: never leaks a repository path onto the
+ * verdict screen, and never shows a table without the date it was read.
+ */
+export function rulesSourceLabel(rules: RebateRules): string {
+  const read = rules.source.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? null
+  return `${rules.program} · ${rules.year} table${read ? ` · read ${read}` : ''}`
+}
 
 /** True when `value` is one of the four fuels the engine can price. */
 export function isFuel(value: unknown): value is Fuel {
@@ -131,6 +154,7 @@ function parseRules(file: string, raw: unknown, expectedYear: 2026 | 2027): Reba
   if (typeof raw !== 'object' || raw === null) fail(file, 'root is not an object')
   const r = raw as Record<string, unknown>
   if (r.year !== expectedYear) fail(file, `year is ${String(r.year)}, expected ${expectedYear}`)
+  if (typeof r.program !== 'string' || r.program.length === 0) fail(file, 'program')
   if (typeof r.source !== 'string') fail(file, 'source')
   const window = r.installWindow
   if (typeof window !== 'object' || window === null) fail(file, 'installWindow')
@@ -145,6 +169,7 @@ function parseRules(file: string, raw: unknown, expectedYear: 2026 | 2027): Reba
   for (const tier of TIERS) tiers[tier] = parseTierRule(file, tier, tiersObj[tier])
   return {
     year: expectedYear,
+    program: r.program,
     installWindow: { from: w.from, to: typeof w.to === 'string' ? w.to : null },
     documentationDeadline: deadline,
     source: r.source,

@@ -265,6 +265,8 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       utility,
       electricRate: plausibleElectricRate(electricRate) !== null ? electricRate : '',
       lowIncome,
+      weatherizationBonus: false,
+      sizingBonus: false,
     }
     router.push(`/verdict?${toQuery(values).toString()}`)
   }

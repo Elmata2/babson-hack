@@ -33,7 +33,7 @@ import {
 import { annualKWh, fuelCost, monthly, operatingCost } from './cost'
 import { breakEvenElectricPrice, heatLoan, payback } from './finance'
 import { deliveredHeat, designLoad, isOversized, resolveAfue, sizeTons } from './heat'
-import { FUEL_SNAPSHOT_2026_10_19, HEAT_PUMP_RULES_2026, isFuel, isTier, rulesForYear } from './rules'
+import { FUEL_SNAPSHOT_2026_10_19, HEAT_PUMP_RULES_2026, isFuel, isTier, rulesForYear, TIER_LABEL } from './rules'
 import { rebate } from './rebate'
 import { verdictOf } from './verdict'
 import type { Assumption, HeatingInput, Refusal, Tier, UpgradeInput, Verdict, VerdictResult } from './types'
@@ -43,13 +43,6 @@ const FUEL_LABEL: Record<string, string> = {
   propane: 'Propane',
   gas: 'Natural gas',
   resistance: 'Electric resistance',
-}
-
-const TIER_LABEL: Record<string, string> = {
-  whole: 'whole-home',
-  partial: 'partial-home',
-  basic: 'basic',
-  enhanced: 'income-qualified enhanced',
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -79,7 +72,7 @@ function refuse(code: Refusal['code'], field: string, message: string): Refusal 
 }
 
 function tierLabelOf(tier: Tier): string {
-  return TIER_LABEL[tier] ?? tier
+  return TIER_LABEL[tier]
 }
 
 /**
