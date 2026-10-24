@@ -74,6 +74,9 @@ because that is when the hackathon clock runs.
   corrected it to 624,510 households / 22.4%. Copy now matches steering.
 - A git-connected Vercel build failed with `NEXT_NO_VERSION` because `next` was
   never committed. Fixed by committing the scaffold, not by disconnecting git.
+- The freshness badge said its kind only in colour. It now says it in words —
+  `Prices · Snapshot · 19 Oct`, `Year built · Assessor` — so a washed-out
+  projector or a colour-blind reader gets the same information.
 
 ### Notes
 
