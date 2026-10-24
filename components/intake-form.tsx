@@ -356,6 +356,8 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
     if (!canSubmit) return
 
     const values: IntakeValues = {
+      // The address is carried, not used: it keeps the round trip lossless (R10.6).
+      address: initial.address,
       fuel, units, price, town, tier, income, year: installYear, yearBuilt, sqft,
       src: envelopeSource, buildingUnits, method, methodConfidence, note, utility, electricRate, lowIncome,
       // The bonuses are asserted on the verdict screen, not here; carry them so a
@@ -417,7 +419,11 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
 
         <div className="grid gap-3">
           <h3 className="text-small font-medium">Where is the house?</h3>
-          <AddressCombobox onSelect={(suggestion) => void handleSuggestion(suggestion)} onTyped={(value) => void handleTypedAddress(value)} />
+          <AddressCombobox
+            onSelect={(suggestion) => void handleSuggestion(suggestion)}
+            onTyped={(value) => void handleTypedAddress(value)}
+            initialValue={initial.address}
+          />
 
           {lookup.matchedAddress ? (
             <p className="text-micro text-ink-muted">

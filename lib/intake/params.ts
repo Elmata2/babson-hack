@@ -102,9 +102,18 @@ const UTILITIES: readonly BillUtility[] = [
 ]
 const FUELS: readonly BillFuel[] = ['oil', 'propane', 'gas', 'resistance']
 export const NOTE_MAX = 160
+/** A street address is a form value, not a payload: cap it where it enters the app. */
+export const ADDRESS_MAX = 120
 
 /** Everything the form carries to /verdict. All strings, as typed. */
 export interface IntakeValues {
+  /**
+   * The street address the user picked, when they picked one on the map.
+   * Carried in the link so the intake form opens on the house they clicked
+   * (R10.6). It is a form value, never a calculation input, and it is not sent
+   * anywhere: the geocoder is only called when the household asks for a lookup.
+   */
+  address?: string
   fuel: BillFuel
   units: string
   price: string
@@ -141,6 +150,7 @@ export function toQuery(v: IntakeValues): URLSearchParams {
     year: v.year,
     inc: v.income,
   })
+  if (v.address && v.address.trim()) p.set('addr', v.address.trim().slice(0, ADDRESS_MAX))
   if (v.yearBuilt.trim()) p.set('yb', v.yearBuilt.trim())
   if (v.sqft.trim()) p.set('sqft', v.sqft.trim().replace(/,/g, ''))
   if (v.src) p.set('src', v.src)
@@ -185,6 +195,8 @@ export function fromSearchParams(r: Raw): Partial<IntakeValues> {
   if (year === '2026' || year === '2027') out.year = year
   const inc = one(r, 'inc')
   if (inc === 'yes' || inc === 'no' || inc === 'unsure') out.income = inc
+  const addr = one(r, 'addr')
+  if (addr) out.address = addr.trim().slice(0, ADDRESS_MAX)
   const yb = one(r, 'yb')
   if (yb) out.yearBuilt = yb
   const sqft = one(r, 'sqft')
@@ -249,6 +261,21 @@ export function withInstallCost(query: string, value: number): string {
   if (value === DEFAULT_INSTALL_COST_USD) next.delete('ic')
   else next.set('ic', String(value))
   return next.toString()
+}
+
+/**
+ * A link from a place on the map to the intake form, with that address already in it.
+ *
+ * R10.6: picking an address on the map prefills the address form. `src=map` says
+ * where the value came from, and the address itself is only ever a form value —
+ * `fromSearchParams` reads it, the engine never sees it.
+ */
+export function intakeHrefForAddress(town: string, address?: string | null): string {
+  const p = new URLSearchParams()
+  if (town.trim()) p.set('town', town.trim())
+  if (address && address.trim()) p.set('addr', address.trim().slice(0, ADDRESS_MAX))
+  p.set('src', 'map')
+  return `/start?${p.toString()}`
 }
 
 /** Plain-English provenance for the verdict's assumptions area. */

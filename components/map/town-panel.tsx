@@ -2,19 +2,53 @@
 
 /**
  * @built F-44 Town tab: utility gate, selected tract stats, town heating-fuel roll-up
+ * @built F-46 the tract panel completes: spend, the Jan 1 loss, and "use this tract"
+ * @built F-47 the plain-language path when the equity lens shows a high limited-English share
  *
  * The utility line is the correctness gate from `resolveUtility`. A municipal light
- * plant town says so in plain words; a mixed town asks instead of guessing.
+ * plant town says so in plain words; a mixed town asks instead of guessing. Every
+ * dollar below comes from `lib/map/heat.ts`, and the 750 gal/household assumption is
+ * printed next to the spend it qualifies rather than in a tooltip.
  */
 
-import { GEO_META, tractStats, tractStatsOfTown, townsOfTract } from '@/lib/geo'
+import Link from 'next/link'
+import { GEO_META, tractStatsOfTown, townsOfTract } from '@/lib/geo'
 import { SPONSOR_NAME, UTILITY_META, resolveUtility } from '@/lib/utility'
+import {
+  ASSUMPTION_NOTE,
+  CLIFF_CAPS,
+  CLIFF_SOURCE,
+  OIL_PRICE_AS_OF,
+  OIL_PRICE_USD_PER_GAL,
+  cliffDollarsFor,
+  cliffSentence,
+  formatMillions,
+  heatRowFor,
+  money,
+  oilSpendFor,
+  oilSpendSentence,
+  percent,
+  price,
+  seedHref,
+  seedQuery,
+  type HeatYear,
+} from '@/lib/map/heat'
+import { EJ_META, ejSummary, formatEj, offersPlainLanguage, plainLanguageHref } from '@/lib/map/equity'
 
-const pct = (share: number) => `${(Math.round(share * 1000) / 10).toLocaleString('en-US')}%`
 const int = (n: number) => n.toLocaleString('en-US')
 const day = (iso: string) => iso.slice(0, 10)
 
-export function TownPanel({ town, tract, onClearTract }: { town: string | null; tract: string | null; onClearTract: () => void }) {
+export interface TownPanelProps {
+  town: string | null
+  tract: string | null
+  onClearTract: () => void
+  /** True when the equity lens is on; the EJ percentages appear only with the lens. */
+  ejOn: boolean
+  /** The scrubber's install year, so "use this tract" seeds the year being looked at. */
+  year: HeatYear
+}
+
+export function TownPanel({ town, tract, onClearTract, ejOn, year }: TownPanelProps) {
   if (!town) {
     return (
       <p className="text-small text-ink-muted">
@@ -23,10 +57,11 @@ export function TownPanel({ town, tract, onClearTract }: { town: string | null; 
     )
   }
   const res = resolveUtility(town)
-  const tractRow = tract ? tractStats(tract) : null
+  const row = heatRowFor(tract)
   const rows = tractStatsOfTown(town)
   const households = rows.reduce((s, r) => s + r.households, 0)
   const oil = rows.reduce((s, r) => s + r.oilHouseholds, 0)
+  const location = tract ? (townsOfTract(tract)[0] ?? town) : town
 
   let utilityLine: string
   if (!res.found) utilityLine = res.reason ?? 'We do not have this town.'
@@ -42,28 +77,92 @@ export function TownPanel({ town, tract, onClearTract }: { town: string | null; 
         <p className="text-eyebrow uppercase text-ink-muted">Electric utility</p>
         <p className="mt-1 text-small text-ink">{utilityLine}</p>
         {res.reason && res.eligibleForMassSave === null ? <p className="mt-1 text-micro text-ink-muted">{res.reason}</p> : null}
+        {res.eligibleForMassSave === false ? (
+          <p className="mt-1 text-micro text-ink-muted">
+            A municipal light plant buys its own power and is not a Mass Save sponsor, so no heat-pump rebate is quoted
+            here — and the seasonal heat-pump rate does not apply. The town&apos;s own program may still offer something;
+            ask the municipally owned utility directly.
+          </p>
+        ) : null}
         <p className="mt-1 text-micro text-ink-faint">
           {UTILITY_META.source} · fetched {day(UTILITY_META.fetchedAt)}
         </p>
       </section>
 
-      {tractRow ? (
+      {row ? (
         <section aria-label="Selected tract" className="rounded-card border border-rule bg-paper p-3">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-eyebrow uppercase text-ink-muted">Census tract {tractRow.geoid}</p>
+            <p className="text-eyebrow uppercase text-ink-muted">Census tract {row.geoid}</p>
             <button type="button" onClick={onClearTract} className="text-micro text-ink-muted underline underline-offset-2 hover:text-ink">
               Clear
             </button>
           </div>
-          <p className="mt-1 text-micro text-ink-muted">
-            {townsOfTract(tractRow.geoid).join(', ') || 'Massachusetts'}
-          </p>
+          <p className="mt-1 text-micro text-ink-muted">{townsOfTract(row.geoid).join(', ') || 'Massachusetts'}</p>
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
-            <Stat label="Oil-heated share" value={tractRow.households > 0 ? pct(tractRow.oilShare) : 'No households'} />
-            <Stat label="Oil-heated homes" value={int(tractRow.oilHouseholds)} />
-            <Stat label="Occupied homes" value={int(tractRow.households)} />
-            <Stat label="Median year built" value={tractRow.medianYearBuilt > 0 ? String(tractRow.medianYearBuilt) : 'No estimate'} />
+            <Stat label="Occupied homes" value={int(row.households)} />
+            <Stat label="Oil-heated share" value={percent(row.oilShare)} />
+            <Stat label="Homes on oil" value={int(row.oilHouseholds)} />
+            <Stat label="Median year built" value={row.medianYearBuilt > 0 ? String(row.medianYearBuilt) : 'No estimate'} />
+            <Stat label="Estimated oil spend" value={`${money(row.oilSpendUsd)}/yr`} />
+            <Stat
+              label={year === 2027 ? 'Lost on Jan 1, 2027' : 'Lost if you wait for 2027'}
+              value={money(row.cliffDollars)}
+            />
           </dl>
+          <p className="mt-2 text-micro text-ink-muted">{oilSpendSentence(row)}.</p>
+          <p className="mt-1 text-micro text-ink-muted">{cliffSentence(row)}.</p>
+          <p className="mt-1 text-micro text-ink-faint">
+            {ASSUMPTION_NOTE} at {price(OIL_PRICE_USD_PER_GAL)}/gal (DOER {OIL_PRICE_AS_OF}). {CLIFF_SOURCE}. Median year
+            built from ACS B25035, tract-wide.
+          </p>
+
+          <Link
+            href={seedHref(row, location, year, 'start')}
+            className="mt-3 inline-flex h-9 items-center rounded-md border border-ink bg-ink px-3 text-small font-medium text-paper transition-colors hover:bg-ink-muted"
+          >
+            Use this tract
+          </Link>
+          <p className="mt-1.5 text-micro text-ink-faint">
+            Seeds the calculator with this tract&apos;s median year built and {ASSUMPTION_NOTE}, at the DOER price. You can
+            change every field.
+          </p>
+
+          {ejOn ? (
+            <div className="mt-3 border-t border-rule pt-2">
+              <p className="text-eyebrow uppercase text-ink-muted">Equity lens</p>
+              {(() => {
+                const summary = ejSummary(row.geoid)
+                if (!summary) {
+                  return <p className="mt-1 text-micro text-ink-muted">No EJ2020 block group in this tract.</p>
+                }
+                const ej = formatEj(summary)
+                return (
+                  <>
+                    <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1">
+                      <Stat label="Minority share" value={ej.minority} />
+                      <Stat label="Limited English" value={ej.limitedEnglish} />
+                    </dl>
+                    <p className="mt-1 text-micro text-ink-faint">
+                      MassGIS EJ2020, {summary.blockGroups} EJ block {summary.blockGroups === 1 ? 'group' : 'groups'} in
+                      this tract. These percentages describe those block groups, not the whole tract, and they never
+                      change a heat value or a ranking. {EJ_META.caveat}
+                    </p>
+                    {offersPlainLanguage(row.geoid) ? (
+                      <p className="mt-2 text-micro text-ink">
+                        <Link
+                          href={plainLanguageHref(seedQuery(row, location, year))}
+                          className="underline decoration-rule-strong underline-offset-2 hover:text-ink-muted"
+                        >
+                          Read the verdict in plain language
+                        </Link>{' '}
+                        — {ej.limitedEnglish} of households here have limited English.
+                      </p>
+                    ) : null}
+                  </>
+                )
+              })()}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -71,20 +170,23 @@ export function TownPanel({ town, tract, onClearTract }: { town: string | null; 
         <p className="text-eyebrow uppercase text-ink-muted">Heating oil in {town}</p>
         {households > 0 ? (
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
-            <Stat label="Oil-heated share" value={pct(oil / households)} />
+            <Stat label="Oil-heated share" value={percent(oil / households)} />
             <Stat label="Oil-heated homes" value={int(oil)} />
+            <Stat label="Oil spend" value={`${formatMillions(oilSpendFor(oil))}/yr`} />
+            <Stat label="At risk on Jan 1" value={formatMillions(cliffDollarsFor(oil))} />
           </dl>
         ) : (
           <p className="mt-1 text-small text-ink-muted">No tract estimates for this town.</p>
         )}
         <p className="mt-2 text-micro text-ink-faint">
-          Sums the {rows.length} tracts that touch the town; a tract on a town line is counted whole in each town.
+          Sums the {rows.length} tracts that touch the town; a tract on a town line is counted whole in each town. Spend{' '}
+          {ASSUMPTION_NOTE}. The 2027 cap is {money(CLIFF_CAPS[2027])} against {money(CLIFF_CAPS[2026])} today.
         </p>
       </section>
 
       <p className="text-micro text-ink-faint">
-        {GEO_META.tractStats.source.split(' — ')[0]} · B25040 · fetched {day(GEO_META.tractStats.fetchedAt)}. {''}
-        Estimates carry sampling error; read a small tract as a share.
+        {GEO_META.tractStats.source.split(' — ')[0]} · B25040 · fetched {day(GEO_META.tractStats.fetchedAt)}. Estimates
+        carry sampling error; read a small tract as a share.
       </p>
     </div>
   )

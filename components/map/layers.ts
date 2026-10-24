@@ -12,8 +12,9 @@ import type { ExpressionSpecification, GeoJSONSource, Map as MlMap } from 'mapli
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { Lens } from './types'
 import { metricMax, metricValue, type Metric, type Zone } from '@/lib/map/energy-model'
+import { heatScale, type HeatMetric, type HeatYear } from '@/lib/map/heat'
 import type { TownData, TractData } from './map-data'
-import { EJ_OPACITY, EJ_VIOLET, ENERGY_BG, HEAT_BREAKS, HEAT_RAMP, LIGHT_BG, NO_DATA, PROVIDER_COLOUR, SOLAR_COLOUR } from './palette'
+import { EJ_OPACITY, EJ_VIOLET, ENERGY_BG, HEAT_RAMP, LIGHT_BG, NO_DATA, PROVIDER_COLOUR, SOLAR_COLOUR } from './palette'
 
 export const STYLE_URL: Record<Lens, string> = {
   street: 'https://tiles.openfreemap.org/styles/liberty',
@@ -33,6 +34,10 @@ export interface LensState {
   showSolar: boolean
   showLabels: boolean
   ejOn: boolean
+  /** Heat lens: which of the three metrics the choropleth encodes. */
+  heatMetric: HeatMetric
+  /** Heat lens: the scrubber's install year. Only the cliff metrics move. */
+  heatYear: HeatYear
   selectedKey: string | null
   selectedTract: string | null
 }
@@ -154,25 +159,31 @@ export function applyLens(map: MlMap, state: LensState): void {
   if (state.lens === 'heat') {
     if (!state.tracts) return
     setSource(map, 'tracts', state.tracts.collection)
+    // One function decides what the choropleth encodes for every metric and year,
+    // and the legend reads the same function, so a scale cannot describe itself wrong.
+    const scale = heatScale(state.heatMetric, state.heatYear)
+    const breaks = scale.breaks
     const fill: ExpressionSpecification = [
       'case',
-      ['>=', ['get', 'oilShare'], 0],
+      // -1 is "no households or no estimate", and a grey tract is not a 0 tract.
+      ['>=', ['get', scale.property], 0],
       [
         'step',
-        ['get', 'oilShare'],
+        ['get', scale.property],
         HEAT_RAMP[0],
-        HEAT_BREAKS[0],
+        breaks[0],
         HEAT_RAMP[1],
-        HEAT_BREAKS[1],
+        breaks[1],
         HEAT_RAMP[2],
-        HEAT_BREAKS[2],
+        breaks[2],
         HEAT_RAMP[3],
-        HEAT_BREAKS[3],
+        breaks[3],
         HEAT_RAMP[4],
       ],
       NO_DATA,
     ]
     addLayerOnce(map, { id: 'tracts-fill', type: 'fill', source: 'tracts', paint: { 'fill-color': fill, 'fill-opacity': 0.82 } })
+    map.setPaintProperty('tracts-fill', 'fill-color', fill)
     addLayerOnce(map, {
       id: 'ej-overlay',
       type: 'fill',

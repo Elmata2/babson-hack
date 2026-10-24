@@ -1,5 +1,6 @@
 /**
  * @built F-41 map data: town polygons, tract polygons joined to ACS stats, EJ flags
+ * @built F-43 every heat metric rides on the tract feature, so a metric switch is a repaint
  *
  * Data files are same-origin statics under /data. The only third-party requests the map
  * makes are basemap tiles (OpenFreeMap, CARTO) and, via /api/geocode, the Census geocoder.
@@ -13,6 +14,8 @@ import { displayTown, tractStats } from '@/lib/geo'
 import { resolveUtility } from '@/lib/utility'
 import { anchorOf, bboxOf, centroidOf, geometryHas, type AreaGeometry } from '@/lib/map/geometry'
 import { buildEnergyTowns, type BakedEnergy, type EnergyTown } from '@/lib/map/energy-model'
+import { EJ_TRACTS } from '@/lib/map/equity'
+import { heatProps, heatRow } from '@/lib/map/heat'
 
 export interface TownEntry {
   /** Display name, "Wellesley". */
@@ -101,31 +104,40 @@ export function townAtPoint(data: TownData, lon: number, lat: number): TownEntry
   return null
 }
 
-/** Tract polygons with `oilShare`, `households`, `oilHouseholds` joined from ACS B25040. */
+/**
+ * Tract polygons with the heat metrics joined from ACS B25040, plus the EJ flag.
+ *
+ * `heatProps` stamps every metric the switcher can draw for both years, so changing
+ * metric or year is `setPaintProperty` and never a second fetch. A tract with no
+ * occupied households carries `-1` (grey in the palette), not `0` — a grey tract is
+ * not a 0% tract.
+ */
 export async function loadTracts(): Promise<TractData> {
   const topo = await json<Topology>('/data/ma-tracts.topo.json')
   const collection = feature(topo, topo.objects.tracts) as unknown as FeatureCollection<Geometry, Record<string, unknown>>
   for (const f of collection.features) {
     const geoid = String(f.properties?.geoid ?? '')
     const stats = tractStats(geoid)
+    const row = stats ? heatRow(stats) : null
     f.properties = {
       geoid,
-      // -1, not 0, for a tract with nobody in it: a grey tract is not a 0% tract.
-      oilShare: stats && stats.households > 0 ? stats.oilShare : -1,
+      ...(row ? heatProps(row) : { oilShare: -1, oilSpend: -1, cliffHomes2026: -1, cliffHomes2027: -1, cliffDollars2026: -1, cliffDollars2027: -1 }),
+      // Hover and the panel read the raw counts, not the class breaks.
       households: stats?.households ?? 0,
       oilHouseholds: stats?.oilHouseholds ?? 0,
+      // The equity lens is a flag here and two percentages in `lib/map/equity.ts`;
+      // neither ever reaches a heat property.
+      ej: EJ_TRACTS.has(geoid) ? 1 : 0,
     }
   }
   return { collection }
 }
 
-/** Tract GEOIDs that hold at least one EJ block group. Used only to draw the overlay. */
-export async function loadEjTracts(): Promise<Set<string>> {
-  const raw = await json<{ tracts: Record<string, unknown> }>('/data/ej-blockgroups.json')
-  return new Set(Object.keys(raw.tracts))
-}
-
-/** Stamp `ej` (1 or 0) on each tract. Heat values are untouched. */
-export function markEj(tracts: TractData, ejTracts: Set<string>): void {
-  for (const f of tracts.collection.features) f.properties = { ...f.properties, ej: ejTracts.has(String(f.properties?.geoid)) ? 1 : 0 }
+/**
+ * Tracts that hold at least one EJ block group. Read from the committed artefact at
+ * build time (`lib/map/equity.ts`), so the overlay never waits on a request and a
+ * failed geometry chunk cannot take it down.
+ */
+export function ejTracts(): ReadonlySet<string> {
+  return EJ_TRACTS
 }

@@ -30,16 +30,23 @@ export interface AddressComboboxProps {
   /** Resolve a typed address the dropdown did not list. */
   onTyped?: (value: string) => void
   placeholder?: string
+  /**
+   * An address already chosen elsewhere — on the map, for instance (R10.6). It is
+   * put in the field without a lookup: the household selected this house, so asking
+   * OpenStreetMap to search for it again would be a request nobody asked for.
+   */
+  initialValue?: string
 }
 
-export function AddressCombobox({ onSelect, onTyped, placeholder }: AddressComboboxProps) {
-  const [value, setValue] = useState('')
+export function AddressCombobox({ onSelect, onTyped, placeholder, initialValue }: AddressComboboxProps) {
+  const [value, setValue] = useState(initialValue ?? '')
   const [items, setItems] = useState<AddressSuggestion[]>([])
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const [state, setState] = useState<AddressState>({ status: 'idle', message: null })
   const listboxId = useId()
-  const picked = useRef(false)
+  // Consumed once by the first effect run, so an initial value never triggers a search.
+  const picked = useRef(Boolean(initialValue))
   const controller = useRef<AbortController | null>(null)
 
   useEffect(() => {
