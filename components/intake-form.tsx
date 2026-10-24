@@ -7,6 +7,7 @@ import { AddressCombobox } from './address-combobox'
 import { BillUpload } from './bill-upload'
 import { FreshnessBadge } from './freshness-badge'
 import { matchTown, type AddressSuggestion } from '@/lib/address/nominatim'
+import { demoFromLocation, withDemo } from '@/lib/demo'
 import { countyOfTown } from '@/lib/geo'
 import { houseNumberOf, judgeParcel } from '@/lib/parcel/guard'
 import {
@@ -32,6 +33,8 @@ import type { AnnualMethod, BillFuel } from '@/lib/parse/types'
  * @built F-105 bill-first layout: the photo card leads, the town list hides unless needed,
  * plain questions replace the rebate-tier dropdown
  * @built F-106 the form hydrates from the verdict's query, so "Change the numbers" loses nothing
+ * @built F-49 every request from this form carries `?demo=1` when the page is a demo,
+ * and the verdict link keeps the flag; the refusal messages are the manual path
  *
  * The rule from the design: every server route is an enrichment. Delete all of
  * them and this form still produces a verdict, because the form is the product
@@ -161,7 +164,7 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
     setBuildingUnits(null)
     const ask = async (buffer: number) => {
       const query = `lat=${lat}&lon=${lon}${buffer > 0 ? `&buffer=${buffer}` : ''}`
-      const response = await fetch(`/api/parcel?${query}`)
+      const response = await fetch(withDemo(`/api/parcel?${query}`, demoFromLocation()))
       return (await response.json()) as {
         ok: boolean
         match?: 'exact' | 'buffered'
@@ -224,7 +227,9 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
     setLookup({ status: 'found', message: null, matchedAddress: suggestion.label })
 
     const [geo, parcel] = await Promise.allSettled([
-      fetch(`/api/geocode?q=${encodeURIComponent(suggestion.label)}`).then((response) => response.json()),
+      fetch(
+        withDemo(`/api/geocode?q=${encodeURIComponent(suggestion.label)}`, demoFromLocation()),
+      ).then((response) => response.json()),
       prefillFromParcel(suggestion.lat, suggestion.lon, houseNumberOf(suggestion.line1)),
     ])
 
@@ -253,7 +258,7 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
   async function handleTypedAddress(query: string) {
     setLookup({ status: 'loading', message: null, matchedAddress: null })
     try {
-      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`)
+      const response = await fetch(withDemo(`/api/geocode?q=${encodeURIComponent(query)}`, demoFromLocation()))
       const payload = (await response.json()) as {
         ok: boolean
         message?: string
@@ -366,7 +371,7 @@ export function IntakeForm({ towns, prices, initial = {} }: IntakeFormProps) {
       sizingBonus: initial.sizingBonus === true,
       installCost,
     }
-    router.push(`/verdict?${toQuery(values).toString()}`)
+    router.push(withDemo(`/verdict?${toQuery(values).toString()}`, demoFromLocation()))
   }
 
   const statusLine =

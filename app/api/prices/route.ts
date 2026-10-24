@@ -1,5 +1,7 @@
 /**
  * @built F-09 HTTP surface for the EIA adapter: prices, dated, with a snapshot fallback
+ * @built F-49 `?demo=1` answers from the baked snapshot with `cache-control: no-store`
+ * and never constructs a fetch; the normal response body is unchanged
  *
  * The adapter itself lives in `lib/prices` and is tested there. This file is the
  * transport and nothing else, which is the point of a route in this app: it hides
@@ -21,6 +23,7 @@
  * GET /api/prices
  */
 
+import { demoFromRequest } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
 
 /** Prices move weekly; the electricity series lags two months. */
@@ -28,10 +31,15 @@ export const revalidate = 86_400
 
 const CACHE_CONTROL = 'public, s-maxage=86400, stale-while-revalidate=604800'
 
-export async function GET(): Promise<Response> {
-  // `getPrices` reads EIA_API_KEY itself, caches for 24h and never throws.
-  const prices = await getPrices({ timeoutMs: 6_000 })
-  return Response.json({ ok: true, ...prices }, { headers: { 'cache-control': CACHE_CONTROL } })
+export async function GET(request: Request): Promise<Response> {
+  const demo = demoFromRequest(request)
+  // `getPrices` reads EIA_API_KEY itself, caches for 24h and never throws. With
+  // `demo` it returns the baked snapshot before any of that happens.
+  const prices = await getPrices({ timeoutMs: 6_000, demo })
+  return Response.json(
+    { ok: true, ...(demo ? { demo: true } : {}), ...prices },
+    { headers: { 'cache-control': demo ? 'no-store' : CACHE_CONTROL } },
+  )
 }
 
 /** Any other verb: a typed refusal, never a stack trace. */

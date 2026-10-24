@@ -92,8 +92,13 @@ export interface ProviderStatus {
   at: string
 }
 
-/** How the server reached (or refused to reach) providers. */
-export type OutreachMode = 'off' | 'allowlist' | 'live'
+/**
+ * How the server reached (or refused to reach) providers.
+ * `demo` is F-49: the request was validated, the statuses are baked, and nothing
+ * left the process. It is distinct from `off` because the flow is being shown,
+ * and from `allowlist` because even the team's test lines were not contacted.
+ */
+export type OutreachMode = 'off' | 'allowlist' | 'demo' | 'live'
 
 export interface OutreachResult {
   ok: boolean

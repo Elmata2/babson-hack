@@ -1,5 +1,7 @@
 /**
  * @built F-11 HTTP surface for the MassGIS L3 parcel lookup, live, 4s abort
+ * @built F-49 `?demo=1` returns a typed `demo_unavailable` refusal (200, no
+ * ArcGIS call); the form's documented fallback is typing year built and area
  *
  * Parcels are never baked: 2.5 million polygons cannot ship, and the assessor
  * year built is the one input we cannot derive. The adapter lives in `lib/parcel`
@@ -15,6 +17,7 @@
  * GET /api/parcel?lat=42.2992&lon=-71.4342
  */
 
+import { DEMO_MESSAGES, demoFromRequest, demoUnavailable } from '@/lib/demo'
 import { parcelAt } from '@/lib/parcel'
 
 export const revalidate = 86_400
@@ -28,6 +31,14 @@ function parseCoordinate(raw: string | null): number | null {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  if (demoFromRequest(request)) {
+    // Parcels are 2.5M live records and are never baked (steering, statewide
+    // build). The refusal is the honest answer, and R1.7 lets the verdict proceed.
+    return Response.json(demoUnavailable(DEMO_MESSAGES.parcel, 'manual_entry'), {
+      headers: { 'cache-control': 'no-store' },
+    })
+  }
+
   const params = new URL(request.url).searchParams
   const lat = parseCoordinate(params.get('lat'))
   const lon = parseCoordinate(params.get('lon'))

@@ -1,5 +1,7 @@
 /**
  * @built F-39 /api/explain — three sentences of plain English, and never a number that is not on the page
+ * @built F-49 `?demo=1` or `"demo": true` returns the deterministic sentences from the
+ * posted verdict (source `fallback`), with no provider pick and no request
  *
  * The route receives the verdict the page already computed, gives the model only
  * those facts, and then runs the same number guard the client fallback uses. A
@@ -16,6 +18,7 @@
  * POST /api/explain  { result: VerdictResult } → { ok, sentences, source, reader }
  */
 
+import { demoFromRequest, isDemoFlag } from '@/lib/demo'
 import { chatText, pickChatProvider } from '@/lib/net/chat'
 import {
   buildExplainPrompt,
@@ -55,6 +58,18 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const fallback = fallbackSentences(candidate)
+  const demo =
+    demoFromRequest(request) ||
+    (typeof body === 'object' && body !== null && isDemoFlag((body as { demo?: unknown }).demo))
+  if (demo) {
+    // The deterministic sentences are the honest offline answer: they are computed
+    // from the posted result, so they cannot invent a number the page does not show.
+    return Response.json(
+      { ok: true, demo: true, sentences: fallback.slice(0, EXPLAIN_MAX_SENTENCES), source: 'fallback', reader: 'none' },
+      { headers: NO_STORE },
+    )
+  }
+
   const { provider } = pickChatProvider()
   if (!provider) return deterministic(fallback)
 

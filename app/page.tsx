@@ -5,6 +5,7 @@ import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
 import { DemoPresets } from '@/components/verdict/demo-presets'
 import { VerdictLegend } from '@/components/verdict-legend'
+import { demoFromParams, withDemo } from '@/lib/demo'
 import { formatDateShort } from '@/lib/freshness'
 import { getPrices } from '@/lib/prices'
 
@@ -12,6 +13,8 @@ import { getPrices } from '@/lib/prices'
  * @built F-02 app shell — token-driven landing page
  * @built F-14 the fuel figure and its badge are read from the price adapter, so
  * the front page cannot drift from the verdict screen's source of truth
+ * @built F-49 `?demo=1` reads the baked snapshot and threads the flag into every
+ * link, so one demo click does not become a live request on the next screen
  *
  * Nothing here computes or invents a figure: the oil price comes from
  * `lib/prices` with its date, and the rebate, household count and federal-credit
@@ -28,8 +31,14 @@ interface Fact {
   source: string
 }
 
-export default async function Home() {
-  const prices = await getPrices({ timeoutMs: 4_000 })
+interface HomeProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+export default async function Home({ searchParams }: HomeProps) {
+  const params = await searchParams
+  const demo = demoFromParams(params)
+  const prices = await getPrices({ timeoutMs: 4_000, demo })
 
   const facts: readonly Fact[] = [
     {
@@ -55,7 +64,7 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader demo={demo} />
 
       <main id="main" className="flex-1">
         <section className="border-b border-rule">
@@ -77,7 +86,7 @@ export default async function Home() {
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
-                href="/onboarding"
+                href={withDemo('/onboarding', demo)}
                 className="group inline-flex items-center gap-3 rounded-pill bg-ink px-5 py-3 text-small font-medium text-paper transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.6)]"
               >
                 Create your profile
@@ -86,7 +95,7 @@ export default async function Home() {
                 </span>
               </Link>
               <Link
-                href="/start"
+                href={withDemo('/start', demo)}
                 className="rounded-card border border-rule-strong bg-surface px-5 py-3 text-small font-medium text-ink transition-colors hover:border-ink"
               >
                 Try it without an account
@@ -97,6 +106,14 @@ export default async function Home() {
                 label="Fuel prices"
               />
             </div>
+            {demo ? (
+              <p className="mt-3 max-w-[58ch] text-micro text-ink-muted">
+                <span className="font-medium text-ink">Demo mode.</span> Prices, explanations and provider
+                statuses come from baked data; address, parcel and bill reading fall back to manual entry. The
+                links keep <code className="font-mono text-[11px]">?demo=1</code> so the next screen stays
+                offline too.
+              </p>
+            ) : null}
             <p className="mt-3 max-w-[58ch] text-micro text-ink-muted">
               A profile takes four steps and about two minutes: your name and email, one photo of a bill, your town,
               then the verdict. The profile stays in this browser; the bill image is never stored.

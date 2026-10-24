@@ -1,16 +1,22 @@
 import Link from 'next/link'
 
+import { withDemo } from '@/lib/demo'
+
 /*
  * Site header — wordmark, scope, source link. Sticky, hairline-bordered, and
  * deliberately thin: the page belongs to the verdict, not to chrome.
+ *
+ * @built F-49 the optional `demo` prop keeps `?demo=1` on the wordmark and the
+ * in-app links. Without it, clicking the logo on a demo page would silently
+ * return to the live price reader.
  */
 
-export function SiteHeader() {
+export function SiteHeader({ demo = false }: { demo?: boolean }) {
   return (
     <header className="sticky top-0 z-40 border-b border-rule bg-paper/85 backdrop-blur-sm">
       <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between gap-6 px-5 sm:h-16 sm:px-8">
         <Link
-          href="/"
+          href={withDemo('/', demo)}
           className="group inline-flex items-center gap-2.5 rounded-sm"
           aria-label="Switchpoint, home"
         >
@@ -25,19 +31,19 @@ export function SiteHeader() {
           </span>
           <span aria-hidden className="hidden h-3 w-px bg-rule-strong sm:block" />
           <Link
-            href="/onboarding"
+            href={withDemo('/onboarding', demo)}
             className="rounded-pill border border-ink px-3 py-1.5 font-medium text-ink transition-colors hover:bg-ink hover:text-paper"
           >
             Create profile
           </Link>
           <Link
-            href="/map"
+            href={withDemo('/map', demo)}
             className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
           >
             Map
           </Link>
           <Link
-            href="/dashboard"
+            href={withDemo('/dashboard', demo)}
             className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
           >
             Dashboard

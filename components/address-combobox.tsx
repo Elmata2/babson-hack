@@ -3,9 +3,12 @@
 import { useEffect, useId, useRef, useState } from 'react'
 
 import type { AddressSuggestion } from '@/lib/address/nominatim'
+import { demoFromLocation, withDemo } from '@/lib/demo'
 
 /**
  * @built F-64 address type-ahead — every Chandler Street in the state, not one guess
+ * @built F-49 in demo mode the request carries `?demo=1`, the route refuses without
+ * calling Nominatim, and the combobox shows the route's manual fallback message
  *
  * The Census geocoder can only answer "where is this address". This is the other
  * question: "which one is mine?" Typing four characters asks OpenStreetMap for
@@ -64,7 +67,10 @@ export function AddressCombobox({ onSelect, onTyped, placeholder, initialValue }
     const timer = setTimeout(async () => {
       setState({ status: 'loading', message: null })
       try {
-        const response = await fetch(`/api/address?q=${encodeURIComponent(query)}`, { signal: next.signal })
+        const response = await fetch(
+          withDemo(`/api/address?q=${encodeURIComponent(query)}`, demoFromLocation()),
+          { signal: next.signal },
+        )
         const payload = (await response.json()) as {
           ok: boolean
           results?: AddressSuggestion[]

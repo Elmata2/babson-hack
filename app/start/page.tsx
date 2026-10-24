@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { IntakeForm } from '@/components/intake-form'
+import { demoFromParams, withDemo } from '@/lib/demo'
 import { fromSearchParams } from '@/lib/intake/params'
 import { TOWNS } from '@/lib/geo'
 import { getPrices } from '@/lib/prices'
@@ -12,6 +13,8 @@ import { getPrices } from '@/lib/prices'
  * @built F-31 address intake lives here — the form is a client component, the
  * prices and the 351-town table are read on the server so the browser never
  * downloads the tract geometry or a key.
+ * @built F-49 `?demo=1` reads the baked snapshot and the form's own requests carry
+ * the flag, so geocode, parcel and bill reading all take their manual path
  *
  * Prices come from the cached price reader (daily); the badge says which
  * reading is on screen and the date it describes.
@@ -29,19 +32,21 @@ interface StartPageProps {
 
 export default async function StartPage({ searchParams }: StartPageProps) {
   // @built F-106 the verdict's "Change the numbers" link brings its query back here.
-  const initial = fromSearchParams(await searchParams)
-  const prices = await getPrices({ timeoutMs: 4_000 })
+  const params = await searchParams
+  const initial = fromSearchParams(params)
+  const demo = demoFromParams(params)
+  const prices = await getPrices({ timeoutMs: 4_000, demo })
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader demo={demo} />
 
       <main id="main" className="flex-1">
         <div className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <p className="text-eyebrow uppercase text-ink-muted">The intake</p>
             <Link
-              href="/"
+              href={withDemo('/', demo)}
               className="text-micro text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
             >
               Back to the overview
@@ -104,6 +109,13 @@ export default async function StartPage({ searchParams }: StartPageProps) {
                 Climate comes from {TOWNS.length} municipalities&rsquo; county degree days. The rebate tiers are
                 versioned rules, not a model&rsquo;s memory.
               </p>
+
+              {demo ? (
+                <p className="text-micro text-ink-faint">
+                  Demo mode: address, parcel and bill lookups are off. Pick your town from the list and type the
+                  two numbers — the verdict is identical.
+                </p>
+              ) : null}
 
               <p className="text-micro text-ink-faint">
                 Every route is an enrichment: with all of them deleted, the two numbers still produce a verdict.

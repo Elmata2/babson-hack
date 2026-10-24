@@ -1,5 +1,7 @@
 /**
  * @built F-64 /api/address — type-ahead powered by OpenStreetMap Nominatim
+ * @built F-49 `?demo=1` returns a typed `demo_unavailable` refusal (200, no
+ * Nominatim call, no throttle wait); the combobox falls back to the town list
  *
  * The Census geocoder answers "where is this address". It cannot answer "which
  * Chandler Streets exist in Massachusetts", which is the question a person
@@ -17,6 +19,7 @@
  */
 
 import { nominatimUrl, readSuggestions, type AddressSuggestion } from '@/lib/address/nominatim'
+import { DEMO_MESSAGES, demoFromRequest, demoUnavailable } from '@/lib/demo'
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1_000
 const CACHE_MAX_ENTRIES = 200
@@ -72,6 +75,12 @@ function reply(body: unknown, status = 200): Response {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  if (demoFromRequest(request)) {
+    // Nominatim has no baked equivalent and its usage policy is real. Demo mode
+    // refuses before the throttle, so an offline demo cannot queue for a second.
+    return reply(demoUnavailable(DEMO_MESSAGES.address, 'town_list'))
+  }
+
   const query = (new URL(request.url).searchParams.get('q') ?? '').trim()
 
   if (query.length < MIN_QUERY) {
