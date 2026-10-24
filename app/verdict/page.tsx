@@ -34,8 +34,8 @@ import { refusalRunningCost } from '@/lib/verdict/running-cost'
 import { enhancedOffer } from '@/lib/verdict/enhanced-offer'
 import { isVerdictQueryComplete, resolveVerdictInputs } from '@/lib/verdict/inputs'
 import { entryFor, provenanceFor, type FigureId, type ProvenanceEntry } from '@/lib/verdict/provenance'
-import { verdictHeadline, type Part } from '@/lib/verdict/headline'
-import { MIN_REASONS, verdictNotes } from '@/lib/verdict-notes'
+import { cashFlowLine, verdictHeadline, type Part } from '@/lib/verdict/headline'
+import { verdictNotes } from '@/lib/verdict-notes'
 import { VERDICT_META } from '@/lib/verdicts'
 
 /**
@@ -244,8 +244,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const entries = result ? provenanceFor(result, provenanceContext) : []
   const headline = result ? verdictHeadline(result) : null
   const runningCost = result && noMassSave ? refusalRunningCost(result, billRate, billSaysMunicipal) : null
-  const extraReasons =
-    headline && notes ? notes.reasons.slice(0, Math.max(0, MIN_REASONS - headline.parts.why.length)) : []
+  const cashFlow = result ? cashFlowLine(result) : []
   const townName = displayTown(townRaw)
   const demo = demoFromParams(params)
   const mapHref = `/map?${new URLSearchParams({
@@ -346,30 +345,24 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 <VerdictDial verdict={result.verdict} className="w-full" />
               </div>
 
-              <PlainSummary result={result} />
-
-              <ul className="mt-6 grid gap-2 border-t border-rule pt-4 text-small text-ink">
-                {headline.parts.why.map((line, index) => (
-                  <li key={`${headline.case}-${index}`}>
-                    <Parts entries={entries} parts={line} />
-                  </li>
-                ))}
-                {extraReasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-              {notes?.caveats[0] ? (
-                <p className="mt-3 text-micro text-ink-muted">
-                  <span className="font-medium text-ink">What could change it: </span>
-                  {notes.caveats[0]}
-                </p>
-              ) : null}
-
-              {headline.parts.hedge.length ? (
-                <p className="mt-3 text-micro text-ink-muted">
-                  <Parts entries={entries} parts={headline.parts.hedge} />
-                </p>
-              ) : null}
+              <PlainSummary result={result} entries={entries}>
+                {cashFlow.length ? (
+                  <p>
+                    <Parts entries={entries} parts={cashFlow} />
+                  </p>
+                ) : null}
+                {notes?.caveats[0] ? (
+                  <p className="text-ink-muted">
+                    <span className="font-medium text-ink">What could change it: </span>
+                    {notes.caveats[0]}
+                  </p>
+                ) : null}
+                {headline.parts.hedge.length ? (
+                  <p className="text-ink-muted">
+                    <Parts entries={entries} parts={headline.parts.hedge} />
+                  </p>
+                ) : null}
+              </PlainSummary>
 
               {/* R14.3: offered where it is true, with the cap read from the rebate table. */}
               {offer ? <EnhancedOfferLine offer={offer} /> : null}

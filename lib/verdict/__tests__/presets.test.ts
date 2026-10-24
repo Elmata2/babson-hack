@@ -6,7 +6,9 @@ import type { Fuel, Tier, VerdictResult } from '@/lib/calc/types'
 import { hdd65ForTown } from '@/lib/geo'
 import { seasonalHeatPumpRate } from '@/lib/utility'
 
+import { plainSummary } from '../plain-summary'
 import { DEMO_PRESETS } from '../presets'
+import { verdictNotes, MIN_REASONS, MIN_CAVEATS } from '../../verdict-notes'
 
 /**
  * The presets are demo links, so they are tested through the same arithmetic a
@@ -71,6 +73,16 @@ describe('demo presets', () => {
         expect(result, `${preset.key} at ${rate}/kWh`).not.toBeNull()
         expect(result?.verdict, `${preset.key} at ${rate}/kWh`).toBe(preset.expects)
       }
+    }
+  })
+
+  it('R8.3: the In short card renders the reasons and the page renders a caveat for every preset', () => {
+    for (const preset of DEMO_PRESETS) {
+      const result = verdictFor(preset.href, 0.3)
+      expect(result, preset.key).not.toBeNull()
+      if (!result) continue
+      expect(plainSummary(result).parts.length, preset.key).toBeGreaterThanOrEqual(MIN_REASONS)
+      expect(verdictNotes(result).caveats.length, preset.key).toBeGreaterThanOrEqual(MIN_CAVEATS)
     }
   })
 })

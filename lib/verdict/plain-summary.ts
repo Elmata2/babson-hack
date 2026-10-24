@@ -17,6 +17,13 @@
 import type { Verdict, VerdictResult } from '../calc/types'
 import { DISCLAIMER } from './disclaimer'
 import { cents, usd } from './format'
+import type { Part } from './headline'
+import type { FigureId } from './provenance'
+
+const fig = (id: FigureId, text: string): Part => ({ id, text })
+
+const flat = (parts: readonly Part[]): string =>
+  parts.map((part) => (typeof part === 'string' ? part : part.text)).join('')
 
 /** The answer in the fewest words that stay true for each branch. */
 const PLAIN_ANSWER: Record<Verdict, string> = {
@@ -30,6 +37,8 @@ export interface PlainSummary {
   answer: string
   /** Two to four short sentences. The main number is in the second one. */
   sentences: string[]
+  /** The same sentences with each figure tagged by its provenance id. */
+  parts: Part[][]
   /** R15.2, verbatim. Kept apart because its wording is fixed by the requirement. */
   disclaimer: string
   /**
@@ -46,32 +55,43 @@ export interface PlainSummary {
  */
 export function plainSummary(result: VerdictResult): PlainSummary {
   const answer = PLAIN_ANSWER[result.verdict]
-  const sentences: string[] = [
-    `You pay ${usd(result.oldAnnualCost)} a year to heat this house.`,
-    `A heat pump would cost ${usd(result.newAnnualCostHeatPumpRate)} a year at the seasonal rate.`,
+  const parts: Part[][] = [
+    ['You pay ', fig('oldCost', usd(result.oldAnnualCost)), ' a year to heat this house.'],
+    [
+      'A heat pump would cost ',
+      fig('newCostSeasonal', usd(result.newAnnualCostHeatPumpRate)),
+      ' a year at the seasonal rate.',
+    ],
   ]
 
   if (result.annualSavings > 0) {
-    sentences.push(`That is ${usd(result.annualSavings)} less each year.`)
+    parts.push(['That is ', fig('savings', usd(result.annualSavings)), ' less each year.'])
 
     if (result.verdict === 'SWITCH_BEFORE_DEC31' && result.cliffCost > 0) {
-      sentences.push(`Waiting until 2027 costs ${usd(result.cliffCost)} more in rebate.`)
+      parts.push(['Waiting until 2027 costs ', fig('cliff', usd(result.cliffCost)), ' more in rebate.'])
     } else if (result.rebateEligible) {
-      sentences.push(`The rebate is ${usd(result.totalRebate)} of a ${usd(result.installCost)} install.`)
+      parts.push([
+        'The rebate is ',
+        fig('rebate', usd(result.totalRebate)),
+        ` of a ${usd(result.installCost)} install.`,
+      ])
     }
   } else {
-    sentences.push(`That is ${usd(-result.annualSavings)} more each year.`)
+    parts.push(['That is ', fig('savings', usd(-result.annualSavings)), ' more each year.'])
 
     if (result.breakEvenElectricPrice !== null) {
-      sentences.push(`It only pays below ${cents(result.breakEvenElectricPrice)} per kWh.`)
+      parts.push(['It only pays below ', fig('breakEven', cents(result.breakEvenElectricPrice)), ' per kWh.'])
     }
   }
+
+  const sentences = parts.map(flat)
 
   const readabilitySample = [answer, ...sentences].join(' ')
 
   return {
     answer,
     sentences,
+    parts,
     disclaimer: DISCLAIMER,
     readabilitySample,
   }
