@@ -6,7 +6,7 @@
  * tests can hit them directly.
  */
 
-import { HEAT_LOAN_APR, HEAT_LOAN_MONTHS } from './constants'
+import { HEAT_LOAN_APR, HEAT_LOAN_MONTHS, MONTHS_PER_YEAR } from './constants'
 import { annualKWh } from './cost'
 import type { HeatLoan } from './types'
 
@@ -47,7 +47,7 @@ export function heatLoan(
     return { monthly: netCost / months, totalInterest: 0, months, apr }
   }
 
-  const monthlyRate = apr / 12
+  const monthlyRate = apr / MONTHS_PER_YEAR
   const factor = Math.pow(1 + monthlyRate, months)
   const payment = (netCost * monthlyRate * factor) / (factor - 1)
   if (!isFiniteNumber(payment)) return null

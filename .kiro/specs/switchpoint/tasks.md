@@ -27,7 +27,7 @@ marked ✂ until P4 is green.
 | F-06 | P1 | `lib/calc/constants.ts` — every physical constant, unit in the name | B | 15m | F-01 |
 | F-07 | P1 | `data/rules/heat-pump-2026.json` + `-2027.json`, typed loader | B | 25m | F-06 |
 | F-08 | P1 | `data/snapshots/fuel-2026-10-19.json` from the DOER survey | B | 10m | — |
-| F-09 | P1 | `/api/prices` — EIA v2 adapter, 24h cache, snapshot fallback | C | 35m | F-08 |
+| F-09 | P1 | `/api/prices` — EIA v2 adapter using the **verified** series ids in `data-sources.md`; per-series typed parse (`value` vs `price`), 24h cache, snapshot fallback | C | 35m | F-08 |
 | F-10 | P1 | `/api/geocode` — Census onelineaddress → lat/lon/tract | C | 25m | — |
 | F-11 | P1 | `/api/parcel` — MassGIS L3 point query → YEAR_BUILT, USE_CODE | C | 35m | F-10 |
 | F-12 | P1 | `scripts/bake-parcels.mjs` — 5 towns to static JSON | C | 30m | F-11 |
@@ -99,11 +99,27 @@ marked ✂ until P4 is green.
 | F-53 | P6 | Submission checklist: repo public, `.kiro` present, track selected | D | 15m | F-51 |
 | F-54 | P6 | Final `BUILDLOG.md` + `git log` review | D | 10m | F-53 |
 
+## P7 — Organizer datasets (added 10:20, after reading the campus data portal)
+
+| ID | Phase | Task | Owner | Est | Depends |
+| --- | --- | --- | --- | --- | --- |
+| F-55 | P7 | `scripts/bake-utilities.mjs` — MassGIS ElectricityProviders → `data/utilities.json`, parse comma-joined `ELEC_LABEL` into `{sponsors[], hasMunicipal, mixed}` | C | 25m | F-13 |
+| F-56 | P7 | `lib/utility.ts` — sponsor → seasonal rate rule, MLP eligibility gate, `mixed` → ask | B | 20m | F-55 |
+| F-57 | P7 | Verdict screen utility badge + MLP refusal state (the Wellesley beat) | A | 20m | F-56 |
+| F-58 | P7 | EJ2020 bake + `ej-overlay` map layer toggle, no effect on heat values | C | 30m | F-42 |
+| F-59 | P7 | README: challenge C2 quote, dataset citations, utility-coverage note | D | 15m | F-56 |
+
+**F-55/F-56/F-57 are not optional.** They are the difference between quoting a
+rebate and quoting a rebate the household can actually receive. Wellesley and
+Belmont — the two towns nearest this venue — are **municipal light plant** towns
+and are not eligible for Mass Save electric rebates at all.
+
 ---
 
 ## Cut line
 
-**Must be green by 17:30:** F-01 → F-40, F-49.
+**Must be green by 17:30:** F-01 → F-40, F-49, **F-55, F-56, F-57** (the utility
+gate is a correctness requirement, not a flourish).
 **Everything in P5 is optional** and ordered by demo value: F-41, F-42, F-44,
 F-45 (the scrubber is worth more than the pins), F-43, F-47, F-46, F-48.
 

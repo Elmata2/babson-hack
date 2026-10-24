@@ -49,10 +49,15 @@ export interface HeatingInput {
   /** $ per gallon | $ per therm | $ per kWh */
   unitPrice: number
   afue?: number              // overrides table default
-  /** deg F, defaults to nearest HDD zone */
+  /** town name, used to pick the HDD zone and the utility sponsor */
+  town?: string
+  /** MassGIS sponsor key: eversource | nationalgrid | unitil | cape_light | mlp | mixed */
+  utility?: string
+  /** deg F, defaults to the town's HDD zone, then Boston */
   hdd65?: number
   designTempF?: number
   sqft?: number              // only for envelope fallback
+  /** drives the envelope-intensity bucket: <1950 / 1950–2000 / >2000 */
   yearBuilt?: number
 }
 
@@ -131,8 +136,33 @@ monthlyLoan    = netCost / 84
 ```
 
 Sanity anchor, computed by hand and asserted in a test: 800 gal oil at $6.23,
-AFUE 0.80, SCOP 2.70, rate $0.235 → 88.6 MMBtu, 9,620 kWh, $4,984 → $2,261,
-savings $2,723, net cost $13,500, payback 4.96 yr.
+AFUE 0.80, SCOP 2.70, seasonal rate $0.235 → 88.64 MMBtu, design load 38,252
+BTU/hr, **3.0 tons**, 9,621 kWh, $4,984 → $2,261, savings **$2,723**, rebate
+**$7,950** (3.0 × $2,650, cap not reached), net cost **$14,050**, payback
+**5.16 yr**, 2027 rebate **$7,050**, cliff cost **$900**, verdict
+`SWITCH_BEFORE_DEC31`.
+
+*Correction, 2026-10-24: the first draft of this section said net cost $13,500
+and payback 4.96 yr. That assumed the $8,500 cap, which 3.0 tons does not reach.
+The corrected figures above are what `lib/calc` asserts.*
+
+### 2.2a What `annualSavings` means (settled)
+
+`annualSavings` is computed at the **seasonal heat pump rate** (Nov 1 – Apr 30) —
+the rate a heat-pump customer is eligible for and the one Mass Save's own
+calculator tells users to enter. `annualSavingsAtStandardRate` is the
+conservative view and **must also be rendered**, labelled, on the verdict screen.
+
+The verdict guard is conservative even though the headline is not:
+
+1. `annualSavingsAtStandardRate <= 0` → `DO_NOT_SWITCH_YET`
+2. `paybackYears === null || paybackYears > 15` → `DO_NOT_SWITCH_YET`
+3. `installYear === 2026 && rebate2026 > rebate2027` → `SWITCH_BEFORE_DEC31`
+4. otherwise → `SWITCH_NOW`
+
+If the two rates disagree about whether the household saves money, the screen
+says so explicitly. No household should be told to spend $22,000 on a number that
+only works in winter.
 
 ### 2.3 Server routes
 
@@ -174,9 +204,21 @@ cost.
 **Layers, bottom to top**
 1. basemap
 2. `tracts-fill` — choropleth, `fill-color` data-driven from the active metric
-3. `tracts-line` — 0.5px, 30% opacity, structural only
-4. `parcel-pins` — circle layer, only for the selected town
-5. `selected` — highlight ring on the active tract
+3. `ej-overlay` — optional equity lens from MassGIS EJ2020, rendered at 25%
+   opacity in a neutral violet so it never reads as a heat value
+4. `tracts-line` — 0.5px, 30% opacity, structural only
+5. `parcel-pins` — circle layer, only for the selected town
+6. `selected` — highlight ring on the active tract
+
+Two lenses stack without confusing the reader: **heat** (this app's data) is a
+warm sequential ramp; **equity** is a categorical wash. Never encode both in the
+same hue, and never let the equity layer alter a heat value (R10.9).
+
+The utility sponsor is a third, non-map encoding: a badge in the tract panel
+(`Eversource`, `National Grid`, `Unitil`, `Cape Light Compact`, or
+`Municipal light plant — Mass Save rebates do not apply`). Towns with
+`ELEC_LABEL` listing both a municipal department and an IOU are marked `mixed`
+and the panel asks the user which one bills them.
 
 **Metrics** (switchable, all derived from ACS B25040 + DOER prices):
 
@@ -308,16 +350,20 @@ the repo.
 
 | t | Beat |
 | --- | --- |
-| 0:00 | Oil bill on screen: **$4,984**. "This is one winter in one house in Wellesley." |
-| 0:15 | "Oil is up 75% in a year. 29% of Massachusetts heats with oil. And in 68 days the rebate drops." |
+| 0:00 | Oil bill on screen: **$4,984**. "One winter, one house, Framingham." |
+| 0:15 | "Oil is up 75% in a year. 29% of Massachusetts heats with oil. In 68 days the rebate drops." |
 | 0:30 | Paste the address → parcel fills in. Upload the receipt → fields land. |
-| 0:50 | The number flips: **$4,984 → $2,261**. Payback 5 years. 0% loan: **+$66/month in your pocket**. |
-| 1:10 | Click the number → the formula and the source date appear. "Every figure is auditable." |
-| 1:25 | Switch to the gas house. The verdict turns red: **DON'T SWITCH YET**, break-even is 14.2¢/kWh. |
-| 1:45 | Map. Oil share across the region. Drag the scrubber to 2027 — the map loses **$X M** on Jan 1. |
-| 2:10 | "Mass Save's calculator asks you to guess your fuel use. We read the bill and give a verdict." |
-| 2:25 | Cut to the build log: spec → steering → property tests → 40 features in 8 hours. |
+| 0:50 | The number flips: **$4,984 → $2,261**. Payback 5.2 years. 0% loan: **+$60/month** in your pocket. |
+| 1:10 | Click the number → formula, substituted values, source date. "Every figure is auditable." |
+| 1:25 | Change the address to **Wellesley**. The rebate line dies: *your town is served by a municipal light plant — Mass Save electric rebates do not apply.* **This is the beat that wins the room.** |
+| 1:45 | Switch to the gas house. **DON'T SWITCH YET**, break-even 14.2¢/kWh. |
+| 2:05 | Map. Oil share. Drag the scrubber to 2027 — the map loses **$X M** on Jan 1. |
+| 2:25 | "Mass Save's calculator asks you to guess your fuel use. We read the bill, check your utility, and give a verdict." |
 | 2:35 | One line: *Switchpoint — the honest heat pump verdict for Massachusetts.* |
+
+The Wellesley beat is not a bug demonstration. It is the whole thesis: a tool
+that checks the thing every calculator skips and refuses to quote a number the
+household cannot receive. Rehearse it until it lands in under 15 seconds.
 
 ## 11. What we will not do today
 

@@ -16,6 +16,7 @@ import {
   DELIVERED_BTU_PER_SQFT_YEAR,
   ENVELOPE_REFERENCE_SQFT,
   HOURS_PER_DAY,
+  MAX_AFUE,
   MAX_ANNUAL_UNITS_BY_FUEL,
   MAX_SQFT,
   MIN_TONS,
@@ -54,7 +55,7 @@ export function btuToMmBtu(btu: number): number {
  */
 export function resolveAfue(input: HeatingInput): { afue: number; assumption: Assumption | null } | null {
   if (input.afue !== undefined) {
-    if (!isFiniteNumber(input.afue) || input.afue <= 0 || input.afue > 1.5) return null
+    if (!isFiniteNumber(input.afue) || input.afue <= 0 || input.afue > MAX_AFUE) return null
     return { afue: input.afue, assumption: null }
   }
   const afue = AFUE_BY_FUEL[input.fuel]

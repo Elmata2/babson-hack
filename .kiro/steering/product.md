@@ -30,6 +30,18 @@ Track: **Climate Tech**, challenge **C2 — Cleaner, more affordable buildings**
 That is 68 days of deadline, a doubling fuel price, and a state where three in
 ten homes are exposed.
 
+## The fourth fact, which nobody else checks
+
+Mass Save rebates are paid by the utility *sponsor* serving the address, and
+**municipal light plant customers are not eligible for Mass Save electric rebates
+at all.** Wellesley, Belmont, Holyoke and dozens of other towns run their own
+electric departments. A calculator that ignores this hands a homeowner $8,500
+they will never see.
+
+Checking it takes one public dataset. Refusing to quote an impossible number is
+the most convincing thing this product does, and it is the single beat we
+rehearse most.
+
 ## Non-negotiables
 
 1. **No invented numbers.** Every figure is either computed from user input or

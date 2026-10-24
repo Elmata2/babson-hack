@@ -143,6 +143,16 @@ export const MAX_UNIT_PRICE_USD = 50
 export const MAX_INSTALL_COST_USD = 250_000
 /** Sanity bound on floor area for the envelope fallback, sqft. */
 export const MAX_SQFT = 25_000
+/** Upper bound on a supplied efficiency: above this it is not an efficiency. */
+export const MAX_AFUE = 1.5
+/** Upper bound on a supplied HDD65: no MA site is above this. */
+export const MAX_HDD65 = 20_000
+/** Upper bound on a supplied SCOP: above this it is a typo, not equipment. */
+export const MAX_SCOP = 10
+/** Upper bound on a supplied tonnage, before we suspect a building instead of a house. */
+export const MAX_TONS = 100
+/** Coldest design temperature worth accepting, deg F. */
+export const MIN_DESIGN_TEMP_F = -60
 
 // ------------------------------------------------------- envelope fallback
 

@@ -81,13 +81,43 @@ instead — public records, statewide, and they carry the field we actually need
 
 Every figure is sourced and dated in
 `.kiro/steering/mass-save-rules.md`. Headlines: oil **$6.23/gal** (MA DOER,
-week of 2026-10-19); electricity **30.5¢/kWh** (EIA, Jul 2026); whole-home
+week of 2026-10-19); electricity **30.5¢/kWh** (EIA, Jul–Aug 2026); whole-home
 rebate **$2,650/ton cap $8,500** in 2026 → **$2,350/ton cap $7,500** in 2027;
 average install **$22,000** (Mass Save program data); federal 25C **expired**
 2025-12-31.
 
 **Estimate only. Not a quote. A Home Energy Assessment determines eligibility and
 sizing.**
+
+## The check nobody else makes
+
+Mass Save rebates come from the utility sponsor serving the address, and
+municipal light plant customers get **none of it**. We resolve the sponsor from
+MassGIS *Electricity Providers* before showing a dollar figure. Type a Wellesley
+or Belmont address and the rebate line is replaced with the truth.
+
+## Datasets
+
+From the organizers' [campus data portal](https://hackachusetts2026.vercel.app/),
+Climate track:
+
+| Dataset | We use it for |
+| --- | --- |
+| [Electric utility by town](https://arcgisserver.digital.mass.gov/arcgisserver/rest/services/AGOL/ElectricityProviders/MapServer/0) | sponsor lookup, municipal-light-plant gate, seasonal rate rule |
+| [MassGIS environmental justice block groups](https://arcgisserver.digital.mass.gov/arcgisserver/rest/services/AGOL/EJ2020/MapServer/0) | equity overlay, limited-English share → plain-language path |
+| [Boston BERDO 2021](https://data.boston.gov/dataset/building-energy-reporting-and-disclosure-ordinance) | context in the pitch only — it covers buildings >20k sqft, not our user |
+| [Mass Save data](https://www.masssavedata.com/) | sanity-checking our rebate assumptions |
+
+Elsewhere: MassGIS Level 3 parcels (year built, use code), Census ACS B25040
+(oil-heat share by tract), Census Geocoder, EIA API v2 (live fuel and electricity
+prices), MA DOER weekly fuel survey (the headline number).
+
+## Challenge alignment
+
+Hackachusetts Climate track, challenge **C2 — Cleaner, more affordable
+buildings**. The brief's own words: *"older building stock, up-front retrofit
+costs, and uneven access to efficiency programs… residents face affordability
+pressures."* This is the tool for the household at the end of that sentence.
 
 ---
 

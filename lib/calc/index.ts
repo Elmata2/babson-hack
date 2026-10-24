@@ -8,6 +8,7 @@
  */
 
 import {
+  BASE_TEMP_F,
   BTU_PER_TON_COOLING,
   BTU_PER_UNIT_BY_FUEL,
   DEFAULT_INSTALL_COST_USD,
@@ -16,10 +17,14 @@ import {
   HEAT_LOAN_APR,
   HEAT_LOAN_MONTHS,
   MAX_ANNUAL_UNITS_BY_FUEL,
+  MAX_HDD65,
   MAX_INSTALL_COST_USD,
   MAX_PAYBACK_YEARS,
+  MAX_SCOP,
   MAX_SQFT,
+  MAX_TONS,
   MAX_UNIT_PRICE_USD,
+  MIN_DESIGN_TEMP_F,
   SCOP_DEFAULT,
   SCOP_MAX,
   SCOP_MIN,
@@ -127,12 +132,12 @@ export function refusalFor(heating: HeatingInput, upgrade: UpgradeInput): Refusa
   if (heating.afue !== undefined && resolveAfue(heating) === null) {
     return refuse('out_of_range', 'afue', 'Efficiency must be a fraction between 0 and 1 (0.80 for a typical oil boiler).')
   }
-  if (heating.hdd65 !== undefined && (!isFiniteNumber(heating.hdd65) || heating.hdd65 <= 0 || heating.hdd65 > 20_000)) {
+  if (heating.hdd65 !== undefined && (!isFiniteNumber(heating.hdd65) || heating.hdd65 <= 0 || heating.hdd65 > MAX_HDD65)) {
     return refuse('out_of_range', 'hdd65', 'Heating degree days must be a positive number (Boston is 5,600).')
   }
   if (
     heating.designTempF !== undefined &&
-    (!isFiniteNumber(heating.designTempF) || heating.designTempF >= 65 || heating.designTempF < -60)
+    (!isFiniteNumber(heating.designTempF) || heating.designTempF >= BASE_TEMP_F || heating.designTempF < MIN_DESIGN_TEMP_F)
   ) {
     return refuse('out_of_range', 'designTempF', 'Design temperature must be below 65°F (Boston is 7°F).')
   }
@@ -142,7 +147,7 @@ export function refusalFor(heating: HeatingInput, upgrade: UpgradeInput): Refusa
   if (!isFiniteNumber(upgrade.standardRate) || upgrade.standardRate <= 0 || upgrade.standardRate > MAX_UNIT_PRICE_USD) {
     return refuse('out_of_range', 'standardRate', 'The standard electric rate must be a positive $/kWh figure.')
   }
-  if (upgrade.scop !== undefined && (!isFiniteNumber(upgrade.scop) || upgrade.scop <= 0 || upgrade.scop > 10)) {
+  if (upgrade.scop !== undefined && (!isFiniteNumber(upgrade.scop) || upgrade.scop <= 0 || upgrade.scop > MAX_SCOP)) {
     return refuse('out_of_range', 'scop', 'SCOP must be a positive number; air-source equipment runs 2.3–3.2 in Massachusetts.')
   }
   if (
@@ -151,7 +156,7 @@ export function refusalFor(heating: HeatingInput, upgrade: UpgradeInput): Refusa
   ) {
     return refuse('out_of_range', 'installCost', `The install cost must be above $0 and at most $${MAX_INSTALL_COST_USD}.`)
   }
-  if (upgrade.tons !== undefined && (!isFiniteNumber(upgrade.tons) || upgrade.tons <= 0 || upgrade.tons > 100)) {
+  if (upgrade.tons !== undefined && (!isFiniteNumber(upgrade.tons) || upgrade.tons <= 0 || upgrade.tons > MAX_TONS)) {
     return refuse('out_of_range', 'tons', 'Tonnage must be a positive number; a house is 1–10 tons.')
   }
   if (upgrade.tier === 'enhanced' && upgrade.installCost === undefined) {
@@ -281,12 +286,15 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
   const r2026 = rebate(upgrade.tier, tons, 2026, rebateOpts)
   const r2027 = rebate(upgrade.tier, tons, 2027, rebateOpts)
   if (!r2026 || !r2027) return null
-  assumptions.push(...r2026.assumptions)
+  // The install year decides which table pays; both are kept for the cliff.
+  const activeRebate = upgrade.installYear === 2027 ? r2027 : r2026
+  assumptions.push(...activeRebate.assumptions)
 
+  const totalRebate = activeRebate.total
   const rebate2026 = r2026.total
   const rebate2027 = r2027.total
   const cliffCost = Math.max(0, rebate2026 - rebate2027)
-  const netCost = installCost - rebate2026
+  const netCost = installCost - totalRebate
 
   // ---- savings, payback, loan, break-even ----------------------------------
   const annualSavings = oldCost - newHp
@@ -307,15 +315,15 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
     `${fuelLabel} at ${usd(heating.unitPrice)}/${unitLabel} costs ${usd(oldCost)} a year. The same delivered heat at SCOP ${scop.toFixed(2)} draws ${Math.round(kWh).toLocaleString('en-US')} kWh, which is ${usd(newHp)} a year at ${cents(upgrade.heatPumpRate)}/kWh.`,
   ]
 
-  if (r2026.eligible) {
+  if (activeRebate.eligible) {
     reasons.push(
-      `The ${upgrade.installYear} ${tierLabel} rebate is ${usd(rebate2026)} against a ${usd(installCost)} install, so the net cost is ${usd(netCost)}.`,
+      `The ${upgrade.installYear} ${tierLabel} rebate is ${usd(totalRebate)} against a ${usd(installCost)} install, so the net cost is ${usd(netCost)}.`,
     )
   } else {
     reasons.push(
       `No ${upgrade.installYear} ${tierLabel} rebate is available here, so the full ${usd(installCost)} is your cost.`,
     )
-    caveats.push(r2026.reason ?? 'The selected rebate tier is not available for this fuel.')
+    caveats.push(activeRebate.reason ?? 'The selected rebate tier is not available for this fuel.')
   }
 
   const draft: VerdictResult = {
@@ -329,8 +337,8 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
     annualSavings,
     annualSavingsAtHeatPumpRate: annualSavings,
     annualSavingsAtStandardRate,
-    totalRebate: rebate2026,
-    rebateBreakdown: r2026.breakdown,
+    totalRebate,
+    rebateBreakdown: activeRebate.breakdown,
     netCost,
     paybackYears,
     monthlyLoan: loan.monthly,
@@ -355,7 +363,7 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
     unitPrice: heating.unitPrice,
     heatPumpRate: upgrade.heatPumpRate,
     standardRate: upgrade.standardRate,
-    rebateEligible: r2026.eligible,
+    rebateEligible: activeRebate.eligible,
   }
 
   const verdict: Verdict = verdictOf(draft)
@@ -401,7 +409,7 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
     )
   }
 
-  if (!draft.cashFlowPositive) {
+  if (monthlySavings > 0 && !draft.cashFlowPositive) {
     caveats.push(
       `Cash flow is negative: the loan payment of ${usd(loan.monthly)}/mo exceeds the ${usd(monthlySavings)}/mo saved until the loan is repaid at month ${HEAT_LOAN_MONTHS}. You are buying the next 15 winters, not a monthly win.`,
     )
@@ -411,12 +419,20 @@ export function computeVerdict(heating: HeatingInput, upgrade: UpgradeInput): Ve
       'The basic tier applies where no fossil fuel or resistance heat is displaced. If this house is heated by oil, use the whole-home tier instead.',
     )
   }
-  if (upgrade.tier === 'enhanced' && r2026.eligible) {
+  if (upgrade.tier === 'enhanced' && activeRebate.eligible) {
     caveats.push(
       'The enhanced tier is income-qualified. Thresholds are not published: call 888-714-3990 and let a Home Energy Assessment decide. This is an estimate, not a determination.',
     )
   }
   caveats.push('Estimate only. Not a quote. A Home Energy Assessment determines eligibility and sizing.')
 
-  return { ...draft, verdict, reasons, caveats, assumptions }
+  const seen = new Set<string>()
+  const uniqueAssumptions = assumptions.filter((a) => {
+    const key = `${a.field}|${a.value}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  return { ...draft, verdict, reasons, caveats, assumptions: uniqueAssumptions }
 }

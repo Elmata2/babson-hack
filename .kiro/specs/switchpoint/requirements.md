@@ -77,6 +77,17 @@ visible.
   (Eversource/Unitil) or `rate − $0.04` (National Grid), valid Nov 1 – Apr 30.
 - 3.4 A provider failure degrades to the snapshot and never blocks the verdict.
 - 3.5 No price is ever displayed without a source date.
+- 3.6 **WHEN** an address resolves to a town, **THE SYSTEM SHALL** resolve the
+  electric sponsor from the MassGIS *Electricity Providers* layer and:
+  - show the sponsor by name on the result;
+  - derive the seasonal heat pump rate using that sponsor's rule
+    (`−$0.07` Eversource/Unitil, `−$0.04` National Grid);
+  - **refuse to quote a Mass Save electric rebate when the town is served only by
+    a municipal light plant**, replacing the number with an explanation;
+  - ask "which utility bills you?" when the town is mixed (municipal + IOU),
+    never silently picking one.
+- 3.7 The utility determination renders its own source badge
+  (`MassGIS · Electricity Providers`), like every other number.
 
 ## R4 — Heating load and sizing
 
@@ -185,6 +196,15 @@ step-down costs each area.
   A parallel table view exposes the same numbers to screen readers.
 - 10.8 Palette is colour-vision-safe (single-hue sequential, luminance ramp) and
   passes contrast for label text.
+- 10.9 An **equity layer** (MassGIS EJ2020 block groups) can be toggled over the
+  choropleth: `PCT_MINORITY` and `LIMENGHHPCT` (limited-English households).
+  Toggling it must not change the underlying heat numbers — it is a lens, not a
+  filter, and must never be used to hide or down-rank tracts.
+- 10.10 The tract panel names the utility sponsor(s) for that town and, where the
+  town is served by a municipal light plant, says plainly that Mass Save electric
+  rebates do not apply there.
+- 10.11 Where the equity layer shows a high limited-English share, the panel links
+  to the plain-language and translated view of the verdict (R14.4).
 
 ## R11 — Build log
 
@@ -240,6 +260,23 @@ repository.
 - 15.2 Disclaimer on every verdict: *Estimate only. Not a quote. A Home Energy
   Assessment determines eligibility and sizing.*
 - 15.3 Never claim eligibility, approval, or a guaranteed saving.
+
+## R16 — Organizer datasets and track alignment
+
+**THE SYSTEM SHALL** build on the datasets the Hackachusetts data portal publishes
+for the Climate track, and say so.
+
+**Acceptance**
+- 16.1 The MassGIS *Electricity Providers* and *EJ2020* layers are used for real
+  (R3.6, R10.9), not cited and ignored.
+- 16.2 Boston BERDO is used only as context in the pitch, never as a calculation
+  input — it covers buildings above ~20,000 sqft, which is not our user.
+- 16.3 The README reproduces the challenge text we answer
+  (*C2 — Cleaner, more affordable buildings*) and names each dataset with its
+  endpoint.
+- 16.4 The submission states which challenge we entered and quotes the brief's own
+  language ("up-front retrofit costs", "uneven access to efficiency programs",
+  "affordability pressures") next to the feature that answers it.
 
 ## Out of scope (explicitly)
 
