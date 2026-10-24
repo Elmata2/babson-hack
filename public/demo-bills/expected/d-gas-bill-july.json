@@ -1,0 +1,14 @@
+{
+  "fuel": "gas",
+  "quantity": 18,
+  "unit": "therm",
+  "price_per_unit": 1.42,
+  "billing_period": "month",
+  "document_date": "2026-07-12",
+  "document_type": "gas_bill",
+  "usage_history": null,
+  "degree_days": null,
+  "tank_size_gal": null,
+  "rate_class": null,
+  "confidence": "high"
+}

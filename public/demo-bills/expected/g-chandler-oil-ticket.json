@@ -1,0 +1,14 @@
+{
+  "fuel": "oil",
+  "quantity": 140,
+  "unit": "gal",
+  "price_per_unit": 6.23,
+  "billing_period": "delivery",
+  "document_date": "2026-10-20",
+  "document_type": "oil_delivery",
+  "usage_history": null,
+  "degree_days": 886,
+  "tank_size_gal": 275,
+  "rate_class": null,
+  "confidence": "high"
+}

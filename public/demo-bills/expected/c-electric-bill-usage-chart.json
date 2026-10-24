@@ -1,0 +1,27 @@
+{
+  "fuel": "resistance",
+  "quantity": 1043,
+  "unit": "kWh",
+  "price_per_unit": 0.3149,
+  "billing_period": "month",
+  "document_date": "2026-09-18",
+  "document_type": "electric_bill",
+  "usage_history": [
+    620,
+    890,
+    1340,
+    1620,
+    1450,
+    1180,
+    720,
+    480,
+    420,
+    510,
+    540,
+    470
+  ],
+  "degree_days": null,
+  "tank_size_gal": null,
+  "rate_class": "R-2",
+  "confidence": "high"
+}

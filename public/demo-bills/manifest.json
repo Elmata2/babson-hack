@@ -1,0 +1,140 @@
+{
+  "note": "Synthetic sample bills. Not real bills. Regenerate with: node scripts/demo-bills/render.mjs",
+  "bills": [
+    {
+      "id": "a-oil-ticket-degree-days",
+      "group": "test",
+      "files": {
+        "html": "a-oil-ticket-degree-days.html",
+        "image": "a-oil-ticket-degree-days.png",
+        "pdf": "a-oil-ticket-degree-days.pdf"
+      },
+      "expected": "expected/a-oil-ticket-degree-days.json",
+      "fixture": "lib/parse/__tests__/fixtures/a-oil-ticket-degree-days.json",
+      "form": {},
+      "expect": "annual via degree_days"
+    },
+    {
+      "id": "b-oil-ticket-no-degree-days",
+      "group": "test",
+      "files": {
+        "html": "b-oil-ticket-no-degree-days.html",
+        "image": "b-oil-ticket-no-degree-days.png",
+        "pdf": "b-oil-ticket-no-degree-days.pdf"
+      },
+      "expected": "expected/b-oil-ticket-no-degree-days.json",
+      "fixture": "lib/parse/__tests__/fixtures/b-oil-ticket-no-degree-days.json",
+      "form": {},
+      "expect": "needs fills per season (needs_fills refusal without deliveriesPerSeason)"
+    },
+    {
+      "id": "c-electric-bill-usage-chart",
+      "group": "test",
+      "files": {
+        "html": "c-electric-bill-usage-chart.html",
+        "image": "c-electric-bill-usage-chart.png",
+        "pdf": "c-electric-bill-usage-chart.pdf"
+      },
+      "expected": "expected/c-electric-bill-usage-chart.json",
+      "fixture": "lib/parse/__tests__/fixtures/c-electric-bill-usage-chart.json",
+      "form": {},
+      "expect": "annual via printed_history (sum of the chart)"
+    },
+    {
+      "id": "d-gas-bill-july",
+      "group": "test",
+      "files": {
+        "html": "d-gas-bill-july.html",
+        "image": "d-gas-bill-july.png",
+        "pdf": "d-gas-bill-july.pdf"
+      },
+      "expected": "expected/d-gas-bill-july.json",
+      "fixture": "lib/parse/__tests__/fixtures/d-gas-bill-july.json",
+      "form": {},
+      "expect": "refused: summer month"
+    },
+    {
+      "id": "e-gas-bill-january",
+      "group": "test",
+      "files": {
+        "html": "e-gas-bill-january.html",
+        "image": "e-gas-bill-january.png",
+        "pdf": "e-gas-bill-january.pdf"
+      },
+      "expected": "expected/e-gas-bill-january.json",
+      "fixture": "lib/parse/__tests__/fixtures/e-gas-bill-january.json",
+      "form": {},
+      "expect": "annual via hdd_scaled"
+    },
+    {
+      "id": "f-electric-bill-july-baseload",
+      "group": "test",
+      "files": {
+        "html": "f-electric-bill-july-baseload.html",
+        "image": "f-electric-bill-july-baseload.png",
+        "pdf": "f-electric-bill-july-baseload.pdf"
+      },
+      "expected": "expected/f-electric-bill-july-baseload.json",
+      "fixture": "lib/parse/__tests__/fixtures/f-electric-bill-july-baseload.json",
+      "form": {
+        "heating": "false"
+      },
+      "expect": "annual via monthly_x12 (with heating=false)"
+    },
+    {
+      "id": "g-chandler-oil-ticket",
+      "group": "demo",
+      "files": {
+        "html": "g-chandler-oil-ticket.html",
+        "image": "g-chandler-oil-ticket.png",
+        "pdf": "g-chandler-oil-ticket.pdf"
+      },
+      "expected": "expected/g-chandler-oil-ticket.json",
+      "fixture": null,
+      "form": {
+        "countyFips": "25025"
+      },
+      "expect": "annual ≈ 900 gal via degree_days (Suffolk 5,693.7 HDD)"
+    },
+    {
+      "id": "h-chandler-electric-competitive",
+      "group": "demo",
+      "files": {
+        "html": "h-chandler-electric-competitive.html",
+        "image": "h-chandler-electric-competitive.png",
+        "pdf": "h-chandler-electric-competitive.pdf"
+      },
+      "expected": "expected/h-chandler-electric-competitive.json",
+      "fixture": null,
+      "form": {
+        "countyFips": "25025"
+      },
+      "expect": "annual 6,600 kWh via printed_history; supplier 21.9¢ vs Basic Service 17.3¢"
+    },
+    {
+      "id": "i-not-a-bill-receipt",
+      "group": "test",
+      "files": {
+        "html": "i-not-a-bill-receipt.html",
+        "image": "i-not-a-bill-receipt.png",
+        "pdf": "i-not-a-bill-receipt.pdf"
+      },
+      "expected": "expected/i-not-a-bill-receipt.json",
+      "fixture": null,
+      "form": {},
+      "expect": "refused: not_a_bill"
+    },
+    {
+      "id": "j-phone-photo-oil-ticket",
+      "group": "test",
+      "files": {
+        "html": "j-phone-photo-oil-ticket.html",
+        "image": "j-phone-photo-oil-ticket.jpg"
+      },
+      "expected": "expected/j-phone-photo-oil-ticket.json",
+      "fixture": "lib/parse/__tests__/fixtures/b-oil-ticket-no-degree-days.json",
+      "form": {},
+      "expect": "same as B, from a tilted, soft phone photo"
+    }
+  ]
+}

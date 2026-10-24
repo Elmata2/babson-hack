@@ -14,6 +14,8 @@
     "check": "tsc --noEmit && eslint . && vitest run",
     "log": "node scripts/buildlog.mjs hook",
     "status": "node scripts/buildlog.mjs status",
+    "bills": "node scripts/demo-bills/render.mjs",
+    "bills:eval": "node scripts/demo-bills/eval.mjs",
     "watch:log": "node scripts/buildlog.mjs watch",
     "bake": "node scripts/bake-utilities.mjs && node scripts/bake-hdd.mjs && node scripts/bake-map.mjs && node scripts/trim-geo.mjs",
     "bake:check": "node scripts/bake-utilities.mjs --check && node scripts/bake-hdd.mjs --check && node scripts/bake-map.mjs --check && node scripts/trim-geo.mjs --check"

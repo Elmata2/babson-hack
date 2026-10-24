@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Sample cafe receipt</title><style>
+  @page { size: 8.5in 11in; margin: 0 }
+  * { box-sizing: border-box }
+  html, body { margin: 0; background: #fff; color: #1b1f23 }
+  body { font: 13px/1.4 "Helvetica Neue", Arial, sans-serif }
+  .page { width: 816px; min-height: 1056px; padding: 44px 52px; position: relative; overflow: hidden }
+  .wm { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none }
+  .wm span { transform: rotate(-32deg); font: 700 46px/1 Arial, sans-serif; color: rgba(200, 30, 30, .15); white-space: nowrap; letter-spacing: 4px }
+  .foot { position: absolute; left: 52px; right: 52px; bottom: 28px; border-top: 1px solid #ccc; padding-top: 8px; font-size: 10.5px; color: #666 }
+  h1 { font-size: 22px; margin: 0 }
+  h2 { font-size: 13px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .06em; color: #333 }
+  table { width: 100%; border-collapse: collapse }
+  td, th { padding: 3px 6px; text-align: left; vertical-align: top }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #555; border-bottom: 1.5px solid #333 }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap }
+  .rule td { border-top: 1px solid #ddd }
+  .total td { border-top: 2px solid #222; font-weight: 700; font-size: 14px }
+  .muted { color: #666 }
+  .box { border: 1.5px solid #222; padding: 12px 14px }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px }
+  .big { font-size: 26px; font-weight: 700 }
+</style></head><body><div class="page" style="display:grid;place-items:start center"><div class="wm"><span>SAMPLE — NOT A REAL BILL</span></div><div style="position:absolute;top:14px;left:52px;right:52px;text-align:center;font:700 11px/1 Arial,sans-serif;letter-spacing:.12em;color:#c81e1e">SAMPLE FOR SOFTWARE TESTING — NOT A REAL BILL</div>
+    <div style="width:340px;margin-top:60px;font:14px/1.5 'Courier New',monospace;border:1px dashed #999;padding:22px">
+      <div style="text-align:center"><b>THE SAMPLE BEAN CAFE</b><br>12 Example Sq · Wellesley MA<br>(555) 010-0144</div><br>
+      10/24/2026 08:12 &nbsp; Order #4471<br>--------------------------------<br>
+      2  Oat latte, large ......... 13.50<br>1  Blueberry muffin ......... 4.25<br>1  Breakfast sandwich ....... 8.95<br>
+      --------------------------------<br>Subtotal ................. 26.70<br>MA meals tax 7% ........... 1.87<br>
+      <b>TOTAL .................... 28.57</b><br>VISA ************0000<br><br><div style="text-align:center">Thank you — come back soon</div>
+    </div>
+    <div class="foot">SAMPLE DOCUMENT FOR SOFTWARE TESTING — NOT A REAL BILL. Synthetic numbers, fictional customer and account. Fictional cafe. Switchpoint · Hackachusetts 2026</div>
+  </div></body></html>
