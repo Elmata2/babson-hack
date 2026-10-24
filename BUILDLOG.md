@@ -7,13 +7,13 @@
 
 **Built:** 49 / 89 features · ███████████████░░░░░░░░░░░░░ **55%**
 
-**Last event:** 2026-10-24T16:05:54.358Z (12:05 ET) · **commit:** `076b3f3`
+**Last event:** 2026-10-24T16:15:11.883Z (12:15 ET) · **commit:** `767dcc9`
 
 ## Now
 
-- `12:05` ✔ **F-80** `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/render.mjs`
-- `12:05` ✔ **F-81** `scripts/demo-bills/eval.mjs` — post every sample bill to `/api/parse-bill`, diff against expected · `scripts/demo-bills/eval.mjs`
-- `12:05` ✔ **F-106** the form hydrates from the verdict's query, so "Change the numbers" loses nothing · `components/intake-form.tsx`
+- `12:15` ✔ **F-138** the demo bills, offered where the upload lives · `components/onboarding/sample-bills.ts`
+- `12:15` ✔ **F-138** synthetic sample bills load into the same reader as a photo · `components/onboarding/onboarding-wizard.tsx`
+- `12:15` ✔ **F-137** the four-step wizard — profile, bill, house, review · `components/onboarding/onboarding-wizard.tsx`
 
 ## Next up
 
@@ -40,6 +40,13 @@
 
 ## Timeline
 
+- `12:15` ✔ **F-138** — the demo bills, offered where the upload lives · `components/onboarding/sample-bills.ts` · `767dcc9`
+- `12:15` ✔ **F-138** — synthetic sample bills load into the same reader as a photo · `components/onboarding/onboarding-wizard.tsx` · `767dcc9`
+- `12:15` ✔ **F-137** — the four-step wizard — profile, bill, house, review · `components/onboarding/onboarding-wizard.tsx` · `767dcc9`
+- `12:15` ✔ **F-137** — `/onboarding` — Addendum B's four steps, on the anonymous app's parts · `app/onboarding/page.tsx` · `767dcc9`
+- `12:15` ✔ **F-137** — the onboarding wizard's rules, kept out of the component · `lib/onboarding/flow.ts` · `767dcc9`
+- `12:15` ✔ **F-137** — the wizard's rules, tested where they are decided · `lib/onboarding/__tests__/flow.test.ts` · `767dcc9`
+- `12:15` ✔ **F-110** — PDF pages rendered to JPEG locally for the OpenRouter reader · `lib/client/prepare-image.ts` · `767dcc9`
 - `12:05` ✔ **F-80** — `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/render.mjs` · `076b3f3`
 - `12:05` ✔ **F-81** — `scripts/demo-bills/eval.mjs` — post every sample bill to `/api/parse-bill`, diff against expected · `scripts/demo-bills/eval.mjs` · `076b3f3`
 - `12:05` ✔ **F-106** — the form hydrates from the verdict's query, so "Change the numbers" loses nothing · `components/intake-form.tsx` · `076b3f3`

@@ -9,7 +9,7 @@
 import type { Prices } from './prices'
 
 /** What kind of provenance a badge may claim. */
-export type FreshnessKind = 'live' | 'snapshot' | 'assessor' | 'manual' | 'baked'
+export type FreshnessKind = 'live' | 'snapshot' | 'assessor' | 'manual' | 'baked' | 'bill'
 
 export interface Freshness {
   kind: FreshnessKind

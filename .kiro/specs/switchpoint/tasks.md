@@ -227,3 +227,19 @@ Spec: `docs/fixes/2026-10-24-one-photo-intake.md`. Amends R1.4, R2, R4.
 | F-108 | P10 | Route: up to 3 pages in one read; client sends `countyFips` and `heating` | C | 25m | F-107 |
 | F-109 | P10 | Confirm card: found-chips, check? on low confidence, auto-apply + Undo, "+ Add your electric bill" | A | 45m | F-102, F-108 |
 | F-110 | P10 | Render PDF pages to JPEG in browser so OpenRouter accepts PDF uploads; enforce 3-page total | A | 30m | F-107, F-108 |
+
+---
+
+# Profile onboarding wizard — tasks (2026-10-24)
+
+Implements Addendum B steps 1–4 (`docs/superpowers/specs/2026-10-24-onboarding-and-switch-design.md`
+§3.1–3.4) on the anonymous app's parts. Steps 5–6 (best case, switch) stay proposed:
+they need an account with a home on a server, which this build does not have.
+
+| ID | Phase | Task | Owner | Est | Depends |
+| --- | --- | --- | --- | --- | --- |
+| F-137 | P11 | `app/onboarding` four-step wizard — profile, bill, house, review; hydrates the verdict query; profile is a subscribed browser store, not a fake server account | A | 60m | F-109 |
+| F-138 | P11 | Sample bills offered inside the upload (`public/demo-bills`), role-filtered, through the same `read()` path as a photo | A | 20m | F-80 |
+| F-139 | P11 | `bill` freshness kind — a number read from the household's own document says so | A | 10m | F-14 |
+| F-140 | P11 | Home hero + header "Create profile"; the anonymous `/start` path stays one click away | A | 15m | F-02 |
+| F-141 | P11 | `lib/onboarding/flow.ts` — profile validation, step machine, storage round-trip, 16 tests | A | 30m | — |

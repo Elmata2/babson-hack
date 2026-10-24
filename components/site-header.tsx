@@ -25,6 +25,12 @@ export function SiteHeader() {
           </span>
           <span aria-hidden className="hidden h-3 w-px bg-rule-strong sm:block" />
           <Link
+            href="/onboarding"
+            className="rounded-pill border border-ink px-3 py-1.5 font-medium text-ink transition-colors hover:bg-ink hover:text-paper"
+          >
+            Create profile
+          </Link>
+          <Link
             href="/map"
             className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
           >

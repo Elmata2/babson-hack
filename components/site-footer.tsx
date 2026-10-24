@@ -16,7 +16,7 @@ export function SiteFooter() {
               sizing.
             </p>
             <p className="mt-3 max-w-[46ch] text-micro text-ink-muted">
-              No accounts. No stored addresses. Bill images are parsed in memory and discarded.
+              No server account. No stored addresses. Bill images are parsed in memory and discarded.
             </p>
           </div>
 

@@ -30,6 +30,11 @@ const STYLES: Record<FreshnessKind, { tone: string; label: string; title: string
     label: 'You entered',
     title: 'Typed or corrected by the household, not read from a source.',
   },
+  bill: {
+    tone: 'text-switch border-switch-edge bg-switch-tint',
+    label: 'Your bill',
+    title: 'Read from the bill this household handed over, then confirmed on screen.',
+  },
   baked: {
     tone: 'text-ink-muted border-rule bg-paper-sunk',
     label: 'Baked',

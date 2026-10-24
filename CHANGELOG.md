@@ -14,6 +14,16 @@ because that is when the hackathon clock runs.
 
 ### Added
 
+- **F-137–F-141** — `/onboarding`: the four-step wizard from Addendum B, steps
+  1–4. A profile (name, email, optional phone) kept in this browser via
+  `useSyncExternalStore` — no server account, no password, and the screen says so;
+  the bill step reuses `BillUpload` unchanged; the house step asks town, fuel, two
+  numbers and the two Mass Save questions; the review step hands the existing
+  query contract to `/verdict`, so provenance survives. Synthetic sample bills
+  from `public/demo-bills` load into the same reader as a photo, and a number read
+  from a household's own document now carries a `bill` badge instead of "You
+  entered". The home hero and header gained "Create profile"; `/start` stays one
+  click away for the anonymous path.
 - **F-100–F-103** — Bill parser now reads service dates, utility, rate class,
   usage history, discounts, and CCF conversion. Annual estimates use printed
   history or service days when available; incomplete periods ask for household

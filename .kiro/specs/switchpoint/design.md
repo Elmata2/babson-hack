@@ -658,6 +658,18 @@ centrepiece; whether Addendum A is approved and who supplies real dealer and
 installer lists; whether a dated Energy Switch MA snapshot is an acceptable source
 for competitive offers.
 
+### 15.y Steps 1–4 built: `/onboarding` (2026-10-24, F-137–F-141)
+
+`app/onboarding` runs account → bill → house → review and hands the existing
+query contract to `/verdict`. One substitution, stated on screen: there is no
+database in this build, so the "account" is a profile held in this browser
+(`useSyncExternalStore` over `localStorage`, key `switchpoint.profile.v1`) and the
+copy says no server account exists. The bill step reuses `BillUpload`, including
+its low-confidence gate, so the wizard cannot accept a field the reader is unsure
+of. Synthetic sample bills (`public/demo-bills`, F-80) load through the same
+`read()` path as a photo. Still proposed: best case (step 5) and switch (step 6),
+which need an account with a home on a server.
+
 ### 15.x Bill intake shared with `/start` (2026-10-24, F-100–F-110)
 
 Steps 2–4 of `/onboarding` reuse the one-photo pieces built on `/start`: the

@@ -1,6 +1,6 @@
 # Switchpoint — Profile onboarding, best-case switch, and dashboard
 
-**Status:** draft for approval · 2026-10-24
+**Status:** steps 1–4 built on `master` (F-137–F-141); steps 5–6 still proposed · 2026-10-24
 **Owner:** Alexander · **Ships:** demo at 20:00 tonight, built to keep
 **Builds on:** `.kiro/specs/switchpoint/` (R1–R16), Addendum A on branch
 `spec/agent-and-ci-addendum` (R17–R25: switch choice, consent, quote agent,

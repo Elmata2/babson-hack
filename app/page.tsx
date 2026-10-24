@@ -76,10 +76,19 @@ export default async function Home() {
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
-                href="/start"
-                className="rounded-card bg-ink px-5 py-3 text-small font-medium text-paper transition-opacity hover:opacity-90"
+                href="/onboarding"
+                className="group inline-flex items-center gap-3 rounded-pill bg-ink px-5 py-3 text-small font-medium text-paper transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.6)]"
               >
-                Get the verdict
+                Create your profile
+                <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
+                  →
+                </span>
+              </Link>
+              <Link
+                href="/start"
+                className="rounded-card border border-rule-strong bg-surface px-5 py-3 text-small font-medium text-ink transition-colors hover:border-ink"
+              >
+                Try it without an account
               </Link>
               <FreshnessBadge
                 kind={prices.mode === 'live' ? 'live' : 'snapshot'}
@@ -87,6 +96,10 @@ export default async function Home() {
                 label="Fuel prices"
               />
             </div>
+            <p className="mt-3 max-w-[58ch] text-micro text-ink-muted">
+              A profile takes four steps and about two minutes: your name and email, one photo of a bill, your town,
+              then the verdict. The profile stays in this browser; the bill image is never stored.
+            </p>
 
             <dl className="mt-12 grid overflow-hidden rounded-card border border-rule bg-surface sm:grid-cols-3">
               {facts.map((fact, i) => (

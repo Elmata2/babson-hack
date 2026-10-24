@@ -72,6 +72,18 @@ const UTILITY_LABEL: Record<string, string> = {
 
 type Status = 'idle' | 'reading' | 'confirm' | 'error'
 
+export interface BillSampleSource {
+  id: string
+  /** Short button label. */
+  label: string
+  /** What this sample proves; used as the button's title. */
+  note?: string
+  /** Same-origin path to the image. */
+  url: string
+  /** Which slot the sample belongs to. Omitted means the heating slot. */
+  role?: BillRole
+}
+
 export interface BillUploadProps {
   /** Receives exactly one `BillApplied` per bill. Called again if the person edits and re-applies. */
   onApply: (applied: BillApplied) => void
@@ -83,6 +95,11 @@ export interface BillUploadProps {
   heating?: boolean
   /** Which bill this instance asks for. `electricity` is the optional second bill. Default `heating`. */
   expect?: BillRole
+  /**
+   * Synthetic sample bills (F-80) offered under the buttons, filtered by `role`.
+   * A demo affordance only: they travel the same `read()` path as a real photo.
+   */
+  samples?: readonly BillSampleSource[]
 }
 
 /** Dotted outline + "check?" on a field that still needs a human. */
@@ -90,7 +107,7 @@ function fieldShell(needsCheck: boolean): string {
   return needsCheck ? 'rounded-card border border-dotted border-deadline bg-deadline-tint/40 p-2' : 'p-2'
 }
 
-export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'heating' }: BillUploadProps) {
+export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'heating', samples = [] }: BillUploadProps) {
   const cameraInput = useRef<HTMLInputElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<Status>('idle')
@@ -104,6 +121,7 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
   const [touched, setTouched] = useState<ReadonlySet<CheckField>>(new Set())
   const [applied, setApplied] = useState<'no' | 'auto' | 'manual'>('no')
   const [showElectric, setShowElectric] = useState(false)
+  const [sampleId, setSampleId] = useState<string | null>(null)
 
   const electricInstance = expect === 'electricity'
 
@@ -236,6 +254,28 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
     if (picked.length) void read(picked)
   }
 
+  /** Fetch a synthetic sample and hand it to the same reader as a photo. */
+  async function loadSample(sample: BillSampleSource) {
+    setSampleId(sample.id)
+    setStatus('reading')
+    setMessage(null)
+    try {
+      const response = await fetch(sample.url)
+      if (!response.ok) throw new Error('missing')
+      const blob = await response.blob()
+      const name = sample.url.split('/').pop() ?? `${sample.id}.png`
+      const file = new File([blob], name, { type: blob.type || 'image/png' })
+      await read([file])
+    } catch {
+      setStatus('error')
+      setMessage('That sample bill could not be loaded. Try again, or upload your own photo.')
+    } finally {
+      setSampleId(null)
+    }
+  }
+
+  const shownSamples = samples.filter((sample) => (sample.role ?? 'heating') === expect)
+
   return (
     <div className="rounded-card border border-dashed border-rule-strong bg-paper-sunk/60 p-4">
       <div>
@@ -265,6 +305,28 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
             Upload PDF or photos
           </button>
         </div>
+
+        {shownSamples.length ? (
+          <div className="mt-3 border-t border-rule pt-2.5">
+            <p className="text-micro text-ink-faint">
+              No bill to hand? Load a synthetic sample — not a real household&rsquo;s bill.
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {shownSamples.map((sample) => (
+                <button
+                  key={sample.id}
+                  type="button"
+                  onClick={() => void loadSample(sample)}
+                  disabled={busy}
+                  title={sample.note}
+                  className="rounded-pill border border-rule-strong bg-surface px-2.5 py-1 text-micro text-ink hover:border-ink disabled:opacity-50"
+                >
+                  {sampleId === sample.id ? 'Loading…' : sample.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* Camera-first on phones; desktops fall back to the file picker. */}
@@ -483,7 +545,7 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
 
           {applied !== 'no' && !electricInstance && role === 'heating' ? (
             showElectric ? (
-              <BillUpload expect="electricity" heating={false} countyFips={countyFips} onApply={onApply} onUndo={onUndo} />
+              <BillUpload expect="electricity" heating={false} countyFips={countyFips} onApply={onApply} onUndo={onUndo} samples={samples} />
             ) : (
               <button
                 type="button"
