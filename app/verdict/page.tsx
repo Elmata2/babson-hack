@@ -8,8 +8,10 @@ import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { AssumptionsStrip } from '@/components/verdict/assumptions-strip'
 import { CashFlow } from '@/components/verdict/cash-flow'
+import { EnhancedOfferLine } from '@/components/verdict/enhanced-offer'
 import { ExplainPanel } from '@/components/verdict/explain-panel'
 import { NumberFlip } from '@/components/verdict/number-flip'
+import { PlainSummary } from '@/components/verdict/plain-summary'
 import { ProvenanceFigure } from '@/components/verdict/provenance-figure'
 import { VerdictDial } from '@/components/verdict/verdict-dial'
 import { computeVerdict, refusalFor } from '@/lib/calc'
@@ -28,6 +30,7 @@ import {
 } from '@/lib/intake/params'
 import { getPrices } from '@/lib/prices'
 import { resolveUtility, SPONSOR_NAME, seasonalHeatPumpRate } from '@/lib/utility'
+import { enhancedOffer } from '@/lib/verdict/enhanced-offer'
 import { entryFor, provenanceFor, type FigureId, type ProvenanceEntry } from '@/lib/verdict/provenance'
 import { verdictNotes } from '@/lib/verdict-notes'
 import { VERDICT_META } from '@/lib/verdicts'
@@ -47,6 +50,12 @@ import { VERDICT_META } from '@/lib/verdicts'
  * @built F-152 R8.3 — two reasons and one caveat are floored by `verdictNotes`, not sliced off a raw array
  * @built F-153 R7.2 — the installed cost is editable here and on the form, badged with
  * where the number came from, and carried in the link so the verdict recomputes in place
+ * @built F-50 R14.4 — `plainSummary` puts the answer and the two costs beside the dial in
+ * short sentences, rendered on the server, so the plain-language layer needs no API
+ * @built F-50 R14.3 — the enhanced path is a visible line with a link whenever the fuel is
+ * eligible and the household is not already on the enhanced tier
+ * @built F-50 R14.1/R14.2/R15.2 — the verdict tone is never the only signal, every figure
+ * is a button, and the disclaimer is the exact sentence from `lib/verdict/disclaimer`
  *
  * Server-rendered from the URL and `lib/calc`. No client JavaScript is needed to
  * see the answer, no API route is required to produce it, and the same link
@@ -202,6 +211,10 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const billSaysInvestorOwned = ['eversource', 'national_grid', 'unitil'].includes(utilityKey ?? '')
   const noMassSave = billSaysMunicipal || utility.eligibleForMassSave === false
   const asksUtility = !billSaysMunicipal && !billSaysInvestorOwned && utility.eligibleForMassSave === null
+  // R14.3: the income-qualified tier is offered in place when the rebate table says
+  // this fuel can claim it and the household is not on it. `noMassSave` suppresses it:
+  // there is no Mass Save award to qualify for at a municipal light plant.
+  const offer = result === null ? null : enhancedOffer(result, params, { noMassSave })
 
   // ---- provenance: where each visible figure came from (F-36, R9) ----------
   // The page is the only layer that knows whether a price is live, dated, or the
@@ -341,6 +354,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                 <VerdictDial verdict={result.verdict} className="w-full" />
               </div>
 
+              {/* R14.4: the short version, beside the dial, in the first paint. */}
+              <PlainSummary result={result} />
+
               <div className="mt-8 flex flex-wrap items-end gap-x-8 gap-y-5">
                 <div>
                   <p className="text-eyebrow uppercase text-ink-faint">A year, before and after</p>
@@ -418,6 +434,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                   treat {usd(result.annualSavings)} as the optimistic half of the answer.
                 </p>
               ) : null}
+
+              {/* R14.3: offered where it is true, with the cap read from the rebate table. */}
+              {offer ? <EnhancedOfferLine offer={offer} /> : null}
             </section>
           )}
 

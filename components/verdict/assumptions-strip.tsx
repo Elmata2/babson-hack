@@ -1,5 +1,7 @@
 /**
  * @built F-38 assumptions strip + disclaimer, always visible
+ * @built F-50 R15.2 the disclaimer is the exact sentence from `lib/verdict/disclaimer`,
+ * imported rather than retyped
  *
  * R9.3 says assumptions are rendered, not hidden in a tooltip. So the defaults
  * that moved this answer — AFUE, SCOP, install cost, tier, degree days — are
@@ -8,6 +10,7 @@
  */
 
 import type { VerdictResult } from '@/lib/calc/types'
+import { DISCLAIMER } from '@/lib/verdict/disclaimer'
 
 export function AssumptionsStrip({ result }: { result: VerdictResult }) {
   return (
@@ -51,9 +54,8 @@ export function AssumptionsStrip({ result }: { result: VerdictResult }) {
       ) : null}
 
       <p className="mt-3 border-t border-rule pt-3 text-micro text-ink-muted">
-        <span className="font-medium text-ink">Estimate, not a quote.</span> A Home Energy Assessment determines
-        eligibility, sizing and the final price. Nothing on this page is a promise, and no rebate is paid until the
-        programme approves it.
+        <span className="font-medium text-ink">{DISCLAIMER}</span> Nothing on this page is a promise,
+        and no rebate is paid until the programme approves it.
       </p>
     </section>
   )

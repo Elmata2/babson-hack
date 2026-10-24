@@ -1,14 +1,21 @@
 /**
  * @built F-34 verdict dial — three states, icon + label + colour
+ * @built F-50 R14.1 the three carriers are data, not styling: `lib/verdict/signal`
+ * gives each verdict a word, a tone and a shape, and every arc is painted at full
+ * opacity so no stop depends on being "the coloured one"
  *
  * A dial with three stops, not a gauge with a score. The active answer gets the
  * sweep, the needle and its icon; the other two stay visible in their own colour
  * so a reader can see the closed set the answer came from (R8.1). Colour never
- * carries the message alone: every stop has an icon and a label.
+ * carries the message alone: every stop has an icon and a label, and the active
+ * one also says "this house". The arcs used to be drawn at 32% opacity, which put
+ * the inactive ones under the 3:1 non-text minimum; width and the needle now carry
+ * that difference instead.
  */
 
 import type { Verdict } from '@/lib/calc/types'
 import { VERDICT_META, VERDICT_ORDER } from '@/lib/verdicts'
+import { VERDICT_SIGNAL, type SignalShape } from '@/lib/verdict/signal'
 
 const ACTIVE_ARC: Record<Verdict, string> = {
   SWITCH_NOW: 'var(--color-switch)',
@@ -40,7 +47,7 @@ function arc(from: number, to: number): string {
   return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${RADIUS} ${RADIUS} 0 0 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`
 }
 
-function Icon({ verdict }: { verdict: Verdict }) {
+function Icon({ shape }: { shape: SignalShape }) {
   const common = {
     width: 14,
     height: 14,
@@ -52,14 +59,14 @@ function Icon({ verdict }: { verdict: Verdict }) {
     strokeLinejoin: 'round' as const,
     'aria-hidden': true,
   }
-  if (verdict === 'SWITCH_NOW') {
+  if (shape === 'arrow') {
     return (
       <svg {...common}>
         <path d="M4 12 12 4M6 4h6v6" />
       </svg>
     )
   }
-  if (verdict === 'SWITCH_BEFORE_DEC31') {
+  if (shape === 'clock') {
     return (
       <svg {...common}>
         <circle cx="8" cy="8" r="5.5" />
@@ -100,7 +107,6 @@ export function VerdictDial({ verdict, className = '' }: { verdict: Verdict; cla
               stroke={ACTIVE_ARC[segment.verdict]}
               strokeWidth={isActive ? 14 : 9}
               strokeLinecap="round"
-              opacity={isActive ? 1 : 0.32}
             />
           )
         })}
@@ -119,12 +125,12 @@ export function VerdictDial({ verdict, className = '' }: { verdict: Verdict; cla
       <figcaption>
         <ol className="mt-2 grid grid-cols-3 gap-2">
           {SEGMENTS.map((segment) => {
-            const meta = VERDICT_META[segment.verdict]
+            const signal = VERDICT_SIGNAL[segment.verdict]
             const isActive = segment.verdict === verdict
             return (
               <li
                 key={segment.verdict}
-                data-tone={meta.tone}
+                data-tone={signal.tone}
                 aria-current={isActive ? 'true' : undefined}
                 className={[
                   'flex flex-col items-center gap-1 rounded-card border px-1.5 py-2 text-center',
@@ -134,8 +140,8 @@ export function VerdictDial({ verdict, className = '' }: { verdict: Verdict; cla
                 ].join(' ')}
               >
                 <span className="flex items-center gap-1">
-                  <Icon verdict={segment.verdict} />
-                  <span className="text-micro font-medium">{meta.label}</span>
+                  <Icon shape={signal.shape} />
+                  <span className="text-micro font-medium">{signal.word}</span>
                 </span>
                 {isActive ? <span className="text-eyebrow uppercase">this house</span> : null}
               </li>

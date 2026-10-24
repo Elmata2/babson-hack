@@ -2,8 +2,12 @@
  * Site footer — disclaimer, privacy, provenance links.
  *
  * The disclaimer is not legal boilerplate in small type at the bottom of a
- * settings page; it is part of the product. It stays visible.
+ * settings page; it is part of the product. It stays visible. The words come from
+ * `lib/verdict/disclaimer` so the footer, the assumptions strip and the plain
+ * summary cannot drift into three near-identical sentences (R15.2).
  */
+
+import { DISCLAIMER } from '@/lib/verdict/disclaimer'
 
 export function SiteFooter() {
   return (
@@ -11,10 +15,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-[1180px] px-5 py-10 sm:px-8 sm:py-12">
         <div className="grid gap-8 md:grid-cols-[1.4fr_1fr_1fr]">
           <div>
-            <p className="max-w-[46ch] text-small text-ink">
-              Estimate only. Not a quote. A Home Energy Assessment determines eligibility and
-              sizing.
-            </p>
+            <p className="max-w-[46ch] text-small text-ink">{DISCLAIMER}</p>
             <p className="mt-3 max-w-[46ch] text-micro text-ink-muted">
               No server account. No stored addresses. Bill images are parsed in memory and discarded.
             </p>
