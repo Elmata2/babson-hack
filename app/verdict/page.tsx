@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { FreshnessBadge } from '@/components/freshness-badge'
 import { InstallCostField } from '@/components/install-cost-field'
 import { RebateStack } from '@/components/rebate-stack'
+import { RecommendationCard } from '@/components/verdict/recommendation-card'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { AssumptionsStrip } from '@/components/verdict/assumptions-strip'
@@ -20,7 +21,11 @@ import { GEO_META, countyOfTown, displayTown } from '@/lib/geo'
 import { provenanceLine, queryString } from '@/lib/intake/params'
 import { demoFromParams } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
-import { CHOICE_COPY, choicesFor } from '@/lib/switch/choices'
+import { buildSwitchModel } from '@/lib/switch/model'
+import { buildOptionInput } from '@/lib/switch/option-input'
+import { loadProviders, outreachPlan } from '@/lib/switch/providers'
+import { recommend } from '@/lib/verdict/recommendation'
+import { verdictPath } from '@/lib/verdict/share-query'
 import { SPONSOR_NAME } from '@/lib/utility'
 import { enhancedOffer } from '@/lib/verdict/enhanced-offer'
 import { isVerdictQueryComplete, resolveVerdictInputs } from '@/lib/verdict/inputs'
@@ -234,17 +239,20 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const extraReasons =
     headline && notes ? notes.reasons.slice(0, Math.max(0, MIN_REASONS - headline.parts.why.length)) : []
   const townName = displayTown(townRaw)
-  const switchHref = `/switch?${queryString(params)}`
+  const demo = demoFromParams(params)
   const mapHref = `/map?${new URLSearchParams({
     town: townName,
     next: '1',
     fuel,
     save: String(Math.round(result?.annualSavings ?? 0)),
-    back: `/verdict?${queryString(params)}`,
+    back: verdictPath(queryString(params)),
   }).toString()}`
-  const optionsLine = choicesFor({ verdict: result?.verdict ?? null, fuel, utility, billUtility })
-    .map((choice) => CHOICE_COPY[choice].label)
-    .join(' · ')
+  const providers = loadProviders()
+  const switchModel = buildSwitchModel(params, prices)
+  const optionInput = buildOptionInput(switchModel, providers, outreachPlan(providers))
+  const recommendation = optionInput
+    ? recommend({ option: optionInput, choices: switchModel.choices, query: queryString(params) })
+    : null
   const figure = (id: FigureId): ProvenanceEntry | null => entryFor(entries, id)
 
   return (
@@ -256,13 +264,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
         >
           ← Change the numbers
         </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <FreshnessBadge kind={prices.mode === 'live' ? 'live' : 'snapshot'} date={prices.asOf} label="Prices" />
-          {first(params.src) === 'assessor' && yearBuilt !== null ? (
-            <FreshnessBadge kind="assessor" label="Year built" />
-          ) : null}
-          {billRate !== null ? <FreshnessBadge kind="manual" label="Electricity rate: your bill" /> : null}
-        </div>
+        {first(params.src) === 'assessor' && yearBuilt !== null ? (
+          <FreshnessBadge kind="assessor" label="Year built" />
+        ) : null}
       </div>
 
       {result === null ? (
@@ -369,26 +373,16 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
           )}
 
           {/* @built F-151 the verdict hands the whole query to the switch flow, so the household's claim survives the next screen */}
-          <section className="mt-6 rounded-card border border-rule bg-surface p-5 sm:p-6">
-            <h2 className="text-title font-medium">What to do next</h2>
-            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
-              <div>
-                <Link
-                  href={switchHref}
-                  className="inline-block rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
-                >
-                  See your options →
-                </Link>
-                <p className="mt-2 text-micro text-ink-muted">{optionsLine}</p>
-              </div>
-              <Link
-                href={mapHref}
-                className="text-small text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
-              >
-                See {townName} on the map →
-              </Link>
+          {recommendation ? (
+            <div className="mt-6">
+              <RecommendationCard
+                recommendation={recommendation}
+                demo={demo}
+                mapHref={mapHref}
+                mapLabel={`See ${townName} on the map →`}
+              />
             </div>
-          </section>
+          ) : null}
 
           <h2 className="mt-10 text-title font-medium">The money</h2>
           <section className="mt-4 grid gap-3 sm:grid-cols-3">

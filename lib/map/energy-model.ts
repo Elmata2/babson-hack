@@ -1,6 +1,7 @@
 /**
- * @built F-72 the Energy lens's model of town usage, solar and zonal load
- * @built F-75 real figures: Mass Save usage, MassCEC solar, ISO-NE zonal load
+ * @built F-72 the Energy lens's model of town usage and solar
+ * @built F-75 real figures: Mass Save usage, MassCEC solar
+ * @built You vs your town: Mass Save use per Census ACS household
  *
  * Every number is read from `public/data/ma-town-energy.json` (see scripts/bake-town-energy.mjs)
  * and carries its source and date in `_meta`. Nothing here estimates. A town that has no
@@ -21,19 +22,18 @@ export interface BakedTown {
   residentialMWh: number | null
   /** Mass Save electric incentives paid to residents in 2023, USD; null when not reported. */
   incentivesUsd: number | null
+  /** ACS 5-year occupied households (B11001), the denominator for use per home. */
+  households: number
   usageStatus: UsageStatus
   solarMW: number
   solarSystems: number
 }
 
-/** MW per hour, index 0 = hour ending 1 AM, index 23 = hour ending midnight. */
-export type ZoneLoad = Record<Zone, number[]>
-
 export interface EnergyMeta {
   sources: {
     usage: { label: string; url: string; year: number; units: string; note: string }
+    households: { label: string; url: string; year: number; period: string; units: string; note: string }
     solar: { label: string; url: string; asOf: string; units: string; note: string }
-    load: { label: string; url: string; days: string[]; units: string; note: string }
   }
 }
 
@@ -41,7 +41,6 @@ export interface EnergyMeta {
 export interface BakedEnergy {
   _meta: EnergyMeta
   towns: Record<string, BakedTown>
-  load: Record<string, ZoneLoad>
 }
 
 /** A town's residential electricity use, or the reason there is none. */
@@ -96,6 +95,7 @@ export interface EnergyTown extends TownInput {
   solarSystems: number
   /** Mass Save electric incentives paid to residents in 2023, USD, or null. */
   incentivesUsd: number | null
+  households: number
 }
 
 function usageOf(baked: BakedTown): Usage {
@@ -121,6 +121,7 @@ export function buildEnergyTowns(inputs: readonly TownInput[], baked: BakedEnerg
       solarMW: row.solarMW,
       solarSystems: row.solarSystems,
       incentivesUsd: row.incentivesUsd,
+      households: row.households,
     }
   })
 }
@@ -147,60 +148,17 @@ export function usageNote(t: EnergyTown): string | null {
   }
 }
 
-export interface Totals {
-  residentialMWh: number
-  reportedTowns: number
-  townCount: number
-  solarMW: number
-  solarSystems: number
-  /** Residential MWh by sponsor; a town served by several sponsors is its own 'mixed' bucket. */
-  byProvider: Partial<Record<Provider, number>>
-}
-
-export function totalsOf(towns: readonly EnergyTown[]): Totals {
-  const totals: Totals = { residentialMWh: 0, reportedTowns: 0, townCount: towns.length, solarMW: 0, solarSystems: 0, byProvider: {} }
-  for (const t of towns) {
-    totals.solarMW += t.solarMW
-    totals.solarSystems += t.solarSystems
-    if (t.usage.status !== 'reported') continue
-    totals.reportedTowns += 1
-    totals.residentialMWh += t.usage.mwh
-    totals.byProvider[t.provider] = (totals.byProvider[t.provider] ?? 0) + t.usage.mwh
-  }
-  return totals
-}
-
-/** Hourly MW for one zone, or the sum of the three for 'ALL'. */
-export function zoneLoad(baked: BakedEnergy, day: string, zone: Zone | 'ALL'): number[] {
-  const load = baked.load[day]
-  if (!load) throw new Error(`No load baked for ${day}`)
-  if (zone !== 'ALL') return load[zone]
-  return load.NEMA.map((mw, h) => mw + load.SEMA[h] + load.WCMA[h])
-}
-
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 function monthOf(iso: string): number {
   return Number(iso.slice(5, 7)) - 1
 }
 
-/** "Jan 15 2026". */
-export function formatDay(iso: string): string {
-  return `${MONTH[monthOf(iso)]} ${Number(iso.slice(8, 10))} ${iso.slice(0, 4)}`
-}
-
-/** "Winter" for Dec to Feb, "Summer" for Jun to Aug, else the date alone. */
-export function dayLabel(iso: string): string {
-  const m = monthOf(iso)
-  const season = m === 11 || m <= 1 ? 'Winter' : m >= 5 && m <= 7 ? 'Summer' : null
-  return season ? `${season} · ${formatDay(iso)}` : formatDay(iso)
-}
-
-/** "Residential use: Mass Save, 2023 · Solar: MassCEC, Jan 2025 · Load: ISO-NE via EIA-930, Jan 15 2026". */
-export function sourceLine(meta: EnergyMeta, day: string): string {
-  const { usage, solar, load } = meta.sources
+/** "Residential use: Mass Save, 2023 · Solar: MassCEC, Jan 2025". */
+export function sourceLine(meta: EnergyMeta): string {
+  const { usage, solar } = meta.sources
   const solarDate = `${MONTH[monthOf(solar.asOf)]} ${solar.asOf.slice(0, 4)}`
-  return `Residential use: ${usage.label}, ${usage.year} · Solar: ${solar.label}, ${solarDate} · Load: ${load.label}, ${formatDay(day)}`
+  return `Residential use: ${usage.label}, ${usage.year} · Solar: ${solar.label}, ${solarDate}`
 }
 
 /** The metric line for a town's tooltip, with the source and date. */
@@ -212,15 +170,44 @@ export function describeTown(t: EnergyTown, metric: Metric, meta: EnergyMeta): s
     : (usageNote(t) ?? '')
 }
 
-/** Names the hour that starts at `h`, the hour the EIA series calls "hour ending h + 1". */
-export function hourLabel(h: number): string {
-  return h === 0 ? '12 AM' : h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`
-}
-
 export function formatMW(mw: number): string {
   return mw >= 1000 ? `${(mw / 1000).toFixed(1)} GW` : mw >= 10 ? `${Math.round(mw)} MW` : `${mw.toFixed(1)} MW`
 }
 
 export function formatMWh(mwh: number): string {
   return mwh >= 1e6 ? `${(mwh / 1e6).toFixed(2)} TWh` : mwh >= 1e3 ? `${Math.round(mwh / 1e3).toLocaleString('en-US')} GWh` : `${Math.round(mwh)} MWh`
+}
+
+export type TownAverage =
+  | { status: 'ok'; kwhPerMonth: number; households: number }
+  | { status: 'hidden'; reason: string }
+
+/**
+ * Average monthly residential kWh per household: Mass Save MWh x 1000 / ACS households / 12.
+ * Hidden, with the reason, where the Mass Save figure does not describe the town's homes.
+ */
+export function averageHomeKwh(t: EnergyTown): TownAverage {
+  if (t.usage.status === 'municipal') {
+    return { status: 'hidden', reason: `${t.town} is served by a municipal light plant, which does not report to Mass Save.` }
+  }
+  if (t.usage.status === 'suppressed') {
+    return { status: 'hidden', reason: `Mass Save suppressed ${t.town}'s usage for privacy.` }
+  }
+  if (t.mixed) {
+    return {
+      status: 'hidden',
+      reason: `${t.town} is served by more than one utility, and Mass Save counts only the sponsors' accounts, so the average would not describe the whole town.`,
+    }
+  }
+  return { status: 'ok', kwhPerMonth: (t.usage.mwh * 1000) / t.households / 12, households: t.households }
+}
+
+/** Above this monthly average, seasonal homes dominate and a percentage comparison misleads. */
+export const SEASONAL_KWH_PER_MONTH = 1000
+
+/** "You use roughly 20% more than the average home in Worcester." */
+export function compareSentence(youKwh: number, avgKwh: number, town: string): string {
+  const pct = Math.round((youKwh / avgKwh - 1) * 100)
+  if (Math.abs(pct) < 3) return `You use about the same as the average home in ${town}.`
+  return `You use roughly ${Math.abs(pct)}% ${pct > 0 ? 'more' : 'less'} than the average home in ${town}.`
 }

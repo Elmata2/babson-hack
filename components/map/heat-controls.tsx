@@ -24,6 +24,7 @@ import {
   OIL_PRICE_AS_OF,
   OIL_PRICE_USD_PER_GAL,
   countyHeatRows,
+  CLIFF_NOTE,
   formatMillions,
   heatScale,
   price,
@@ -88,6 +89,7 @@ export function HeatControls(props: HeatControlsProps) {
           </li>
         </ul>
         <p className="mt-2 text-micro text-ink-muted">{scale.note}</p>
+        {metric === 'cliff_dollars' ? <p className="mt-1 text-micro text-ink-muted">{CLIFF_NOTE}</p> : null}
         <p className="mt-1 text-micro text-ink-faint">
           Oil spend {ASSUMPTION_NOTE} at {price(OIL_PRICE_USD_PER_GAL)}/gal (DOER {OIL_PRICE_AS_OF}). {CLIFF_SOURCE}.
         </p>
@@ -201,7 +203,7 @@ export function YearScrubber({ year, onYear }: { year: HeatYear; onYear: (year: 
 }
 
 /**
- * The headline the scrubber animates: "$0 lost" → "$624.5M lost on Jan 1".
+ * The headline the scrubber animates: "$0 lost" → "up to $624.5M lost on Jan 1 if these homes wait until 2027".
  *
  * The visible digits are `aria-hidden` while they move; the settled sentence is
  * announced once through a status region, so a screen reader is not read a number
@@ -211,20 +213,20 @@ export function YearScrubber({ year, onYear }: { year: HeatYear; onYear: (year: 
 export function HeatHeadline({ year, dollars }: { year: HeatYear; dollars: number }) {
   const target = year === 2027 ? dollars : 0
   const shown = useTweened(target)
-  const settled = year === 2027 ? `${formatMillions(dollars)} lost on Jan 1` : '$0 lost'
+  const settled = year === 2027 ? `up to ${formatMillions(dollars)} lost on Jan 1 if these homes wait until 2027` : '$0 lost'
   return (
     <div className="rounded-card border border-rule bg-paper px-3 py-2">
       <p className="text-eyebrow uppercase text-ink-muted">Massachusetts</p>
       <p className="num mt-0.5 text-title font-medium text-ink" aria-hidden>
-        {year === 2027 ? `${formatMillions(shown)} lost` : '$0 lost'}
-        {year === 2027 ? <span className="text-small font-normal text-ink-muted"> on Jan 1</span> : null}
+        {year === 2027 ? `Up to ${formatMillions(shown)} lost` : '$0 lost'}
+        {year === 2027 ? <span className="text-small font-normal text-ink-muted"> on Jan 1 if these homes wait until 2027</span> : null}
       </p>
       <p className="sr-only" role="status" aria-live="polite">
         {settled}
       </p>
       <p className="mt-0.5 text-micro text-ink-muted">
         {year === 2027
-          ? 'Oil-heated households × the $1,000 step-down.'
+          ? CLIFF_NOTE
           : 'Nothing has been lost yet. Move to 2027 to see the step-down.'}
       </p>
     </div>

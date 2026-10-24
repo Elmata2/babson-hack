@@ -4,7 +4,7 @@
  * @built F-44 Town tab: utility gate, selected tract stats, town heating-fuel roll-up
  * @built F-46 the tract panel completes: spend, the Jan 1 loss, and "use this tract"
  * @built F-47 the plain-language path when the equity lens shows a high limited-English share
- * @built Grid section: the 24 h zone load clock and totals, or the statewide view with no town
+ * @built You vs your town: your monthly kWh against the average home, plus Mass Save incentives and solar
  *
  * The utility line is the correctness gate from `resolveUtility`. A municipal light
  * plant town says so in plain words; a mixed town asks instead of guessing. Every
@@ -13,12 +13,12 @@
  */
 
 import Link from 'next/link'
-import type { ReactNode } from 'react'
 import { GEO_META, tractStatsOfTown, townsOfTract } from '@/lib/geo'
 import { SPONSOR_NAME, UTILITY_META, resolveUtility } from '@/lib/utility'
 import {
   ASSUMPTION_NOTE,
   CLIFF_CAPS,
+  CLIFF_NOTE,
   CLIFF_SOURCE,
   OIL_PRICE_AS_OF,
   OIL_PRICE_USD_PER_GAL,
@@ -35,39 +35,55 @@ import {
   seedQuery,
   type HeatYear,
 } from '@/lib/map/heat'
+import { SEASONAL_KWH_PER_MONTH, averageHomeKwh, compareSentence, formatMW, type EnergyMeta, type EnergyTown } from '@/lib/map/energy-model'
 import { EJ_META, ejSummary, formatEj, offersPlainLanguage, plainLanguageHref } from '@/lib/map/equity'
 
 const int = (n: number) => n.toLocaleString('en-US')
 const day = (iso: string) => iso.slice(0, 10)
 
-function GridSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section aria-label={title} className="flex flex-col gap-3 border-t border-rule pt-4">
-      <p className="text-eyebrow uppercase text-ink-muted">{title}</p>
-      {children}
-    </section>
-  )
-}
-
 export interface TownPanelProps {
   town: string | null
   tract: string | null
   onClearTract: () => void
-  grid?: ReactNode
+  energy?: EnergyTown | null
+  meta?: EnergyMeta | null
+  /** The profile's monthly kWh, or null while it is still the example value. */
+  yourKwh?: number | null
+  onEditProfile?: () => void
+  /** The verdict path to return to, already vetted by `safeBackPath`. */
+  backHref?: string | null
+  lens?: 'energy' | 'heat'
   /** True when the equity lens is on; the EJ percentages appear only with the lens. */
   ejOn: boolean
   /** The scrubber's install year, so "use this tract" seeds the year being looked at. */
   year: HeatYear
 }
 
-export function TownPanel({ town, tract, onClearTract, grid, ejOn, year }: TownPanelProps) {
+export function TownPanel({
+  town,
+  tract,
+  onClearTract,
+  energy = null,
+  meta = null,
+  yourKwh = null,
+  onEditProfile,
+  backHref = null,
+  lens = 'energy',
+  ejOn,
+  year,
+}: TownPanelProps) {
+  const back = backHref ? (
+    <a className="self-start text-small text-ink underline underline-offset-2" href={backHref}>
+      ← Back to your verdict
+    </a>
+  ) : null
   if (!town) {
     return (
       <div className="flex flex-col gap-4">
+        {back}
         <p className="text-small text-ink-muted">
           Pick a town: search for one, or click it on the map. In the Heat lens, click a tract to see its heating-fuel mix.
         </p>
-        {grid ? <GridSection title="Grid · Massachusetts">{grid}</GridSection> : null}
       </div>
     )
   }
@@ -88,6 +104,7 @@ export function TownPanel({ town, tract, onClearTract, grid, ejOn, year }: TownP
 
   return (
     <div className="flex flex-col gap-4">
+      {back}
       <section aria-label="Utility">
         <p className="text-eyebrow uppercase text-ink-muted">Electric utility</p>
         <p className="mt-1 text-small text-ink">{utilityLine}</p>
@@ -103,6 +120,10 @@ export function TownPanel({ town, tract, onClearTract, grid, ejOn, year }: TownP
           {UTILITY_META.source} · fetched {day(UTILITY_META.fetchedAt)}
         </p>
       </section>
+
+      <YouVsTown town={town} energy={energy} meta={meta} yourKwh={yourKwh} onEditProfile={onEditProfile} />
+
+      <TownPrograms town={town} energy={energy} meta={meta} />
 
       {row ? (
         <section aria-label="Selected tract" className="rounded-card border border-rule bg-paper p-3">
@@ -120,7 +141,7 @@ export function TownPanel({ town, tract, onClearTract, grid, ejOn, year }: TownP
             <Stat label="Median year built" value={row.medianYearBuilt > 0 ? String(row.medianYearBuilt) : 'No estimate'} />
             <Stat label="Estimated oil spend" value={`${money(row.oilSpendUsd)}/yr`} />
             <Stat
-              label={year === 2027 ? 'Lost on Jan 1, 2027' : 'Lost if you wait for 2027'}
+              label={year === 2027 ? 'Most lost on Jan 1, 2027' : 'Most lost if you wait for 2027'}
               value={money(row.cliffDollars)}
             />
           </dl>
@@ -181,6 +202,7 @@ export function TownPanel({ town, tract, onClearTract, grid, ejOn, year }: TownP
         </section>
       ) : null}
 
+      {lens === 'heat' ? (
       <section aria-label="Town heating fuel">
         <p className="text-eyebrow uppercase text-ink-muted">Heating oil in {town}</p>
         {households > 0 ? (
@@ -188,23 +210,24 @@ export function TownPanel({ town, tract, onClearTract, grid, ejOn, year }: TownP
             <Stat label="Oil-heated share" value={percent(oil / households)} />
             <Stat label="Oil-heated homes" value={int(oil)} />
             <Stat label="Oil spend" value={`${formatMillions(oilSpendFor(oil))}/yr`} />
-            <Stat label="At risk on Jan 1" value={formatMillions(cliffDollarsFor(oil))} />
+            <Stat label="Most lost on Jan 1" value={formatMillions(cliffDollarsFor(oil))} />
           </dl>
         ) : (
           <p className="mt-1 text-small text-ink-muted">No tract estimates for this town.</p>
         )}
         <p className="mt-2 text-micro text-ink-faint">
           Sums the {rows.length} tracts that touch the town; a tract on a town line is counted whole in each town. Spend{' '}
-          {ASSUMPTION_NOTE}. The 2027 cap is {money(CLIFF_CAPS[2027])} against {money(CLIFF_CAPS[2026])} today.
+          {ASSUMPTION_NOTE}. The 2027 cap is {money(CLIFF_CAPS[2027])} against {money(CLIFF_CAPS[2026])} today. {CLIFF_NOTE}
         </p>
       </section>
+      ) : null}
 
-      <p className="text-micro text-ink-faint">
-        {GEO_META.tractStats.source.split(' — ')[0]} · B25040 · fetched {day(GEO_META.tractStats.fetchedAt)}. Estimates
-        carry sampling error; read a small tract as a share.
-      </p>
-
-      {grid ? <GridSection title={`Grid · ${town}`}>{grid}</GridSection> : null}
+      {lens === 'heat' || row ? (
+        <p className="text-micro text-ink-faint">
+          {GEO_META.tractStats.source.split(' — ')[0]} · B25040 · fetched {day(GEO_META.tractStats.fetchedAt)}. Estimates
+          carry sampling error; read a small tract as a share.
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -215,5 +238,102 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dt className="text-micro text-ink-muted">{label}</dt>
       <dd className="num text-body font-medium text-ink">{value}</dd>
     </div>
+  )
+}
+
+const kwh = (n: number) => Math.round(n).toLocaleString('en-US')
+
+function YouVsTown({
+  town,
+  energy,
+  meta,
+  yourKwh,
+  onEditProfile,
+}: {
+  town: string
+  energy: EnergyTown | null
+  meta: EnergyMeta | null
+  yourKwh: number | null
+  onEditProfile?: () => void
+}) {
+  if (!energy || !meta) return null
+  const avg = averageHomeKwh(energy)
+  const src = `${meta.sources.usage.label} ${meta.sources.usage.year} ÷ Census ACS 5-yr households`
+  return (
+    <section aria-label="You vs your town" className="flex flex-col gap-2 border-t border-rule pt-4">
+      <p className="text-eyebrow uppercase text-ink-muted">You vs your town</p>
+      {avg.status === 'hidden' ? (
+        <p className="text-small text-ink-muted">{avg.reason} There is no average home to compare with.</p>
+      ) : (
+        <>
+          <p className="num text-small text-ink">
+            {yourKwh !== null ? <>You: {kwh(yourKwh)} kWh/month · </> : null}
+            Average home in {town}: {kwh(avg.kwhPerMonth)} kWh/month
+          </p>
+          <p className="text-micro text-ink-faint">({src})</p>
+          {yourKwh !== null && avg.kwhPerMonth > SEASONAL_KWH_PER_MONTH ? (
+            <p className="text-small text-ink-muted">Seasonal homes push this town&apos;s average up, so compare loosely.</p>
+          ) : yourKwh !== null ? (
+            <>
+              <div className="flex flex-col gap-1.5" role="img" aria-label={`You ${kwh(yourKwh)} kilowatt-hours a month, average home ${kwh(avg.kwhPerMonth)}`}>
+                <Bar label="You" value={yourKwh} max={Math.max(yourKwh, avg.kwhPerMonth)} tone="bg-ink" />
+                <Bar label="Average" value={avg.kwhPerMonth} max={Math.max(yourKwh, avg.kwhPerMonth)} tone="bg-ink-faint" />
+              </div>
+              <p className="text-small font-medium text-ink">{compareSentence(yourKwh, avg.kwhPerMonth, town)}</p>
+            </>
+          ) : (
+            <p className="text-small text-ink-muted">
+              Add your monthly kWh to compare.{' '}
+              {onEditProfile ? (
+                <button type="button" onClick={onEditProfile} className="underline underline-offset-2 hover:text-ink">
+                  Open My home
+                </button>
+              ) : null}
+            </p>
+          )}
+          <p className="text-micro text-ink-faint">
+            A rough guide, not an exact average: Mass Save&apos;s residential total divided by Census occupied households. Towns with many apartments read low; towns with many seasonal homes read high.
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
+function Bar({ label, value, max, tone }: { label: string; value: number; max: number; tone: string }) {
+  return (
+    <div className="flex items-center gap-2" aria-hidden>
+      <span className="w-14 shrink-0 text-micro text-ink-muted">{label}</span>
+      <span className="h-3 flex-1 rounded-sm bg-paper-sunk">
+        <span className={`block h-3 rounded-sm ${tone}`} style={{ width: `${Math.max(2, (value / max) * 100)}%` }} />
+      </span>
+    </div>
+  )
+}
+
+const usd = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function TownPrograms({ town, energy, meta }: { town: string; energy: EnergyTown | null; meta: EnergyMeta | null }) {
+  if (!energy || !meta) return null
+  const { usage, solar } = meta.sources
+  return (
+    <section aria-label="Mass Save and solar" className="flex flex-col gap-2 border-t border-rule pt-4">
+      {energy.incentivesUsd !== null ? (
+        <p className="text-small text-ink">
+          Residents of {town} received {usd(energy.incentivesUsd)} in Mass Save electric incentives in {usage.year}.{' '}
+          <span className="text-micro text-ink-muted">{`${usage.label} · ${usage.year}`}</span>
+        </p>
+      ) : energy.usage.status === 'suppressed' ? (
+        <p className="text-small text-ink">
+          Mass Save suppressed {town}&apos;s incentive total for privacy.{' '}
+          <span className="text-micro text-ink-muted">{`${usage.label} · ${usage.year}`}</span>
+        </p>
+      ) : null}
+      <p className="text-small text-ink">
+        {formatMW(energy.solarMW)} of solar installed across {energy.solarSystems.toLocaleString('en-US')} systems.{' '}
+        <span className="text-micro text-ink-muted">{`${solar.label} · ${MONTH[Number(solar.asOf.slice(5, 7)) - 1]} ${solar.asOf.slice(0, 4)}`}</span>
+      </p>
+    </section>
   )
 }

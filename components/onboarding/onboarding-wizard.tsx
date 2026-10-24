@@ -17,27 +17,40 @@ import {
   toQuery,
   type Income,
   type IntakeValues,
-  type Scope,
 } from '@/lib/intake/params'
 import {
-  STEPS,
+  anyDetailsNeeded,
+  billsReady,
   canLeaveDetails,
+  detailsNeeds,
+  eyebrowFor,
+  fuelFromBill,
   isProfileComplete,
+  lowIncomeDetected,
+  hasSingleSponsor,
+  lowIncomeFlag,
+  misplacedBillNote,
+  positiveNumber,
+  townMismatch,
+  nextStep,
+  pickUtility,
   previousStep,
   profileSnapshot,
   readStoredProfile,
   serializeProfile,
   serverProfileSnapshot,
-  stepIndex,
+  serviceTownFrom,
   subscribeProfile,
   validateProfile,
+  visibleSteps,
   withoutProfile,
   writeProfile,
+  type BillSlots,
   type Profile,
   type Step,
 } from '@/lib/onboarding/flow'
 import type { BillApplied, BillRole, BillUtility } from '@/lib/parse/contract'
-import type { AnnualMethod, BillFuel } from '@/lib/parse/types'
+import type { BillFuel } from '@/lib/parse/types'
 
 /**
  * @built F-137 the four-step wizard — profile, bill, house, review
@@ -112,31 +125,45 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
     : EMPTY_PROFILE)
   const accountErrors = validateProfile(profile)
 
-  // ----------------------------------------------------------------- the bill
+  // ----------------------------------------------------------------- the bills
   const [heatingBill, setHeatingBill] = useState<BillApplied | null>(null)
   const [electricBill, setElectricBill] = useState<BillApplied | null>(null)
-  const [enteringManually, setEnteringManually] = useState(false)
+  const [heatingByHand, setHeatingByHand] = useState(false)
+  const [electricByHand, setElectricByHand] = useState(false)
+  const [slotNote, setSlotNote] = useState<{ slot: BillRole; text: string } | null>(null)
 
   // ---------------------------------------------------------------- the house
-  const [town, setTown] = useState('')
-  const [fuel, setFuel] = useState<BillFuel>('oil')
+  const [townPick, setTownPick] = useState<string | null>(null)
+  const [editingTown, setEditingTown] = useState(false)
+  const [manualFuel, setManualFuel] = useState<BillFuel>('oil')
   const [units, setUnits] = useState('')
   const [price, setPrice] = useState('')
   const [priceTouched, setPriceTouched] = useState(false)
-  const [yearBuilt, setYearBuilt] = useState('')
-  const [sqft, setSqft] = useState('')
-  const [scope, setScope] = useState<Scope>('whole')
-  const [income, setIncome] = useState<Income>('unsure')
-  const [installYear, setInstallYear] = useState<'2026' | '2027'>(defaultInstallYear())
-  const [method, setMethod] = useState<AnnualMethod | null>(null)
-  const [methodConfidence, setMethodConfidence] = useState<number | null>(null)
-  const [note, setNote] = useState('')
-  const [utility, setUtility] = useState<BillUtility | null>(null)
-  const [lowIncome, setLowIncome] = useState<boolean | null>(null)
-  const [electricRate, setElectricRate] = useState('')
+  const [incomeAnswer, setIncomeAnswer] = useState<Income>('unsure')
   const [addressNote, setAddressNote] = useState<string | null>(null)
 
   const [step, setStep] = useState<Step>('account')
+
+  const bills = [electricBill, heatingBill] as const
+  const billTown = serviceTownFrom(bills, towns)
+  const town = townPick ?? billTown ?? ''
+  const fuel: BillFuel = fuelFromBill(heatingBill) ?? manualFuel
+  const incomeDetected = lowIncomeDetected(bills)
+  const income: Income = incomeDetected ? 'yes' : incomeAnswer
+  const utility = pickUtility(electricBill, heatingBill, hasSingleSponsor(town))
+  const mismatch = townMismatch(electricBill, heatingBill, towns)
+  const electricRate =
+    [electricBill?.electricRate, heatingBill?.electricRate].find(
+      (rate): rate is string => typeof rate === 'string' && plausibleElectricRate(rate) !== null,
+    ) ?? ''
+  const numbersReady = positiveNumber(units) !== null && positiveNumber(price) !== null
+  const needs = detailsNeeds({
+    townRead: billTown !== null && town !== '' && !editingTown,
+    heating: heatingBill,
+    incomeDetected,
+    numbersReady,
+  })
+  const slots: BillSlots = { heating: heatingBill, electricity: electricBill, heatingByHand, electricityByHand: electricByHand }
 
   const marketPrice: Partial<Record<BillFuel, number>> = {
     oil: prices.oil,
@@ -147,6 +174,7 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
   const townKnown = towns.includes(town)
   const detailsReady = canLeaveDetails({ fuel, units, price, town, towns })
   const unitLabel = FUELS.find((entry) => entry.value === fuel)?.unit ?? 'units a year'
+  const detailsNeeded = anyDetailsNeeded(needs) || !detailsReady
 
   function goTo(next: Step) {
     setStep(next)
@@ -167,7 +195,7 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       }
       const matched = matchTown(payload.town, towns)
       if (payload.ok && matched) {
-        setTown(matched)
+        setTownPick(matched)
         setAddressNote(payload.matchedAddress ?? `Matched ${matched}.`)
       } else {
         setAddressNote(payload.message ?? 'That address did not match. Pick your town below instead.')
@@ -192,57 +220,43 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
     goTo('account')
   }
 
-  function applyBill(applied: BillApplied) {
+  function applyBill(applied: BillApplied, slot: BillRole) {
+    const text = misplacedBillNote(slot, applied.role)
+    setSlotNote(text ? { slot, text } : null)
     if (applied.role === 'electricity') {
       setElectricBill(applied)
-      if (plausibleElectricRate(applied.electricRate) !== null && applied.electricRate) {
-        setElectricRate(applied.electricRate)
-      }
+      setElectricByHand(false)
       return
     }
-
     setHeatingBill(applied)
-    setEnteringManually(false)
-    if (applied.fuel) setFuel(applied.fuel)
+    setHeatingByHand(false)
     setUnits(applied.units)
     setPrice(applied.price)
     setPriceTouched(true)
-    setMethod(applied.method)
-    setMethodConfidence(applied.methodConfidence)
-    setNote(applied.note)
-    if (applied.utility) setUtility(applied.utility)
-    setLowIncome(applied.lowIncomeSignal)
-    if (applied.serviceTown) {
-      const matched = towns.find((name) => name.toLowerCase() === applied.serviceTown?.trim().toLowerCase())
-      if (matched) setTown(matched)
-    }
-    if (plausibleElectricRate(applied.electricRate) !== null && applied.electricRate) {
-      setElectricRate(applied.electricRate)
-    }
   }
 
   function undoBill(role: BillRole) {
+    setSlotNote(null)
     if (role === 'heating') {
       setHeatingBill(null)
-      setMethod(null)
-      setMethodConfidence(null)
-      setNote('')
+      setUnits('')
+      setPrice('')
+      setPriceTouched(false)
     } else {
       setElectricBill(null)
-      setElectricRate('')
     }
   }
 
-  function enterDetails() {
-    if (heatingBill === null && price.trim() === '' && !priceTouched) {
+  function enterHeatingByHand() {
+    setHeatingByHand(true)
+    if (price.trim() === '' && !priceTouched) {
       const market = marketPrice[fuel]
       if (market) setPrice(String(market))
     }
-    goTo('details')
   }
 
   function chooseFuel(next: BillFuel) {
-    setFuel(next)
+    setManualFuel(next)
     if (heatingBill === null && !priceTouched) {
       const market = marketPrice[next]
       setPrice(market ? String(market) : '')
@@ -256,20 +270,20 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       units,
       price,
       town,
-      tier: tierFor(scope, income, fuel),
+      tier: tierFor('whole', income, fuel),
       income,
-      year: installYear,
-      yearBuilt,
-      sqft,
-      src: yearBuilt.trim() ? 'manual' : null,
+      year: defaultInstallYear(),
+      yearBuilt: '',
+      sqft: '',
+      src: null,
       buildingUnits: null,
       installCost: '',
-      method,
-      methodConfidence,
-      note,
+      method: heatingBill?.method ?? null,
+      methodConfidence: heatingBill?.methodConfidence ?? null,
+      note: heatingBill?.note ?? '',
       utility,
-      electricRate: plausibleElectricRate(electricRate) !== null ? electricRate : '',
-      lowIncome,
+      electricRate,
+      lowIncome: lowIncomeFlag(bills),
       weatherizationBonus: false,
       sizingBonus: false,
     }
@@ -278,11 +292,11 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
 
   return (
     <div className="grid gap-8">
-      <Stepper step={step} onJump={(target) => goTo(target)} />
+      <Stepper step={step} detailsNeeded={detailsNeeded} onJump={(target) => goTo(target)} />
 
       {step === 'account' ? (
         <section className="rounded-card border border-rule bg-surface p-5 sm:p-6">
-          <p className="text-eyebrow uppercase text-ink-muted">{STEPS[0].eyebrow}</p>
+          <p className="text-eyebrow uppercase text-ink-muted">{eyebrowFor('account', detailsNeeded)}</p>
           <h2 className="mt-2 text-title font-medium">Create your profile</h2>
           <p className="mt-2 max-w-[58ch] text-small text-ink-muted">
             A name to greet you, an email to keep on the profile, and a phone number only if you want texts. No
@@ -370,62 +384,90 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       ) : null}
 
       {step === 'bill' ? (
-        <section className="grid gap-4 rounded-card border border-rule bg-surface p-5 sm:p-6">
+        <section className="grid gap-5 rounded-card border border-rule bg-surface p-5 sm:p-6">
           <div>
-            <p className="text-eyebrow uppercase text-ink-muted">{STEPS[1].eyebrow}</p>
-            <h2 className="mt-2 text-title font-medium">Show us one bill</h2>
+            <p className="text-eyebrow uppercase text-ink-muted">{eyebrowFor('bill', detailsNeeded)}</p>
+            <h2 className="mt-2 text-title font-medium">Show us your two bills</h2>
             <p className="mt-2 max-w-[58ch] text-small text-ink-muted">
-              Oil delivery ticket, gas or electric bill — one page is enough. Three is the limit. We read it, show you
-              what we found, and you confirm it before it touches the verdict.
+              Your electric bill, then your heating bill (a gas bill or an oil or propane delivery ticket). We read
+              each one, show you what we found, and you confirm it before it touches the verdict.
             </p>
           </div>
 
-          <BillUpload
-            onApply={applyBill}
-            onUndo={undoBill}
-            countyFips={townKnown ? countyOfTown(town)?.fips : undefined}
-            samples={DEMO_BILL_SAMPLES}
-          />
-
-          {heatingBill ? (
-            <div className="rounded-card border border-rule bg-paper-sunk/60 p-3">
-              <p className="flex flex-wrap items-center gap-2 text-small">
-                <FreshnessBadge kind="bill" label="Heating bill" />
-                <span className="text-ink">
-                  {FUEL_LABEL[heatingBill.fuel ?? 'oil']} · {heatingBill.units}
-                </span>
+          <BillSlot
+            title="1. Electric bill"
+            done={electricBill !== null || electricByHand}
+            byHand={electricByHand}
+            onByHand={() => setElectricByHand(true)}
+            onUndoByHand={() => setElectricByHand(false)}
+            byHandLabel="No electric bill handy? Use the statewide average rate"
+            byHandNote="Using the statewide average electricity rate. A bill gives a sharper answer."
+          >
+            <BillUpload
+              expect="electricity"
+              onApply={(applied) => applyBill(applied, 'electricity')}
+              onUndo={undoBill}
+              countyFips={townKnown ? countyOfTown(town)?.fips : undefined}
+              samples={DEMO_BILL_SAMPLES}
+              offerElectric={false}
+            />
+            {slotNote?.slot === 'electricity' ? <p className="text-micro text-deadline">{slotNote.text}</p> : null}
+            {electricBill ? (
+              <p className="text-micro text-ink-muted">
+                ${electricBill.electricRate ?? electricBill.price}/kWh
+                {electricBill.utility ? ` from ${UTILITY_LABEL[electricBill.utility]}` : ''}. The verdict uses your own
+                rate instead of the statewide average.
               </p>
-              <p className="mt-1 text-micro text-ink-muted">{heatingBill.note}</p>
-            </div>
-          ) : null}
+            ) : null}
+          </BillSlot>
 
-          {electricBill ? (
-            <p className="text-micro text-ink-muted">
-              Electric bill added: ${electricBill.price}/kWh
-              {electricBill.utility ? ` from ${UTILITY_LABEL[electricBill.utility]}` : ''}. The verdict will use your
-              own rate instead of the statewide average.
-            </p>
-          ) : null}
+          <BillSlot
+            title="2. Heating bill"
+            done={heatingBill !== null || heatingByHand}
+            byHand={heatingByHand}
+            onByHand={enterHeatingByHand}
+            onUndoByHand={() => setHeatingByHand(false)}
+            byHandLabel="No heating bill handy? Enter the numbers myself"
+            byHandNote="You will type the fuel, the yearly amount and the price on the next screen."
+          >
+            <BillUpload
+              onApply={(applied) => applyBill(applied, 'heating')}
+              onUndo={undoBill}
+              countyFips={townKnown ? countyOfTown(town)?.fips : undefined}
+              samples={DEMO_BILL_SAMPLES}
+              offerElectric={false}
+            />
+            {slotNote?.slot === 'heating' ? <p className="text-micro text-deadline">{slotNote.text}</p> : null}
+            {heatingBill ? (
+              <div className="rounded-card border border-rule bg-paper-sunk/60 p-3">
+                <p className="flex flex-wrap items-center gap-2 text-small">
+                  <FreshnessBadge kind="bill" label="Heating bill" />
+                  <span className="text-ink">
+                    {FUEL_LABEL[heatingBill.fuel ?? 'oil']} · {heatingBill.units}
+                  </span>
+                </p>
+                <p className="mt-1 text-micro text-ink-muted">{heatingBill.note}</p>
+              </div>
+            ) : null}
+          </BillSlot>
 
           <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-4">
             <button
               type="button"
-              onClick={enterDetails}
-              disabled={!heatingBill && !enteringManually}
+              onClick={() => goTo(previousStep('bill'))}
+              className="rounded-pill border border-rule-strong px-4 py-2.5 text-small text-ink-muted hover:border-ink hover:text-ink"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={() => goTo(nextStep('bill', detailsNeeded))}
+              disabled={!billsReady(slots)}
               className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper disabled:opacity-40"
             >
               Continue
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEnteringManually(true)
-                enterDetails()
-              }}
-              className="text-micro text-ink-muted underline"
-            >
-              No bill handy? Enter the numbers myself
-            </button>
+            {!billsReady(slots) ? <p className="text-micro text-ink-faint">Both bills are needed to continue.</p> : null}
           </div>
         </section>
       ) : null}
@@ -433,208 +475,157 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       {step === 'details' ? (
         <section className="grid gap-5 rounded-card border border-rule bg-surface p-5 sm:p-6">
           <div>
-            <p className="text-eyebrow uppercase text-ink-muted">{STEPS[2].eyebrow}</p>
-            <h2 className="mt-2 text-title font-medium">Where is the house?</h2>
-            <p className="mt-2 max-w-[58ch] text-small text-ink-muted">
-              The town sets the climate and the utility sponsor. The street address is a shortcut, not a requirement —
-              it never leaves this browser except to the Census geocoder.
-            </p>
+            <p className="text-eyebrow uppercase text-ink-muted">{eyebrowFor('details', detailsNeeded)}</p>
+            <h2 className="mt-2 text-title font-medium">A few things the bills did not say</h2>
           </div>
 
-          <AddressCombobox
-            onSelect={(suggestion) => {
-              const matched = matchTown(suggestion.town, towns)
-              if (matched) {
-                setTown(matched)
-                setAddressNote(suggestion.label)
-              } else {
-                setAddressNote('That address is outside the 351 towns. Pick your town below.')
-              }
-            }}
-            onTyped={(value) => void lookupTypedAddress(value)}
-          />
-          {addressNote ? <p className="text-micro text-ink-muted">{addressNote}</p> : null}
+          {billTown && !editingTown ? (
+            <div className="grid gap-1">
+              <h3 className="text-small font-medium">Where is the house?</h3>
+              <p className="text-small text-ink">
+                {town}{' '}
+                <button type="button" onClick={() => setEditingTown(true)} className="text-micro text-ink-muted underline">
+                  Change
+                </button>
+              </p>
+              <p className="text-micro text-ink-faint">Read from your bill.</p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              <h3 className="text-small font-medium">Where is the house?</h3>
+              <AddressCombobox
+                onSelect={(suggestion) => {
+                  const matched = matchTown(suggestion.town, towns)
+                  if (matched) {
+                    setTownPick(matched)
+                    setAddressNote(suggestion.label)
+                  } else {
+                    setAddressNote('That address is outside the 351 towns. Pick your town below.')
+                  }
+                }}
+                onTyped={(value) => void lookupTypedAddress(value)}
+              />
+              {addressNote ? <p className="text-micro text-ink-muted">{addressNote}</p> : null}
+              <label className="grid max-w-sm gap-1.5 text-small">
+                <span className="font-medium">Which town?</span>
+                <select
+                  value={town}
+                  onChange={(event) => setTownPick(event.target.value)}
+                  className="rounded-card border border-rule-strong bg-surface px-3 py-2.5"
+                >
+                  <option value="">Choose a town…</option>
+                  {towns.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {editingTown ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTown(false)
+                    setTownPick(null)
+                  }}
+                  className="justify-self-start text-micro text-ink-muted underline"
+                >
+                  Use the town from my bill
+                </button>
+              ) : null}
+            </div>
+          )}
 
-          <label className="grid max-w-sm gap-1.5 text-small">
-            <span className="font-medium">Which town?</span>
-            <select
-              value={town}
-              onChange={(event) => setTown(event.target.value)}
-              className="rounded-card border border-rule-strong bg-surface px-3 py-2.5"
-            >
-              <option value="">Choose a town…</option>
-              {towns.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <span className="text-micro text-ink-faint">Required. It sets the heating degree days.</span>
-          </label>
+          {needs.fuel || needs.numbers ? (
+            <div className="grid gap-3">
+              <h3 className="text-small font-medium">What do you burn, and how much in a year?</h3>
+              {needs.fuel ? (
+                <div role="radiogroup" aria-label="Heating fuel" className="flex flex-wrap gap-2">
+                  {FUELS.map((entry) => {
+                    const active = entry.value === fuel
+                    return (
+                      <button
+                        key={entry.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => chooseFuel(entry.value)}
+                        className={`rounded-pill border px-3.5 py-1.5 text-small transition-colors ${
+                          active
+                            ? 'border-ink bg-ink text-paper'
+                            : 'border-rule-strong bg-surface text-ink-muted hover:border-ink hover:text-ink'
+                        }`}
+                      >
+                        {entry.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={unitLabel}>
+                  <input
+                    value={units}
+                    onChange={(event) => setUnits(event.target.value)}
+                    inputMode="decimal"
+                    placeholder="e.g. 800"
+                    className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
+                  />
+                </Field>
+                <Field label={`Price per ${fuel === 'gas' ? 'therm' : fuel === 'resistance' ? 'kWh' : 'gallon'}`}>
+                  <input
+                    value={price}
+                    onChange={(event) => {
+                      setPrice(event.target.value)
+                      setPriceTouched(true)
+                    }}
+                    inputMode="decimal"
+                    placeholder={marketPrice[fuel] ? String(marketPrice[fuel]) : 'e.g. 4.50'}
+                    className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
+                  />
+                  <span className="text-micro text-ink-faint">
+                    Today&apos;s statewide price is prefilled; overwrite it with what you actually pay.
+                  </span>
+                </Field>
+              </div>
+            </div>
+          ) : null}
 
-          <div className="grid gap-3">
-            <h3 className="text-small font-medium">What do you burn, and how much in a year?</h3>
-            <div role="radiogroup" aria-label="Heating fuel" className="flex flex-wrap gap-2">
-              {FUELS.map((entry) => {
-                const active = entry.value === fuel
-                return (
+          {needs.income ? (
+            <fieldset className="grid gap-2">
+              <legend className="text-small font-medium">Is the household under the Mass Save income limit?</legend>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ['yes', 'Yes'],
+                    ['no', 'No'],
+                    ['unsure', 'Not sure'],
+                  ] as const
+                ).map(([value, label]) => (
                   <button
-                    key={entry.value}
+                    key={value}
                     type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => chooseFuel(entry.value)}
-                    className={`rounded-pill border px-3.5 py-1.5 text-small transition-colors ${
-                      active
+                    aria-pressed={incomeAnswer === value}
+                    onClick={() => setIncomeAnswer(value)}
+                    className={`rounded-pill border px-3.5 py-2 text-small transition-colors ${
+                      incomeAnswer === value
                         ? 'border-ink bg-ink text-paper'
                         : 'border-rule-strong bg-surface text-ink-muted hover:border-ink hover:text-ink'
                     }`}
                   >
-                    {entry.label}
+                    {label}
                   </button>
-                )
-              })}
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={unitLabel}>
-                <input
-                  value={units}
-                  onChange={(event) => setUnits(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="e.g. 800"
-                  className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
-                />
-                {heatingBill ? <span className="text-micro text-ink-faint">From your bill. Edit it if it is wrong.</span> : null}
-              </Field>
-              <Field label={`Price per ${fuel === 'gas' ? 'therm' : fuel === 'resistance' ? 'kWh' : 'gallon'}`}>
-                <input
-                  value={price}
-                  onChange={(event) => {
-                    setPrice(event.target.value)
-                    setPriceTouched(true)
-                  }}
-                  inputMode="decimal"
-                  placeholder={marketPrice[fuel] ? String(marketPrice[fuel]) : 'e.g. 4.50'}
-                  className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
-                />
-                <span className="text-micro text-ink-faint">
-                  {heatingBill ? 'Your all-in price from the bill.' : "Today's statewide price is prefilled; overwrite it with what you actually pay."}
-                </span>
-              </Field>
-            </div>
-            {note ? <p className="text-micro text-ink-muted">How the year was worked out: {note}</p> : null}
-            {electricRate ? (
-              <p className="text-micro text-ink-muted">
-                Electricity: ${electricRate}/kWh from your electric bill — used for the heat-pump running cost.
+                ))}
+              </div>
+              <p className="text-micro text-ink-faint">
+                Check eligibility:{' '}
+                <a href="tel:8887143990" className="underline">
+                  888-714-3990
+                </a>
+                . Not sure counts as the standard rebate.
               </p>
-            ) : null}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Year built (optional)">
-              <input
-                value={yearBuilt}
-                onChange={(event) => setYearBuilt(event.target.value)}
-                inputMode="numeric"
-                placeholder="e.g. 1952"
-                className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
-              />
-            </Field>
-            <Field label="Heated area in sqft (optional)">
-              <input
-                value={sqft}
-                onChange={(event) => setSqft(event.target.value)}
-                inputMode="numeric"
-                placeholder="e.g. 1,600"
-                className="rounded-card border border-rule-strong bg-surface px-3 py-2.5 tabular-nums"
-              />
-            </Field>
-          </div>
-          <p className="text-micro text-ink-faint">
-            Year built and area are only used when a bill is missing. They never change a price.
-          </p>
-
-          <fieldset className="grid gap-2">
-            <legend className="text-small font-medium">Is the household under the Mass Save income limit?</legend>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ['yes', 'Yes'],
-                  ['no', 'No'],
-                  ['unsure', 'Not sure'],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={income === value}
-                  onClick={() => setIncome(value)}
-                  className={`rounded-pill border px-3.5 py-2 text-small transition-colors ${
-                    income === value
-                      ? 'border-ink bg-ink text-paper'
-                      : 'border-rule-strong bg-surface text-ink-muted hover:border-ink hover:text-ink'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="text-micro text-ink-faint">
-              Not sure counts as the standard rebate — we never promise a discount on a guess.
-              {lowIncome ? ' Your bill shows a discount rate, so it is worth checking.' : ''}
-            </p>
-          </fieldset>
-
-          <fieldset className="grid gap-2">
-            <legend className="text-small font-medium">Whole system, or adding to existing equipment?</legend>
-            <div className="flex max-w-xs gap-2">
-              {(
-                [
-                  ['whole', 'Whole system'],
-                  ['partial', 'Adding to it'],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={scope === value}
-                  onClick={() => setScope(value)}
-                  className={`flex-1 rounded-pill border px-3.5 py-2 text-small transition-colors ${
-                    scope === value
-                      ? 'border-ink bg-ink text-paper'
-                      : 'border-rule-strong bg-surface text-ink-muted hover:border-ink hover:text-ink'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <details open={installYear === '2027'} className="text-small">
-            <summary className="cursor-pointer text-ink-muted">Installing in 2027 instead?</summary>
-            <div className="mt-2 flex max-w-xs gap-2">
-              {(['2026', '2027'] as const).map((year) => (
-                <button
-                  key={year}
-                  type="button"
-                  aria-pressed={installYear === year}
-                  onClick={() => setInstallYear(year)}
-                  className={`flex-1 rounded-pill border px-3.5 py-2 tabular-nums transition-colors ${
-                    installYear === year
-                      ? 'border-ink bg-ink text-paper'
-                      : 'border-rule-strong bg-surface text-ink-muted hover:border-ink hover:text-ink'
-                  }`}
-                >
-                  {year}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-micro text-ink-faint">
-              The whole-home rebate drops from $2,650 to $2,350 per ton on 1 January 2027.
-            </p>
-          </details>
+            </fieldset>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-4">
             <button
@@ -662,12 +653,8 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
       {step === 'review' ? (
         <section className="grid gap-5 rounded-card border border-rule bg-surface p-5 sm:p-6">
           <div>
-            <p className="text-eyebrow uppercase text-ink-muted">{STEPS[3].eyebrow}</p>
+            <p className="text-eyebrow uppercase text-ink-muted">{eyebrowFor('review', detailsNeeded)}</p>
             <h2 className="mt-2 text-title font-medium">Check it once, then we answer.</h2>
-            <p className="mt-2 max-w-[58ch] text-small text-ink-muted">
-              Every line below says where it came from. Nothing is guessed, and the verdict screen keeps the same
-              provenance when you go back to change a number.
-            </p>
           </div>
 
           <dl className="divide-y divide-rule border-y border-rule">
@@ -683,7 +670,7 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
               {FUEL_LABEL[fuel]} · {units} {UNIT_SHORT[fuel]} at ${price} each
             </SummaryRow>
 
-            <SummaryRow term="Town" badge={<FreshnessBadge kind="manual" />}>
+            <SummaryRow term="Town" badge={<FreshnessBadge kind={billTown && town === billTown ? 'bill' : 'manual'} />}>
               {town}
               {utility ? ` · ${UTILITY_LABEL[utility]}` : ''}
             </SummaryRow>
@@ -694,26 +681,51 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
               </SummaryRow>
             ) : null}
 
-            {yearBuilt.trim() || sqft.trim() ? (
-              <SummaryRow term="House" badge={<FreshnessBadge kind="manual" />}>
-                {[yearBuilt.trim() ? `built ${yearBuilt.trim()}` : null, sqft.trim() ? `${sqft.trim()} sqft` : null]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </SummaryRow>
-            ) : null}
-
-            <SummaryRow term="Programs" badge={<FreshnessBadge kind="manual" />}>
-              {scope === 'whole' ? 'Whole system' : 'Adding to existing equipment'} · income limit:{' '}
-              {income === 'yes' ? 'yes' : income === 'no' ? 'no' : 'not sure'} · installing {installYear}
+            <SummaryRow term="Income limit" badge={<FreshnessBadge kind={incomeDetected ? 'bill' : 'manual'} />}>
+              {incomeDetected ? (
+                <>
+                  <span>Likely under the limit.</span>{' '}
+                  <span className="text-micro text-ink-muted">{incomeNote(fuel)}</span>
+                </>
+              ) : income === 'yes' ? (
+                'Under the limit, as you said'
+              ) : income === 'no' ? (
+                'Not under the limit'
+              ) : (
+                'Not sure'
+              )}
             </SummaryRow>
           </dl>
 
-          {heatingBill?.note ? <p className="text-micro text-ink-muted">{heatingBill.note}</p> : null}
+          {mismatch && town === mismatch.used ? (
+            <p className="text-micro text-ink-muted">
+              Your bills show two towns; we used {mismatch.used} from the electric bill.{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingTown(true)
+                  goTo('details')
+                }}
+                className="underline"
+              >
+                Change
+              </button>
+            </p>
+          ) : null}
+
+          {!detailsReady ? (
+            <p className="text-micro text-deadline">
+              The town, the yearly amount or the price is missing or not a positive number.{' '}
+              <button type="button" onClick={() => goTo('details')} className="underline">
+                Fix it
+              </button>
+            </p>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-4">
             <button
               type="button"
-              onClick={() => goTo(previousStep('review'))}
+              onClick={() => goTo(previousStep('review', detailsNeeded))}
               className="rounded-pill border border-rule-strong px-4 py-2.5 text-small text-ink-muted hover:border-ink hover:text-ink"
             >
               Back
@@ -729,26 +741,21 @@ export function OnboardingWizard({ towns, prices }: OnboardingWizardProps) {
                 →
               </span>
             </button>
-            <LinkLike onClick={() => goTo('bill')}>Change the bill</LinkLike>
-            <LinkLike onClick={() => goTo('details')}>Change the numbers</LinkLike>
-            {stored ? <LinkLike onClick={forgetProfile}>Forget my profile</LinkLike> : null}
           </div>
-          <p className="text-micro text-ink-faint">
-            Your profile is only in this browser. The verdict link is the only thing that leaves it, and it carries no
-            name, email or phone number.
-          </p>
         </section>
       ) : null}
     </div>
   )
 }
 
-function Stepper({ step, onJump }: { step: Step; onJump: (step: Step) => void }) {
-  const current = stepIndex(step)
+
+function Stepper({ step, detailsNeeded, onJump }: { step: Step; detailsNeeded: boolean; onJump: (step: Step) => void }) {
+  const steps = visibleSteps(detailsNeeded)
+  const current = Math.max(0, steps.findIndex((entry) => entry.id === step))
   return (
     <nav aria-label="Your progress">
       <ol className="grid grid-cols-2 gap-x-4 gap-y-2 text-micro sm:flex sm:flex-wrap sm:gap-x-6 sm:text-small">
-        {STEPS.map((entry, index) => {
+        {steps.map((entry, index) => {
           const done = index < current
           const active = entry.id === step
           return (
@@ -777,7 +784,7 @@ function Stepper({ step, onJump }: { step: Step; onJump: (step: Step) => void })
         })}
       </ol>
       <p className="sr-only" aria-live="polite">
-        Step {current + 1} of {STEPS.length}: {STEPS[current].label}
+        Step {current + 1} of {steps.length}: {steps[current].label}
       </p>
     </nav>
   )
@@ -827,10 +834,54 @@ function SummaryRow({
   )
 }
 
-function LinkLike({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+function incomeNote(fuel: BillFuel): string {
+  return fuel === 'gas'
+    ? 'Your bill shows a discount rate. Mass Save confirms which rebates you qualify for.'
+    : 'Your bill shows a discount rate, so you likely qualify for enhanced rebates — Mass Save confirms.'
+}
+
+function BillSlot({
+  title,
+  done,
+  byHand,
+  onByHand,
+  onUndoByHand,
+  byHandLabel,
+  byHandNote,
+  children,
+}: {
+  title: string
+  done: boolean
+  byHand: boolean
+  onByHand: () => void
+  onUndoByHand: () => void
+  byHandLabel: string
+  byHandNote: string
+  children: React.ReactNode
+}) {
   return (
-    <button type="button" onClick={onClick} className="text-micro text-ink-muted underline">
-      {children}
-    </button>
+    <div className="grid gap-3">
+      <h3 className="flex items-center gap-2 text-small font-medium">
+        {title}
+        {done ? <span className="text-micro text-switch">✓ in</span> : null}
+      </h3>
+      {byHand ? (
+        <p className="text-micro text-ink-muted">
+          {byHandNote}{' '}
+          <button type="button" onClick={onUndoByHand} className="underline">
+            Upload a bill instead
+          </button>
+        </p>
+      ) : (
+        <>
+          {children}
+          {!done ? (
+            <button type="button" onClick={onByHand} className="justify-self-start text-micro text-ink-muted underline">
+              {byHandLabel}
+            </button>
+          ) : null}
+        </>
+      )}
+    </div>
   )
 }

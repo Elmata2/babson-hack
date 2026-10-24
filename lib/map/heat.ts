@@ -56,6 +56,9 @@ export const CLIFF_USD_PER_HOME = CAP_2026 - CAP_2027
 /** The two caps, for the sentence that explains where the delta came from. */
 export const CLIFF_CAPS = { 2026: CAP_2026, 2027: CAP_2027 } as const
 
+/** The most a home loses by installing in 2027 instead of 2026, and why smaller systems lose less. */
+export const CLIFF_NOTE = `Up to ${money(CAP_2026 - CAP_2027)} per oil-heated home: the 2026 cap minus the 2027 cap. Smaller systems lose less.`
+
 /** Provenance for the cliff, rendered next to the dollars. */
 export const CLIFF_SOURCE = `Mass Save whole-home cap ${money(CAP_2026)} → ${money(CAP_2027)} on Jan 1 · read ${HEAT_PUMP_RULES_2026.source.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? '2026'}`
 
@@ -81,15 +84,15 @@ export const HEAT_METRIC_LABEL: Record<HeatMetric, string> = {
   oil_share: 'Oil share',
   oil_spend: 'Oil spend',
   cliff_homes: 'Homes on the cliff',
-  cliff_dollars: 'Cliff dollars',
+  cliff_dollars: 'Most you could lose',
 }
 
 /** One line under the switcher, so the metric is not a mystery. */
 export const HEAT_METRIC_HINT: Record<HeatMetric, string> = {
   oil_share: 'Share of occupied homes that heat with oil. ACS B25040.',
   oil_spend: `Dollars leaving the neighbourhood on heating oil at the week-of-${OIL_PRICE_AS_OF} DOER price.`,
-  cliff_homes: 'Households that would lose the $1,000 if they waited for 2027.',
-  cliff_dollars: 'The same households, in dollars: the number that ends the pitch.',
+  cliff_homes: 'Oil-heated households that lose up to $1,000 each if they install in 2027 instead of 2026.',
+  cliff_dollars: 'The same households, in dollars: the most they lose together if they wait until 2027.',
 }
 
 /** Class breaks per metric. Four breaks make the five-step ramp in `palette.ts`. */
@@ -221,13 +224,13 @@ export function heatScale(metric: HeatMetric, year: HeatYear): HeatScale {
           property: 'cliffDollars2027',
           breaks: BREAKS.cliff_dollars,
           labels: LABELS.cliff_dollars,
-          note: 'Dollars lost on Jan 1: oil-heated homes × the step-down.',
+          note: 'Up to this much lost on Jan 1 if these homes wait until 2027: oil-heated homes × at most $1,000.',
         }
       : {
           property: 'cliffHomes2026',
           breaks: HOMES_BREAKS,
           labels: HOMES_LABELS,
-          note: 'Homes that lose the step-down if they wait for 2027. Nothing is lost yet.',
+          note: 'Homes that lose up to $1,000 each if they wait for 2027. Nothing is lost yet.',
         }
   }
   if (metric === 'cliff_homes') {
@@ -376,7 +379,7 @@ export function headline(year: HeatYear): { dollars: number; homes: number; text
   return {
     dollars,
     homes,
-    text: year === 2027 ? `${formatMillions(dollars)} lost on Jan 1` : '$0 lost',
+    text: year === 2027 ? `up to ${formatMillions(dollars)} lost on Jan 1 if these homes wait until 2027` : '$0 lost',
   }
 }
 
@@ -584,7 +587,7 @@ export function oilSpendSentence(row: HeatRow): string {
 
 /** The cliff sentence, with the caps it came from. */
 export function cliffSentence(row: HeatRow): string {
-  return `${money(row.cliffDollars)} lost on Jan 1 (${row.cliffHomes.toLocaleString('en-US')} oil-heated ${
+  return `Up to ${money(row.cliffDollars)} lost on Jan 1 if these homes wait until 2027 (${row.cliffHomes.toLocaleString('en-US')} oil-heated ${
     row.cliffHomes === 1 ? 'home' : 'homes'
-  } × ${money(CLIFF_USD_PER_HOME)})`
+  } × up to ${money(CLIFF_USD_PER_HOME)})`
 }

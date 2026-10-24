@@ -9,9 +9,8 @@ const q = (s: string) => parseNextStepsQuery(new URLSearchParams(s))
 
 describe('next-steps query', () => {
   it('parses the verdict hand-off', () => {
-    expect(q('town=Worcester&next=1&fuel=oil&save=1240&back=%2Fverdict%3Ffuel%3Doil')).toEqual({
+    expect(q('town=Worcester&fuel=oil&save=1240&back=%2Fverdict%3Ffuel%3Doil')).toEqual({
       town: 'Worcester',
-      next: true,
       fuel: 'oil',
       saveUsd: 1240,
       back: '/verdict?fuel=oil',
@@ -19,10 +18,10 @@ describe('next-steps query', () => {
   })
   it('accepts a negative save and an empty query', () => {
     expect(q('save=-300').saveUsd).toBe(-300)
-    expect(q('')).toEqual({ town: null, next: false, fuel: null, saveUsd: null, back: null })
+    expect(q('')).toEqual({ town: null, fuel: null, saveUsd: null, back: null })
   })
   it('drops junk values', () => {
-    expect(q('town=<script>&next=yes&fuel=coal&save=1e9&back=x')).toEqual({ town: null, next: false, fuel: null, saveUsd: null, back: null })
+    expect(q('town=<script>&fuel=coal&save=1e9&back=x')).toEqual({ town: null, fuel: null, saveUsd: null, back: null })
     expect(q('save=12.5').saveUsd).toBeNull()
     expect(q('save=99999999').saveUsd).toBeNull()
     expect(q(`town=${'a'.repeat(80)}`).town).toBeNull()

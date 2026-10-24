@@ -103,6 +103,8 @@ export interface BillUploadProps {
    * A demo affordance only: they travel the same `read()` path as a real photo.
    */
   samples?: readonly BillSampleSource[]
+  /** Offer the nested "+ Add your electric bill" after a heating bill. Default true. */
+  offerElectric?: boolean
 }
 
 /** Dotted outline + "check?" on a field that still needs a human. */
@@ -110,7 +112,7 @@ function fieldShell(needsCheck: boolean): string {
   return needsCheck ? 'rounded-card border border-dotted border-deadline bg-deadline-tint/40 p-2' : 'p-2'
 }
 
-export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'heating', samples = [] }: BillUploadProps) {
+export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'heating', samples = [], offerElectric = true }: BillUploadProps) {
   const cameraInput = useRef<HTMLInputElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<Status>('idle')
@@ -550,7 +552,7 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
             )}
           </div>
 
-          {applied !== 'no' && !electricInstance && role === 'heating' ? (
+          {offerElectric && applied !== 'no' && !electricInstance && role === 'heating' ? (
             showElectric ? (
               <BillUpload expect="electricity" heating={false} countyFips={countyFips} onApply={onApply} onUndo={onUndo} samples={samples} />
             ) : (

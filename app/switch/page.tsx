@@ -3,11 +3,15 @@ import Link from 'next/link'
 
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
+import { RecommendationCard } from '@/components/verdict/recommendation-card'
 import { SwitchFlow } from '@/components/switch/switch-flow'
 import { demoFromParams, withDemo } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
 import { buildSwitchModel } from '@/lib/switch/model'
+import { buildOptionInput } from '@/lib/switch/option-input'
 import { loadProviders, outreachPlan } from '@/lib/switch/providers'
+import { parseSwitchChoice } from '@/lib/switch/types'
+import { recommend } from '@/lib/verdict/recommendation'
 
 /**
  * @built F-148 `/switch` — Addendum B's best-case and switch steps, on the verdict's own query
@@ -36,6 +40,10 @@ interface SwitchPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value
+}
+
 export default async function SwitchPage({ searchParams }: SwitchPageProps) {
   const params = await searchParams
   const demo = demoFromParams(params)
@@ -43,6 +51,9 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
   const model = buildSwitchModel(params, prices)
   const providers = loadProviders()
   const plan = outreachPlan(providers)
+  const choice = parseSwitchChoice(first(params.choice))
+  const entryChoice = choice && model.choices.includes(choice) ? choice : null
+  const optionInput = buildOptionInput(model, providers, plan)
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -72,14 +83,23 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
             The verdict is the easy part.
           </h1>
           <p className="mt-3 max-w-[64ch] text-lede text-ink-muted">
-            Each option says why you would pick it and who does the work. Every price carries its source and its
-            date, nothing is preselected, and no provider hears anything until you read exactly what would be said
-            and confirm.
+            Every price carries its source and its date, and no provider hears anything until you read exactly what
+            would be said and confirm.
           </p>
 
           <div className="mt-10">
-            {model.ready && model.result ? (
-              <SwitchFlow model={model} providers={providers} plan={plan} />
+            {model.ready && model.result && entryChoice ? (
+              <SwitchFlow
+                model={model}
+                providers={providers}
+                plan={plan}
+                entry={{ choice: entryChoice, kit: first(params.mode) === 'kit' }}
+              />
+            ) : model.ready && optionInput ? (
+              <RecommendationCard
+                recommendation={recommend({ option: optionInput, choices: model.choices, query: model.query })}
+                demo={demo}
+              />
             ) : (
               <section className="rounded-card border border-rule bg-surface p-6">
                 <h2 className="text-title font-medium">The switch screen starts with a verdict.</h2>

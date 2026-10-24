@@ -13,6 +13,12 @@
  * and nothing else.
  */
 
+import { matchTown } from '../address/nominatim'
+import { parseBillUtility } from '../intake/params'
+import type { BillApplied, BillRole, BillUtility } from '../parse/contract'
+import { resolveUtility } from '../utility'
+import type { BillFuel } from '../parse/types'
+
 export interface Profile {
   name: string
   email: string
@@ -79,28 +85,150 @@ export type Step = 'account' | 'bill' | 'details' | 'review'
 export interface StepMeta {
   id: Step
   label: string
-  /** The sentence above the heading, so the person knows where they are. */
-  eyebrow: string
 }
 
 export const STEPS: readonly StepMeta[] = [
-  { id: 'account', label: 'Your profile', eyebrow: 'Step one of four' },
-  { id: 'bill', label: 'Your bill', eyebrow: 'Step two of four' },
-  { id: 'details', label: 'Your house', eyebrow: 'Step three of four' },
-  { id: 'review', label: 'Review', eyebrow: 'Step four of four' },
+  { id: 'account', label: 'Your profile' },
+  { id: 'bill', label: 'Your bills' },
+  { id: 'details', label: 'Your house' },
+  { id: 'review', label: 'Review' },
 ]
 
-export function stepIndex(step: Step): number {
-  const index = STEPS.findIndex((entry) => entry.id === step)
-  return index === -1 ? 0 : index
+/** The steps a household walks: the house step drops out when the bills answered everything. */
+export function visibleSteps(detailsNeeded: boolean): readonly StepMeta[] {
+  return detailsNeeded ? STEPS : STEPS.filter((entry) => entry.id !== 'details')
 }
 
-export function nextStep(step: Step): Step {
-  return STEPS[Math.min(STEPS.length - 1, stepIndex(step) + 1)].id
+export function eyebrowFor(step: Step, detailsNeeded: boolean): string {
+  const steps = visibleSteps(detailsNeeded)
+  const index = Math.max(0, steps.findIndex((entry) => entry.id === step))
+  return `Step ${index + 1} of ${steps.length}`
 }
 
-export function previousStep(step: Step): Step {
-  return STEPS[Math.max(0, stepIndex(step) - 1)].id
+export function nextStep(step: Step, detailsNeeded = true): Step {
+  const steps = visibleSteps(detailsNeeded)
+  const index = Math.max(0, steps.findIndex((entry) => entry.id === step))
+  return steps[Math.min(steps.length - 1, index + 1)].id
+}
+
+export function previousStep(step: Step, detailsNeeded = true): Step {
+  const steps = visibleSteps(detailsNeeded)
+  const index = Math.max(0, steps.findIndex((entry) => entry.id === step))
+  return steps[Math.max(0, index - 1)].id
+}
+
+// --------------------------------------------------------------------- bills
+
+export interface BillSlots {
+  heating: BillApplied | null
+  electricity: BillApplied | null
+  heatingByHand: boolean
+  electricityByHand: boolean
+}
+
+/** Both bills are in, each either read and confirmed or entered by hand. */
+export function billsReady(slots: BillSlots): boolean {
+  return (slots.heating !== null || slots.heatingByHand) && (slots.electricity !== null || slots.electricityByHand)
+}
+
+/** The service town the bills printed, matched to the 351; the electric bill wins. */
+export function serviceTownFrom(
+  bills: readonly (Pick<BillApplied, 'serviceTown'> | null)[],
+  towns: readonly string[],
+): string | null {
+  for (const bill of bills) {
+    const matched = matchTown(bill?.serviceTown, towns)
+    if (matched) return matched
+  }
+  return null
+}
+
+/** The heating fuel the heating bill proves, or null when it has to be asked. */
+export function fuelFromBill(heating: Pick<BillApplied, 'fuel'> | null): BillFuel | null {
+  return heating?.fuel ?? null
+}
+
+/** True when either bill carries the discount-rate signal (R-2/R-4 or a discount line). */
+export function lowIncomeDetected(bills: readonly (Pick<BillApplied, 'lowIncomeSignal'> | null)[]): boolean {
+  return bills.some((bill) => bill?.lowIncomeSignal === true)
+}
+
+/** `true` when a bill was read and showed no discount, `null` when nothing was read. */
+export function lowIncomeFlag(bills: readonly (Pick<BillApplied, 'lowIncomeSignal'> | null)[]): boolean | null {
+  if (lowIncomeDetected(bills)) return true
+  return bills.some((bill) => bill !== null) ? false : null
+}
+
+const DEALERS: readonly BillUtility[] = ['oil_dealer', 'propane_dealer']
+
+/** True when exactly one sponsor serves the town, so a gas bill's utility cannot name the wrong electric sponsor. */
+export function hasSingleSponsor(town: string): boolean {
+  const resolution = resolveUtility(town)
+  return resolution.found && !resolution.mixed && resolution.sponsors.length === 1
+}
+
+/**
+ * The electric utility in canonical form (`national_grid`), from the electric bill.
+ * The heating bill's utility is used only when no electric bill was read and the town has one sponsor.
+ */
+export function pickUtility(
+  electric: Pick<BillApplied, 'utility'> | null,
+  heating: Pick<BillApplied, 'utility'> | null,
+  singleSponsorTown = false,
+): BillUtility | null {
+  if (electric) return parseBillUtility(electric.utility)
+  const fromHeating = parseBillUtility(heating?.utility)
+  return singleSponsorTown && fromHeating && !DEALERS.includes(fromHeating) ? fromHeating : null
+}
+
+export interface TownMismatch {
+  used: string
+  other: string
+}
+
+/** Both bills named a town and they differ: the electric bill's wins. */
+export function townMismatch(
+  electric: Pick<BillApplied, 'serviceTown'> | null,
+  heating: Pick<BillApplied, 'serviceTown'> | null,
+  towns: readonly string[],
+): TownMismatch | null {
+  const used = matchTown(electric?.serviceTown, towns)
+  const other = matchTown(heating?.serviceTown, towns)
+  return used && other && used !== other ? { used, other } : null
+}
+
+/** What to say when a bill landed in the other slot, or null when it fit. */
+export function misplacedBillNote(slot: BillRole, actual: BillRole): string | null {
+  if (slot === actual) return null
+  return actual === 'electricity'
+    ? 'That looks like an electric bill — we put it in slot 1.'
+    : 'That looks like a heating bill — we put it in slot 2.'
+}
+
+export interface DetailsNeeds {
+  town: boolean
+  fuel: boolean
+  numbers: boolean
+  income: boolean
+}
+
+/** What the bills did not answer. Every key false means the house step is skipped. */
+export function detailsNeeds(input: {
+  townRead: boolean
+  heating: BillApplied | null
+  incomeDetected: boolean
+  numbersReady: boolean
+}): DetailsNeeds {
+  return {
+    town: !input.townRead,
+    fuel: fuelFromBill(input.heating) === null,
+    numbers: input.heating === null || !input.numbersReady,
+    income: !input.incomeDetected,
+  }
+}
+
+export function anyDetailsNeeded(needs: DetailsNeeds): boolean {
+  return needs.town || needs.fuel || needs.numbers || needs.income
 }
 
 // ------------------------------------------------------------------- details

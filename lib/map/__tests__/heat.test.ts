@@ -16,6 +16,7 @@ import { tractsOfTown } from '@/lib/geo'
 import {
   ASSUMPTION_NOTE,
   CLIFF_CAPS,
+  CLIFF_NOTE,
   CLIFF_SOURCE,
   CLIFF_USD_PER_HOME,
   GAL_PER_HOUSEHOLD,
@@ -179,8 +180,14 @@ describe('the scrubber delta', () => {
 
     const after = headline(2027)
     expect(after.dollars).toBeGreaterThan(100_000_000)
-    expect(after.text).toMatch(/^\$[\d.]+M lost on Jan 1$/)
+    expect(after.text).toMatch(/^up to \$[\d.]+M lost on Jan 1 if these homes wait until 2027$/)
     expect(after.homes).toBeGreaterThan(100_000)
+  })
+
+  it('labels the cliff as the most a home loses, not a certain loss', () => {
+    expect(CLIFF_NOTE).toBe(
+      'Up to $1,000 per oil-heated home: the 2026 cap minus the 2027 cap. Smaller systems lose less.',
+    )
   })
 
   it('is exactly the cohort times the step-down', () => {

@@ -11,7 +11,7 @@
  * @built F-48 the static SVG fallback and the tile-failure path
  * @built F-71 lenses (Energy | Heat), camera
  * @built F-72 Energy lens: 3D town columns, timeline, polar clock
- * @built F-75 Energy lens on real usage, solar and zonal load data
+ * @built F-75 Energy lens on real usage and solar data
  *
  * One map instance, two lenses. A lens is a basemap plus the sources and layers
  * in `layers.ts`; switching calls `setStyle(url, { diff: false })`, which drops every
@@ -24,14 +24,12 @@ import maplibregl, { type Map as MlMap, type MapMouseEvent } from 'maplibre-gl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BillPanel } from './bill-panel'
 import { CameraControls, prefersReducedMotion, useCamera } from './camera-controls'
-import { GridPanel } from './grid-panel'
 import { HeatControls, HeatHeadline } from './heat-controls'
 import { HeatStatic } from './heat-static'
 import { HeatTable } from './heat-table'
 import { applyLens, HIT_LAYERS, LENS_BG, STYLE_URL, type LensState } from './layers'
 import { loadTowns, loadTracts, townAtPoint, type TownData, type TractData } from './map-data'
 import { PROVIDER_COLOUR } from './palette'
-import { NextStepsPanel } from './next-steps-panel'
 import { ProfileDrawer } from './profile-drawer'
 import { Search, type SearchResult } from './search'
 import { TownPanel } from './town-panel'
@@ -45,7 +43,6 @@ import {
   METRIC_LABEL,
   ZONE_LABEL,
   describeTown,
-  hourLabel,
   sourceLine,
   type Metric,
   type Zone,
@@ -61,7 +58,7 @@ import {
   type HeatYear,
 } from '@/lib/map/heat'
 
-type Tab = 'town' | 'bill' | 'next'
+type Tab = 'town' | 'bill'
 
 const STATE_CENTER: [number, number] = [-71.75, 42.2]
 const STATE_ZOOM = 7.2
@@ -96,10 +93,7 @@ export default function MapView() {
   const [fallback, setFallback] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [selectedTract, setSelectedTract] = useState<string | null>(null)
-  const [hour, setHour] = useState(18)
-  const [playing, setPlaying] = useState(false)
   const [metric, setMetric] = useState<Metric>('usage')
-  const [day, setDay] = useState<string | null>(null)
   const [colourBy, setColourBy] = useState<'provider' | 'intensity'>('provider')
   const [region, setRegion] = useState<Zone | 'ALL'>('ALL')
   const [showSolar, setShowSolar] = useState(false)
@@ -340,7 +334,7 @@ export default function MapView() {
         line(`${oilHouseholds.toLocaleString('en-US')} oil-heated households`)
         // R10.3 plus the design's transparency rule: the spend carries its assumption.
         line(`Spend ${formatMillions(oilSpendFor(oilHouseholds))}/yr (${ASSUMPTION_NOTE}, DOER ${OIL_PRICE_AS_OF})`)
-        line(`Lost on Jan 1, 2027: ${formatMillions(cliffDollarsFor(oilHouseholds))}`)
+        line(`Up to ${formatMillions(cliffDollarsFor(oilHouseholds))} lost if they wait until 2027`)
       } else {
         const entry = towns?.byKey.get(String(p.key))
         if (!entry) return
@@ -364,10 +358,10 @@ export default function MapView() {
   })
 
   const focusTown = useCallback(
-    (entry: TownData['entries'][number], next: Tab) => {
+    (entry: TownData['entries'][number]) => {
       selectTown(entry.key)
       dropPin(entry.anchor)
-      setTab(next)
+      setTab('town')
       const [w, s, e, n] = entry.bbox
       const cx = (w + e) / 2
       const cy = (s + n) / 2
@@ -386,18 +380,13 @@ export default function MapView() {
     if (fromQuery) {
       homeFocused.current = true
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      focusTown(fromQuery, query.next ? 'next' : 'town')
-      return
-    }
-    if (query.next || query.town) {
-      homeFocused.current = true
-      setTab('next')
+      focusTown(fromQuery)
       return
     }
     const home = profile.town ? (towns.byKey.get(townKey(profile.town)) ?? null) : null
     if (!home) return
     homeFocused.current = true
-    focusTown(home, 'town')
+    focusTown(home)
   }, [ready, towns, query, profile.town, focusTown])
 
   // ------------------------------------------------------------------ map lifecycle
@@ -526,43 +515,13 @@ export default function MapView() {
     if (map && ready && styleLens.current === lens) applyLens(map, lensState)
   }, [lensState, ready, lens])
 
-  // ------------------------------------------------------------------ timeline
-  useEffect(() => {
-    if (!playing || lens !== 'energy') return
-    const t = setInterval(() => setHour((h) => (h + 1) % 24), 600)
-    return () => clearInterval(t)
-  }, [playing, lens])
-
   // ------------------------------------------------------------------ derived
-  const gridTowns = useMemo(() => {
-    if (!towns) return []
-    if (selectedEntry) return [selectedEntry.energy]
-    return towns.entries.map((e) => e.energy).filter((t) => region === 'ALL' || t.zone === region)
-  }, [towns, selectedEntry, region])
-
-  const days = towns?.baked._meta.sources.load.days ?? []
-  const activeDay = day ?? days[0]
   const energy = lens === 'energy'
-  const grid =
-    towns && activeDay && gridTowns.length > 0 ? (
-      <GridPanel
-        towns={gridTowns}
-        baked={towns.baked}
-        day={activeDay}
-        days={days}
-        onDay={setDay}
-        scopeLabel={selectedName ?? 'Massachusetts'}
-        region={region}
-        hour={hour}
-        isTown={selectedEntry !== null}
-      />
-    ) : null
-  const vars = { '--mb': energy ? '124px' : '36px', '--cb': energy ? '112px' : '40px' } as React.CSSProperties
-
+  const yourKwh = profile.kwhIsExample || !(profile.kwh > 0) ? null : profile.kwh
   return (
     <div
       className="absolute inset-0 overflow-hidden [&_.maplibregl-ctrl-top-right]:top-[11rem] lg:[&_.maplibregl-ctrl-top-right]:top-3 lg:[&_.maplibregl-ctrl-top-right]:right-[360px]"
-      style={{ background: LENS_BG[lens], ...vars }}
+      style={{ background: LENS_BG[lens] }}
     >
       <div className={`absolute inset-0 transition-opacity duration-300 motion-reduce:transition-none ${swapping ? 'opacity-0' : 'opacity-100'}`}>
         {/* MapLibre sets position: relative on its container, so size it with height/width, not inset. */}
@@ -581,7 +540,7 @@ export default function MapView() {
             My home{profile.town ? ` · ${profile.town}` : ''}
           </button>
 
-          <Search knownTown={selectedName ?? (profile.town || null)} townAt={townAt} onResult={onResult} onUseHome={onUseHome} />
+          <Search knownTown={selectedName ?? (profile.town || null)} initialQuery={profile.address || profile.town} townAt={townAt} onResult={onResult} onUseHome={onUseHome} />
 
           <div>
             <p className="text-micro font-medium text-ink" id="lens-label">
@@ -661,7 +620,7 @@ export default function MapView() {
       </div>
 
       {/* Right panel */}
-      <div className="pointer-events-none absolute inset-x-3 bottom-[var(--mb)] z-10 max-h-[40%] lg:inset-x-auto lg:bottom-9 lg:right-3 lg:top-3 lg:max-h-none lg:w-[340px]">
+      <div className="pointer-events-none absolute inset-x-3 bottom-9 z-10 max-h-[40%] lg:inset-x-auto lg:bottom-9 lg:right-3 lg:top-3 lg:max-h-none lg:w-[340px]">
         <div className="pointer-events-auto flex max-h-full flex-col overflow-hidden rounded-card border border-rule bg-surface/95 shadow-sm backdrop-blur-sm">
           <Tabs tab={tab} onTab={setTab} />
           <div
@@ -677,7 +636,12 @@ export default function MapView() {
                 town={selectedName}
                 tract={selectedTract}
                 onClearTract={() => setSelectedTract(null)}
-                grid={grid}
+                energy={selectedEntry?.energy ?? null}
+                meta={towns?.baked._meta ?? null}
+                yourKwh={yourKwh}
+                onEditProfile={() => setDrawerOpen(true)}
+                backHref={query.back}
+                lens={lens}
                 ejOn={ejOn}
                 year={heatYear}
               />
@@ -693,43 +657,18 @@ export default function MapView() {
           >
             {tab === 'bill' ? <BillPanel profile={profile} onEditProfile={() => setDrawerOpen(true)} /> : null}
           </div>
-          <div
-            role="tabpanel"
-            id="panel-next"
-            aria-labelledby="tab-next"
-            tabIndex={0}
-            hidden={tab !== 'next'}
-            className="min-h-0 flex-1 overflow-y-auto p-4"
-          >
-            {tab === 'next' ? (
-              <NextStepsPanel
-                town={selectedName}
-                energy={selectedEntry?.energy ?? null}
-                meta={towns?.baked._meta ?? null}
-                profile={profile}
-                query={query}
-                onEditProfile={() => setDrawerOpen(true)}
-              />
-            ) : null}
-          </div>
         </div>
       </div>
 
       {/* Camera */}
-      <div className="pointer-events-none absolute bottom-[var(--cb)] left-1/2 z-10 hidden -translate-x-1/2 lg:block">
+      <div className="pointer-events-none absolute bottom-10 left-1/2 z-10 hidden -translate-x-1/2 lg:block">
         <CameraControls camera={camera} ready={ready} onReset={resetView} />
       </div>
 
-      {/* Energy: note and timeline */}
-      {energy ? (
-        <>
-          {towns && activeDay ? (
-            <p className="absolute left-3 bottom-[88px] z-10 rounded-md bg-surface/95 px-2.5 py-1 text-micro text-ink-muted shadow-sm lg:bottom-auto lg:left-1/2 lg:top-3 lg:-translate-x-1/2">
-              {sourceLine(towns.baked._meta, activeDay)}
-            </p>
-          ) : null}
-          <Timeline hour={hour} playing={playing} onHour={(h) => { setPlaying(false); setHour(h) }} onPlay={() => setPlaying((p) => !p)} ready={ready} />
-        </>
+      {energy && towns ? (
+        <p className="absolute left-3 hidden z-10 rounded-md bg-surface/95 px-2.5 py-1 text-micro text-ink-muted shadow-sm lg:block lg:left-1/2 lg:top-3 lg:-translate-x-1/2">
+          {sourceLine(towns.baked._meta)}
+        </p>
       ) : null}
 
       {lens === 'heat' ? (
@@ -768,13 +707,12 @@ function Tabs({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'town', label: 'Town' },
     { id: 'bill', label: 'Your bill' },
-    { id: 'next', label: 'Next steps' },
   ]
   return (
     <div
       role="tablist"
       aria-label="Panel"
-      className="grid grid-cols-3 border-b border-rule"
+      className="grid grid-cols-2 border-b border-rule"
       onKeyDown={(e) => {
         const i = tabs.findIndex((t) => t.id === tab)
         const n = tabs.length
@@ -889,50 +827,3 @@ function EnergyOptions(props: {
     </div>
   )
 }
-
-function Timeline({
-  hour,
-  playing,
-  onHour,
-  onPlay,
-  ready,
-}: {
-  hour: number
-  playing: boolean
-  onHour: (h: number) => void
-  onPlay: () => void
-  ready: boolean
-}) {
-  return (
-    <div
-      role="group"
-      aria-label="Hour of day"
-      className="absolute inset-x-3 bottom-9 z-10 flex items-center gap-0.5 rounded-card border border-rule bg-surface/95 p-2 shadow-sm backdrop-blur-sm lg:left-[324px] lg:right-[364px]"
-    >
-      <button
-        type="button"
-        onClick={onPlay}
-        disabled={!ready}
-        aria-label={playing ? 'Pause' : 'Play'}
-        className="h-8 w-9 shrink-0 rounded-md text-small text-ink transition-colors hover:bg-paper-sunk disabled:opacity-50"
-      >
-        {playing ? '❚❚' : '▶'}
-      </button>
-      {Array.from({ length: 24 }, (_, h) => (
-        <button
-          key={h}
-          type="button"
-          aria-pressed={hour === h}
-          aria-label={hourLabel(h)}
-          title={hourLabel(h)}
-          onClick={() => onHour(h)}
-          className="flex h-9 min-w-0 flex-1 flex-col items-center justify-end gap-1 rounded-md pb-1 text-micro text-ink-muted transition-colors hover:bg-paper-sunk aria-pressed:bg-ink aria-pressed:text-paper"
-        >
-          <span className="h-3 leading-3">{h % 3 === 0 ? (h === 0 ? '12a' : h === 12 ? '12p' : h % 12) : ''}</span>
-          <i aria-hidden className={`block w-px bg-current opacity-50 ${h % 3 === 0 ? 'h-1.5' : 'h-1'}`} />
-        </button>
-      ))}
-    </div>
-  )
-}
-

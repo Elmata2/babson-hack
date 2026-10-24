@@ -4,15 +4,14 @@ import { describe, expect, it } from 'vitest'
 import type { SponsorKey } from '@/lib/elec-label'
 import {
   buildEnergyTowns,
-  dayLabel,
+  averageHomeKwh,
+  compareSentence,
   describeTown,
   formatMWh,
   metricMax,
   metricValue,
   sourceLine,
-  totalsOf,
   usageNote,
-  zoneLoad,
   type BakedEnergy,
   type TownInput,
 } from '../energy-model'
@@ -30,13 +29,12 @@ const csvRows = (path: string) => {
 const FIXTURE: BakedEnergy = {
   _meta: BAKED._meta,
   towns: {
-    ALPHA: { residentialMWh: 1000, incentivesUsd: 50000, usageStatus: 'reported', solarMW: 2, solarSystems: 10 },
-    BETA: { residentialMWh: 3000, incentivesUsd: 90000, usageStatus: 'reported', solarMW: 5, solarSystems: 30 },
-    GAMMA: { residentialMWh: null, incentivesUsd: null, usageStatus: 'municipal', solarMW: 1, solarSystems: 4 },
-    DELTA: { residentialMWh: null, incentivesUsd: null, usageStatus: 'suppressed', solarMW: 0.5, solarSystems: 2 },
-    EPSILON: { residentialMWh: 500, incentivesUsd: null, usageStatus: 'reported', solarMW: 0, solarSystems: 0 },
+    ALPHA: { residentialMWh: 1000, incentivesUsd: 50000, households: 2000, usageStatus: 'reported', solarMW: 2, solarSystems: 10 },
+    BETA: { residentialMWh: 3000, incentivesUsd: 90000, households: 4000, usageStatus: 'reported', solarMW: 5, solarSystems: 30 },
+    GAMMA: { residentialMWh: null, incentivesUsd: null, households: 800, usageStatus: 'municipal', solarMW: 1, solarSystems: 4 },
+    DELTA: { residentialMWh: null, incentivesUsd: null, households: 300, usageStatus: 'suppressed', solarMW: 0.5, solarSystems: 2 },
+    EPSILON: { residentialMWh: 500, incentivesUsd: null, households: 100, usageStatus: 'reported', solarMW: 0, solarSystems: 0 },
   },
-  load: {},
 }
 const SPONSORS: Record<string, SponsorKey[]> = {
   ALPHA: ['eversource'],
@@ -135,62 +133,31 @@ describe('energy model', () => {
     expect(metricMax(TOWNS, 'solar')).toBe(5)
   })
 
-  it('totals only reported towns and counts them', () => {
-    const t = totalsOf(TOWNS)
-    expect(t.residentialMWh).toBe(4500)
-    expect([t.reportedTowns, t.townCount]).toEqual([3, 5])
-    expect(t.solarMW).toBeCloseTo(8.5, 9)
-    expect(t.solarSystems).toBe(46)
+  it('averages monthly kWh per household as MWh x 1000 / households / 12', () => {
+    expect(averageHomeKwh(byName('ALPHA'))).toEqual({ status: 'ok', kwhPerMonth: (1000 * 1000) / 2000 / 12, households: 2000 })
   })
 
-  it('keeps a mixed town in its own bucket and labels an unserved town as unknown', () => {
-    const t = totalsOf(TOWNS)
-    expect(byName('BETA').provider).toBe('mixed')
-    expect(t.byProvider).toEqual({ eversource: 1000, mixed: 3000, other: 500 })
-    expect(Object.values(t.byProvider).reduce((s, v) => s + v, 0)).toBe(t.residentialMWh)
-  })
-})
-
-describe('zone load', () => {
-  const days = BAKED._meta.sources.load.days
-
-  it('has 24 positive hours per zone on both days', () => {
-    expect(days).toEqual(['2026-01-15', '2026-07-15'])
-    for (const day of days) {
-      for (const zone of ['NEMA', 'SEMA', 'WCMA'] as const) {
-        const series = zoneLoad(BAKED, day, zone)
-        expect(series).toHaveLength(24)
-        for (const mw of series) expect(mw).toBeGreaterThan(0)
-      }
-    }
+  it('hides the average for municipal, suppressed and mixed-utility towns, with the reason', () => {
+    expect(averageHomeKwh(byName('GAMMA'))).toMatchObject({ status: 'hidden', reason: expect.stringMatching(/municipal light plant/) })
+    expect(averageHomeKwh(byName('DELTA'))).toMatchObject({ status: 'hidden', reason: expect.stringMatching(/suppressed/) })
+    expect(averageHomeKwh(byName('BETA'))).toMatchObject({ status: 'hidden', reason: expect.stringMatching(/more than one utility/) })
   })
 
-  it('sums the three zones for statewide', () => {
-    const [nema, sema, wcma, all] = (['NEMA', 'SEMA', 'WCMA', 'ALL'] as const).map((z) => zoneLoad(BAKED, days[0], z))
-    all.forEach((mw, h) => expect(mw).toBe(nema[h] + sema[h] + wcma[h]))
+  it('words the comparison plainly', () => {
+    expect(compareSentence(600, 500, 'Worcester')).toBe('You use roughly 20% more than the average home in Worcester.')
+    expect(compareSentence(400, 500, 'Worcester')).toBe('You use roughly 20% less than the average home in Worcester.')
+    expect(compareSentence(505, 500, 'Worcester')).toBe('You use about the same as the average home in Worcester.')
   })
 
-  it('reads hour ending 1 AM first, from the source rows', () => {
-    const row = csvRows('data/sources/energy/load/load.csv').find((r) => r.date === days[0] && r.zone === 'NEMASSBOST' && r.hour === '1')!
-    expect(zoneLoad(BAKED, days[0], 'NEMA')[0]).toBe(Number(row.mw))
-  })
-
-  it('shows more load on a winter evening than the summer day has at 3 AM', () => {
-    expect(Math.max(...zoneLoad(BAKED, days[0], 'ALL'))).toBeGreaterThan(zoneLoad(BAKED, days[1], 'ALL')[2])
-  })
-
-  it('throws for a day that was not baked', () => {
-    expect(() => zoneLoad(BAKED, '2020-01-01', 'ALL')).toThrow(/2020-01-01/)
+  it('bakes a positive household count for every town', () => {
+    for (const [name, t] of Object.entries(BAKED.towns)) expect(Number.isInteger(t.households) && t.households > 0, name).toBe(true)
+    expect(BAKED._meta.sources.households.year).toBe(2023)
   })
 })
 
 describe('labels', () => {
-  it('builds the source line and day labels from _meta', () => {
-    expect(sourceLine(BAKED._meta, '2026-01-15')).toBe(
-      'Residential use: Mass Save, 2023 · Solar: MassCEC, Jan 2025 · Load: ISO-NE via EIA-930, Jan 15 2026',
-    )
-    expect(dayLabel('2026-01-15')).toBe('Winter · Jan 15 2026')
-    expect(dayLabel('2026-07-15')).toBe('Summer · Jul 15 2026')
+  it('builds the source line from _meta', () => {
+    expect(sourceLine(BAKED._meta)).toBe('Residential use: Mass Save, 2023 · Solar: MassCEC, Jan 2025')
   })
 
   it('formats energy by magnitude', () => {

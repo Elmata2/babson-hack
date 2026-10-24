@@ -14,6 +14,7 @@ import { HeatControls } from '@/components/map/heat-controls'
 import { HeatTable } from '@/components/map/heat-table'
 import { HeatStatic } from '@/components/map/heat-static'
 import { TownPanel } from '@/components/map/town-panel'
+import type { EnergyTown } from '@/lib/map/energy-model'
 
 const noop = () => {}
 
@@ -33,7 +34,8 @@ describe('the heat panels', () => {
       }),
     )
     expect(html).toContain('Install year')
-    expect(html).toContain('Cliff dollars')
+    expect(html).toContain('Most you could lose')
+    expect(html).toContain('Up to $1,000 per oil-heated home: the 2026 cap minus the 2027 cap. Smaller systems lose less.')
     expect(html).toContain('assumes 750 gal/household')
     // The dated DOER price keeps its cents: $6/gal would be a different number.
     expect(html).toContain('$6.23/gal')
@@ -74,7 +76,7 @@ describe('the heat panels', () => {
       createElement(TownPanel, { town: 'Wellesley', tract: '25017383402', onClearTract: noop, ejOn: true, year: 2027 }),
     )
     expect(html).toContain('Use this tract')
-    expect(html).toContain('Lost on Jan 1, 2027')
+    expect(html).toContain('Most lost on Jan 1, 2027')
     expect(html).toContain('Median year built')
     expect(html).toContain('assumes 750 gal/household')
     expect(html).toContain('Equity lens')
@@ -110,5 +112,61 @@ describe('the heat panels', () => {
       createElement(TownPanel, { town: 'Newton', tract: null, onClearTract: noop, ejOn: false, year: 2026 }),
     )
     expect(html).toContain('Eversource, a Mass Save sponsor')
+  })
+
+  it('compares your kWh with the average home in the town and hides the average where it means nothing', () => {
+    const baked = () =>
+      ({
+        sources: {
+          usage: { label: 'Mass Save', url: '', year: 2023, units: '', note: '' },
+          households: { label: 'Census ACS 5-year', url: '', year: 2023, period: '', units: '', note: '' },
+          solar: { label: 'MassCEC', url: '', asOf: '2025-01-14', units: '', note: '' },
+        },
+      }) as never
+    const energy = (usage: EnergyTown['usage'], sponsors: EnergyTown['sponsors']) =>
+      ({
+        source: 'WORCESTER',
+        town: 'Worcester',
+        county: 'Worcester',
+        centroid: [0, 0],
+        sponsors,
+        zone: 'WCMA',
+        mixed: sponsors.length > 1,
+        provider: sponsors[0],
+        usage,
+        solarMW: 40,
+        solarSystems: 2653,
+        incentivesUsd: 5915254,
+        households: 79089,
+      }) as EnergyTown
+    const render = (e: EnergyTown, yourKwh: number | null) =>
+      renderToStaticMarkup(
+        createElement(TownPanel, { town: 'Worcester', tract: null, onClearTract: noop, ejOn: false, year: 2026, energy: e, meta: baked(), yourKwh }),
+      )
+    const ok = render(energy({ status: 'reported', mwh: 406178 }, ['eversource']), 650)
+    expect(ok).toContain('You: 650 kWh/month')
+    expect(ok).toContain('Average home in Worcester: 428 kWh/month')
+    expect(ok).toContain('You use roughly 52% more than the average home in Worcester.')
+    expect(ok).toContain('Mass Save 2023 ÷ Census ACS 5-yr households')
+    expect(ok).toContain('A rough guide, not an exact average')
+    expect(ok).toContain('Towns with many apartments read low; towns with many seasonal homes read high.')
+    expect(ok).toContain('received $5,915,254')
+    const seasonal = render({ ...energy({ status: 'reported', mwh: 406178 }, ['eversource']), households: 20000 }, 650)
+    expect(seasonal).toContain('You: 650 kWh/month')
+    expect(seasonal).toContain('Average home in Worcester: 1,692 kWh/month')
+    expect(seasonal).toContain('Seasonal homes push this town&#x27;s average up, so compare loosely.')
+    expect(seasonal).not.toContain('You use')
+    expect(render(energy({ status: 'reported', mwh: 406178 }, ['eversource']), null)).toContain('Add your monthly kWh to compare')
+    expect(render(energy({ status: 'municipal' }, ['municipal']), 650)).toContain('no average home to compare')
+    expect(render(energy({ status: 'reported', mwh: 1 }, ['eversource', 'nationalgrid']), 650)).toContain('more than one utility')
+  })
+
+  it('offers the way back to the verdict and no grid clock', () => {
+    const html = renderToStaticMarkup(
+      createElement(TownPanel, { town: 'Newton', tract: null, onClearTract: noop, ejOn: false, year: 2026, backHref: '/verdict?fuel=propane' }),
+    )
+    expect(html).toContain('href="/verdict?fuel=propane"')
+    expect(html).toContain('← Back to your verdict')
+    expect(html).not.toContain('Grid')
   })
 })

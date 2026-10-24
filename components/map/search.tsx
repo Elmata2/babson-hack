@@ -26,6 +26,8 @@ export type SearchResult =
 interface Props {
   /** Town currently selected or saved as home, to detect a ZIP that spans towns. */
   knownTown: string | null
+  /** Shown in the field until the reader types: the profile address, or the town. */
+  initialQuery?: string
   /** Point-in-polygon fallback when the geocoder returns a town we don't know. */
   townAt: (lon: number, lat: number) => string | null
   onResult: (result: SearchResult) => void
@@ -56,10 +58,11 @@ export function suggestTowns(query: string): string[] {
   return [...starts, ...contains].slice(0, 6)
 }
 
-export function Search({ knownTown, townAt, onResult, onUseHome }: Props) {
+export function Search({ knownTown, initialQuery = '', townAt, onResult, onUseHome }: Props) {
   const id = useId()
   const listId = `${id}-list`
-  const [query, setQuery] = useState('')
+  const [typed, setQuery] = useState<string | null>(null)
+  const query = typed ?? initialQuery
   const [matches, setMatches] = useState<string[]>([])
   const [active, setActive] = useState(-1)
   const [status, setStatus] = useState<Status | null>(null)

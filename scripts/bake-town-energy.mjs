@@ -1,16 +1,18 @@
 /**
- * @built F-75 bake real per-town energy figures and zonal hourly load for the Energy lens
+ * @built F-75 bake real per-town energy figures, households and zonal hourly load
  *
  * Joins three public datasets to the 351 town polygons the map already draws:
+ *   households  ACS 2019-2023 5-year table B11001, county subdivisions (…/households)
  *   usage  Mass Save "Town-by-Town Savings in 2023", residential MWh (data/sources/energy/usage)
  *   solar  MassCEC Production Tracking System, installed DC MW as of 2025-01-14 (…/solar)
  *   load   ISO-NE zonal demand via EIA-930, hour ending 1-24 local time, two days (…/load)
  * The CSVs are the cleaned output of scripts/energy/*.py; each parser documents its source URL.
  *
  * Output `public/data/ma-town-energy.json`:
- *   towns[TOWN]  residentialMWh and incentivesUsd (null when not reported or suppressed), usageStatus, solarMW, solarSystems
+ *   towns[TOWN]  households (ACS B11001) always set; residentialMWh and incentivesUsd (null when not reported or suppressed), usageStatus, solarMW, solarSystems
  *   load[date]   { NEMA, SEMA, WCMA }, each 24 MW values; index 0 is the hour ending 1 AM
- * Fails if any town in the geometry is missing from a CSV, or a load day is not 3 zones x 24 hours.
+ * The load block is no longer read by the UI (the grid clock and timeline were removed); it is baked unchanged so the data stays available.
+ * Fails if any town in the geometry is missing from a CSV or has no household count, or a load day is not 3 zones x 24 hours.
  *
  * Usage:
  *   node scripts/bake-town-energy.mjs
@@ -39,6 +41,7 @@ const usageRows = await csv('usage/towns.csv')
 const solarRows = await csv('solar/solar.csv')
 const usage = new Map(usageRows.map((r) => [r.town, r]))
 const solar = new Map(solarRows.map((r) => [r.town, r]))
+const households = new Map((await csv('households/households.csv')).map((r) => [r.town, r]))
 
 const towns = {}
 const missing = []
@@ -59,9 +62,15 @@ for (const name of names) {
     missing.push(name)
     continue
   }
-  towns[name] = { residentialMWh, incentivesUsd, usageStatus: u.status, solarMW: Number(s.installed_mw), solarSystems: Number(s.count) }
+  const h = households.get(name)
+  const hh = h ? Number(h.households) : NaN
+  if (!Number.isInteger(hh) || hh <= 0) {
+    missing.push(name)
+    continue
+  }
+  towns[name] = { residentialMWh, incentivesUsd, households: hh, usageStatus: u.status, solarMW: Number(s.installed_mw), solarSystems: Number(s.count) }
 }
-if (missing.length > 0) throw new Error(`${missing.length} of ${names.length} towns lack usage or solar data: ${missing.join(', ')}`)
+if (missing.length > 0) throw new Error(`${missing.length} of ${names.length} towns lack usage, solar or household data: ${missing.join(', ')}`)
 
 const load = {}
 for (const r of await csv('load/load.csv')) {
@@ -89,6 +98,14 @@ const bytes = await writeJson(OUT, {
         year: 2023,
         units: 'MWh per year and incentives in USD, residential only',
         note: 'Municipal light plant towns do not report to Mass Save. Two towns are suppressed for privacy.',
+      },
+      households: {
+        label: 'Census ACS 5-year',
+        url: 'https://www2.census.gov/programs-surveys/acs/summary_file/2023/table-based-SF/data/5YRData/acsdt5y2023-b11001.dat',
+        year: 2023,
+        period: '2019-2023',
+        units: 'households (table B11001, total), county subdivisions = MA towns',
+        note: 'All occupied homes. Mass Save counts utility accounts, so usage per household is an approximation.',
       },
       solar: {
         label: 'MassCEC',

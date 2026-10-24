@@ -12,6 +12,16 @@ import { describe, expect, it } from 'vitest'
 import {
   PROFILE_KEY,
   STEPS,
+  anyDetailsNeeded,
+  billsReady,
+  detailsNeeds,
+  eyebrowFor,
+  fuelFromBill,
+  lowIncomeDetected,
+  lowIncomeFlag,
+  pickUtility,
+  serviceTownFrom,
+  visibleSteps,
   canLeaveDetails,
   isProfileComplete,
   nextStep,
@@ -21,10 +31,13 @@ import {
   readStoredProfile,
   serializeProfile,
   withoutProfile,
-  stepIndex,
+  hasSingleSponsor,
+  misplacedBillNote,
+  townMismatch,
   validateProfile,
   type Profile,
 } from '../flow'
+import type { BillApplied } from '../../parse/contract'
 
 const VALID: Profile = {
   name: 'Alex Rivera',
@@ -162,11 +175,6 @@ describe('the step order', () => {
     expect(previousStep('review')).toBe('details')
   })
 
-  it('counts from one for the progress text', () => {
-    expect(stepIndex('account')).toBe(0)
-    expect(stepIndex('review')).toBe(3)
-  })
-
   it('keeps fields it does not own when it writes or forgets, so the map profile survives', () => {
     const existing = JSON.stringify({ town: 'Worcester', fuel: 'oil', name: 'Old', email: 'old@example.com', phone: '', consentAt: '2026-01-01T00:00:00.000Z' })
     const raw = serializeProfile(VALID, new Date('2026-10-24T12:00:00Z'), existing)
@@ -177,5 +185,100 @@ describe('the step order', () => {
     expect(JSON.parse(withoutProfile(existing) as string)).toEqual({ town: 'Worcester', fuel: 'oil' })
     expect(withoutProfile(serializeProfile(VALID, new Date()))).toBeNull()
     expect(withoutProfile(null)).toBeNull()
+  })
+})
+
+describe('two bills', () => {
+  const bill = (over: Partial<BillApplied>): BillApplied => ({
+    role: 'heating',
+    fuel: 'gas',
+    units: '700',
+    price: '1.9',
+    note: '',
+    method: null,
+    methodConfidence: null,
+    utility: null,
+    lowIncomeSignal: false,
+    serviceZip: null,
+    serviceTown: null,
+    electricRate: null,
+    ...over,
+  })
+  const electric = (over: Partial<BillApplied> = {}) => bill({ role: 'electricity', fuel: null, ...over })
+  const none = { heatingByHand: false, electricityByHand: false }
+
+  it('continues only when both bills are in, read or entered by hand', () => {
+    expect(billsReady({ heating: bill({}), electricity: null, ...none })).toBe(false)
+    expect(billsReady({ heating: null, electricity: electric(), ...none })).toBe(false)
+    expect(billsReady({ heating: bill({}), electricity: electric(), ...none })).toBe(true)
+    expect(billsReady({ heating: null, electricity: null, heatingByHand: true, electricityByHand: true })).toBe(true)
+  })
+
+  it('reads the town from either bill and prefers the electric one', () => {
+    const heating = bill({ serviceTown: 'Worcester' })
+    expect(serviceTownFrom([electric({ serviceTown: 'boston' }), heating], TOWNS)).toBe('Boston')
+    expect(serviceTownFrom([null, heating], TOWNS)).toBe('Worcester')
+    expect(serviceTownFrom([bill({ serviceTown: 'Atlantis' }), null], TOWNS)).toBeNull()
+  })
+
+  it('takes the fuel from the heating bill and asks only without one', () => {
+    expect(fuelFromBill(bill({ fuel: 'oil' }))).toBe('oil')
+    expect(fuelFromBill(null)).toBeNull()
+  })
+
+  it('detects the discount signal from either bill', () => {
+    expect(lowIncomeDetected([bill({}), bill({ lowIncomeSignal: true })])).toBe(true)
+    expect(lowIncomeFlag([bill({}), null])).toBe(false)
+    expect(lowIncomeFlag([null, null])).toBeNull()
+  })
+
+  it('picks a canonical electric utility and never a fuel dealer', () => {
+    expect(pickUtility(bill({ utility: 'national_grid' }), bill({ utility: 'eversource' }))).toBe('national_grid')
+    expect(pickUtility(null, bill({ utility: 'oil_dealer' }), true)).toBeNull()
+    expect(pickUtility(bill({ utility: 'other' }), null)).toBe('other')
+  })
+
+  it('falls back to the heating utility only without an electric bill in a single-sponsor town', () => {
+    expect(pickUtility(null, bill({ utility: 'eversource' }), true)).toBe('eversource')
+    expect(pickUtility(null, bill({ utility: 'eversource' }), false)).toBeNull()
+    expect(pickUtility(electric({ utility: null }), bill({ utility: 'eversource' }), true)).toBeNull()
+  })
+
+  it('knows whether a town has one sponsor', () => {
+    expect(hasSingleSponsor('Boston')).toBe(true)
+    expect(hasSingleSponsor('Atlantis')).toBe(false)
+  })
+
+  it('reports two different bill towns, electric first', () => {
+    expect(townMismatch(electric({ serviceTown: 'Boston' }), bill({ serviceTown: 'Worcester' }), TOWNS)).toEqual({
+      used: 'Boston',
+      other: 'Worcester',
+    })
+    expect(townMismatch(electric({ serviceTown: 'Boston' }), bill({ serviceTown: 'boston' }), TOWNS)).toBeNull()
+    expect(townMismatch(electric({ serviceTown: 'Boston' }), bill({ serviceTown: null }), TOWNS)).toBeNull()
+  })
+
+  it('names the slot a misplaced bill went to', () => {
+    expect(misplacedBillNote('heating', 'electricity')).toBe('That looks like an electric bill — we put it in slot 1.')
+    expect(misplacedBillNote('electricity', 'heating')).toBe('That looks like a heating bill — we put it in slot 2.')
+    expect(misplacedBillNote('heating', 'heating')).toBeNull()
+  })
+
+  it('skips the house step when the bills answered everything', () => {
+    expect(anyDetailsNeeded(detailsNeeds({ townRead: true, heating: bill({}), incomeDetected: true, numbersReady: true }))).toBe(false)
+    expect(detailsNeeds({ townRead: true, heating: bill({}), incomeDetected: false, numbersReady: true }).income).toBe(true)
+    expect(detailsNeeds({ townRead: false, heating: bill({}), incomeDetected: true, numbersReady: true }).town).toBe(true)
+    const unusable = detailsNeeds({ townRead: true, heating: bill({}), incomeDetected: true, numbersReady: false })
+    expect(anyDetailsNeeded(unusable)).toBe(true)
+    const byHand = detailsNeeds({ townRead: true, heating: null, incomeDetected: true, numbersReady: true })
+    expect(byHand.fuel && byHand.numbers).toBe(true)
+  })
+
+  it('walks the visible steps only', () => {
+    expect(visibleSteps(false).map((entry) => entry.id)).toEqual(['account', 'bill', 'review'])
+    expect(nextStep('bill', false)).toBe('review')
+    expect(previousStep('review', false)).toBe('bill')
+    expect(eyebrowFor('review', false)).toBe('Step 3 of 3')
+    expect(eyebrowFor('review', true)).toBe('Step 4 of 4')
   })
 })

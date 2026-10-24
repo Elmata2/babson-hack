@@ -26,7 +26,7 @@ import { getPrices } from '@/lib/prices'
 export const metadata: Metadata = {
   title: 'Create your profile',
   description:
-    'Four steps: a profile, a photo of your bill, your house, and the honest heat-pump verdict for Massachusetts.',
+    'A profile, your two bills, and the honest heat-pump verdict for Massachusetts.',
   robots: { index: false, follow: false },
 }
 
@@ -55,10 +55,10 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
           </div>
 
           <h1 className="mt-4 max-w-[24ch] text-balance text-headline font-medium">
-            Four steps to the honest answer.
+            Two bills to the honest answer.
           </h1>
           <p className="mt-3 max-w-[62ch] text-lede text-ink-muted">
-            A profile, one photo of a bill, the town, then the verdict. The profile is kept in this browser — no
+            A profile, your electric and heating bills, then the verdict. The profile is kept in this browser — no
             password, no account on a server, and the bill image is read once and discarded.
           </p>
 

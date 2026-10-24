@@ -1,14 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 import { FreshnessBadge } from '@/components/freshness-badge'
 import { demoFromLocation, isDemo, withDemo } from '@/lib/demo'
-import { kindOf } from '@/lib/switch/choices'
+import { CHOICE_COPY, kindOf } from '@/lib/switch/choices'
 import { DEFAULT_DELIVERY_GALLONS, NEVER_SAID, buildFacts, disclosureRows } from '@/lib/switch/consent'
 import type { SwitchModel } from '@/lib/switch/model'
-import { optionCard, optionsSummary, type OptionCard, type OptionInput } from '@/lib/switch/option-cards'
 import {
   CONTACT_STATUS_LABEL,
   createSwitch,
@@ -57,6 +56,14 @@ export interface SwitchFlowProps {
   model: SwitchModel
   providers: SwitchProvider[]
   plan: { mode: 'off' | 'allowlist' | 'live'; reason: string | null; notice: string | null }
+  entry: { choice: SwitchChoice; kit: boolean }
+}
+
+const KIT_NOTICE: OutreachResult = {
+  ok: true,
+  mode: 'off',
+  notice: 'Nothing was sent. The switch kit below is yours to use.',
+  statuses: [],
 }
 
 const OUTCOME: Record<BestCaseOutcome, { label: string; tone: string }> = {
@@ -78,15 +85,17 @@ function statusTone(status: ContactStatus): string {
   return 'text-switch border-switch-edge bg-switch-tint'
 }
 
-export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
-  const [choiceOverride, setChoiceOverride] = useState<SwitchChoice | null>(null)
+export function SwitchFlow({ model, providers, plan, entry }: SwitchFlowProps) {
+  const choice = entry.choice
   const [picked, setPicked] = useState<Record<string, boolean>>({})
   const [channel, setChannel] = useState<Record<string, 'email' | 'phone'>>({})
   const [zip, setZip] = useState('')
   const [delivery, setDelivery] = useState(String(DEFAULT_DELIVERY_GALLONS))
   const [tank, setTank] = useState('')
   const [deliveryWindow, setDeliveryWindow] = useState('')
-  const [outreachOverride, setOutreachOverride] = useState<OutreachResult | null>(null)
+  const [outreachOverride, setOutreachOverride] = useState<OutreachResult | null>(
+    entry.kit && (choice === 'SHOP_FUEL' || choice === 'SWITCH_HEAT_PUMP') ? KIT_NOTICE : null,
+  )
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [supplierCents, setSupplierCents] = useState('')
@@ -96,8 +105,7 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
   // a cascading render. A request from another house must not show up as this one's.
   const storedRaw = useSyncExternalStore(subscribeSwitch, switchSnapshot, serverSwitchSnapshot)
   const stored = useMemo(() => readStoredSwitch(storedRaw), [storedRaw])
-  const liveStored = stored && stored.query === model.query ? stored : null
-  const choice = choiceOverride ?? liveStored?.choice ?? null
+  const liveStored = stored && stored.query === model.query && stored.choice === choice ? stored : null
   const storedStage = liveStored?.stage ?? null
   const outreach: OutreachResult | null =
     outreachOverride ??
@@ -130,7 +138,7 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
   // With outreach off the list is shown as context in the plan reason instead.
   const contactable = plan.mode === 'off' ? [] : providers
   const selectedProviders = contactable.filter((provider) => picked[provider.id])
-  const selectedKind = choice ? kindOf(choice) : 'stay'
+  const selectedKind = kindOf(choice)
   const kitSupply = {
     basicCents: model.supply.basic?.centsPerKwh ?? null,
     basicSource: model.supply.basic
@@ -162,47 +170,10 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
     writeSwitch(serializeSwitch(request))
   }
 
-  const optionInput: OptionInput | null = model.result
-    ? {
-        result: model.result,
-        fuel: model.fuel,
-        unitPrice: model.unitPrice,
-        annualUnits: model.annualUnits,
-        market: { price: model.market.price, period: model.market.period },
-        basic: model.supply.basic
-          ? {
-              centsPerKwh: model.supply.basic.centsPerKwh,
-              source: model.supply.basic.source,
-              sourceDate: model.supply.basic.sourceDate,
-            }
-          : null,
-        noMassSave: model.noMassSave,
-        plan,
-        reachable: {
-          fuel: providers.filter((provider) => reachableBy(provider, 'fuel', plan.mode)).length,
-          installer: providers.filter((provider) => reachableBy(provider, 'installer', plan.mode)).length,
-        },
-      }
-    : null
-
-  function choose(option: SwitchChoice, intent: 'agent' | 'self') {
-    setChoiceOverride(option)
-    setError(null)
-    const kit: OutreachResult | null =
-      intent === 'self' && (option === 'SHOP_FUEL' || option === 'SWITCH_HEAT_PUMP')
-        ? { ok: true, mode: 'off', notice: 'Nothing was sent. The switch kit below is yours to use.', statuses: [] }
-        : null
-    setOutreachOverride(kit)
-    if (kit) persist('kit', null, [], option)
-    requestAnimationFrame(() => {
-      const panel = document.getElementById('choice-panel')
-      const heading = panel?.querySelector('h2')
-      if (!panel || !heading) return
-      heading.tabIndex = -1
-      heading.focus({ preventScroll: true })
-      panel.scrollIntoView({ behavior: 'smooth' })
-    })
-  }
+  useEffect(() => {
+    if (entry.kit && outreachOverride === KIT_NOTICE) persist('kit', null, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function contact() {
     if (!choice || selectedProviders.length === 0) return
@@ -241,43 +212,15 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
 
   return (
     <div className="grid gap-10">
-      {/* ------------------------------------------------------ the options */}
-      <section aria-labelledby="decision">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p className="text-eyebrow uppercase text-ink-muted">Step five · Your options</p>
-          <Link
-            href={withDemo(`/verdict?${model.query}`, isDemo(model.query))}
-            className="text-micro text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
-          >
-            ← Back to the verdict
-          </Link>
-        </div>
-        <h2 id="decision" className="mt-3 text-headline font-medium">
-          {optionsSummary(model.choices.length)}
-        </h2>
-        <p className="mt-2 max-w-[64ch] text-small text-ink-muted">
-          Nothing is preselected, and staying is a real option. Picking one only opens it: no call is placed and no
-          email is sent until you read the facts and confirm.
-        </p>
-
-        <ul className="mt-6 grid gap-4 md:grid-cols-2">
-          {optionInput
-            ? model.choices.map((option) => (
-                <OptionCardView
-                  key={option}
-                  card={optionCard(option, optionInput)}
-                  active={choice === option}
-                  onAgent={() => choose(option, 'agent')}
-                  onSelf={() => choose(option, 'self')}
-                />
-              ))
-            : null}
-        </ul>
-
-        {choice === null ? (
-          <p className="mt-3 text-micro text-ink-faint">Picking is not agreeing. You can change your mind below.</p>
-        ) : null}
-      </section>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <p className="text-eyebrow uppercase text-ink-muted">{CHOICE_COPY[choice].label}</p>
+        <Link
+          href={withDemo(`/verdict?${model.query}`, isDemo(model.query))}
+          className="text-micro text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
+        >
+          ← Back to the verdict
+        </Link>
+      </div>
 
 <div id="choice-panel" className="scroll-mt-6 grid gap-10">
       {choice === 'STAY' ? (
@@ -577,70 +520,6 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
 
 // ------------------------------------------------------------------ panels
 
-function OptionCardView({
-  card,
-  active,
-  onAgent,
-  onSelf,
-}: {
-  card: OptionCard
-  active: boolean
-  onAgent: () => void
-  onSelf: () => void
-}) {
-  return (
-    <li
-      aria-current={active ? 'true' : undefined}
-      className={`flex flex-col rounded-card border p-5 ${
-        active ? 'border-ink bg-paper-sunk' : 'border-rule-strong bg-surface'
-      }`}
-    >
-      <h3 className="text-title font-medium text-ink">{card.name}</h3>
-      <dl className="mt-3 grid flex-1 gap-3 text-small">
-        <div>
-          <dt className="text-eyebrow uppercase text-ink-faint">Why you&rsquo;d pick this</dt>
-          <dd className="mt-1 text-ink">{card.why}</dd>
-        </div>
-        <div>
-          <dt className="text-eyebrow uppercase text-ink-faint">What happens</dt>
-          <dd className="mt-1 text-ink-muted">{card.what}</dd>
-        </div>
-        <div>
-          <dt className="text-eyebrow uppercase text-ink-faint">Your effort</dt>
-          <dd className="mt-1 text-ink-muted">{card.effort}</dd>
-        </div>
-      </dl>
-      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule pt-4">
-        {card.agent ? (
-          <>
-            <button
-              type="button"
-              onClick={onAgent}
-              aria-pressed={active}
-              className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
-            >
-              {card.agent.label}
-            </button>
-            <button type="button" onClick={onSelf} className="text-small text-ink-muted underline underline-offset-4 hover:text-ink">
-              {card.selfLabel}
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={onSelf}
-            aria-pressed={active}
-            className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
-          >
-            {card.selfLabel}
-          </button>
-        )}
-        {active ? <span className="text-micro text-ink-faint">Open below</span> : null}
-      </div>
-    </li>
-  )
-}
-
 function StayPanel({ model, onSave, saved }: { model: SwitchModel; onSave: () => void; saved: boolean }) {
   const result = model.result
   return (
@@ -881,12 +760,6 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
       {children}
     </label>
   )
-}
-
-function reachableBy(provider: SwitchProvider, kind: SwitchProvider['kind'], mode: SwitchFlowProps['plan']['mode']): boolean {
-  if (provider.kind !== kind || mode === 'off') return false
-  if (mode === 'allowlist') return provider.allowlist
-  return !provider.allowlist && provider.channels.includes('email') && provider.email !== null
 }
 
 function clampDelivery(raw: string): number {

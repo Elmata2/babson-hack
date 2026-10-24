@@ -133,7 +133,7 @@ function HeatTableBody({ onClose, year, town, selected, onSelect }: HeatTablePro
                     <th scope="col" className="border-b border-rule px-2 py-1 text-right font-medium">Oil share</th>
                     <th scope="col" className="border-b border-rule px-2 py-1 text-right font-medium">Homes on oil</th>
                     <th scope="col" className="border-b border-rule px-2 py-1 text-right font-medium">Oil spend</th>
-                    <th scope="col" className="border-b border-rule py-1 pl-2 text-right font-medium">Lost on Jan 1</th>
+                    <th scope="col" className="border-b border-rule py-1 pl-2 text-right font-medium">Lost on Jan 1 (up to)</th>
                   </tr>
                 </thead>
                 <tbody className="num">

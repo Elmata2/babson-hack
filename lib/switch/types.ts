@@ -13,6 +13,12 @@ import type { Fuel } from '../calc/types'
 /** R17.1, closed set. Ordered as the requirement lists them. */
 export type SwitchChoice = 'STAY' | 'SHOP_FUEL' | 'SHOP_SUPPLY' | 'SWITCH_HEAT_PUMP'
 
+const SWITCH_CHOICES: readonly SwitchChoice[] = ['STAY', 'SHOP_FUEL', 'SHOP_SUPPLY', 'SWITCH_HEAT_PUMP']
+
+export function parseSwitchChoice(raw: string | null | undefined): SwitchChoice | null {
+  return SWITCH_CHOICES.find((choice) => choice === raw) ?? null
+}
+
 /** What a provider contact can be. Email is the degraded-path default; phone is the agent. */
 export type OutreachChannel = 'email' | 'phone'
 

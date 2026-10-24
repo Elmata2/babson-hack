@@ -4,7 +4,7 @@ import { HeaderShell } from '@/components/motion/header-shell'
 import { withDemo } from '@/lib/demo'
 
 /*
- * Site header — wordmark, scope, source link. Sticky, hairline-bordered, and
+ * Site header — wordmark and one profile button. Sticky, hairline-bordered, and
  * deliberately thin: the page belongs to the verdict, not to chrome.
  *
  * @built F-49 the optional `demo` prop keeps `?demo=1` on the wordmark and the
@@ -25,41 +25,24 @@ export function SiteHeader({ demo = false, quietAtTop = false }: { demo?: boolea
           <span className="text-small font-medium tracking-[-0.01em]">Switchpoint</span>
         </Link>
 
-        <div className="flex items-center gap-4 text-micro text-ink-muted">
-          <span className="hidden items-center gap-1.5 sm:inline-flex">
-            <span className="num text-ink">351</span>
-            <span>Massachusetts towns</span>
-          </span>
-          <span aria-hidden className="hidden h-3 w-px bg-rule-strong sm:block" />
-          <Link
-            href={withDemo('/onboarding', demo)}
-            className="rounded-pill border border-ink px-3 py-1.5 font-medium text-ink transition-colors hover:bg-ink hover:text-paper"
-          >
-            Create profile
-          </Link>
-          <Link
-            href={withDemo('/map', demo)}
-            className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
-          >
-            Map
-          </Link>
-          <Link
-            href={withDemo('/dashboard', demo)}
-            className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
-          >
-            Dashboard
-          </Link>
-          <a
-            href="https://github.com/Elmata2/babson-hack"
-            className="rounded-sm underline decoration-rule-strong decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
-            rel="noreferrer"
-            target="_blank"
-          >
-            Source
-          </a>
-        </div>
+        <Link
+          href={withDemo('/onboarding', demo)}
+          aria-label="Your profile"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-pill border border-rule-strong text-ink transition-colors hover:bg-ink hover:text-paper"
+        >
+          <ProfileIcon className="h-[18px] w-[18px]" />
+        </Link>
       </div>
     </HeaderShell>
+  )
+}
+
+function ProfileIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <circle cx="12" cy="8.5" r="3.5" />
+      <path d="M5 20c.8-3.6 3.7-5.5 7-5.5s6.2 1.9 7 5.5" />
+    </svg>
   )
 }
 
