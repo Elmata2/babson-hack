@@ -109,6 +109,25 @@ function phaseOf(registry, id) {
   return registry.find((r) => r.id === id)?.phase ?? 'P?'
 }
 
+/**
+ * Every file that may carry a marker: the source directories, plus the
+ * root-level config files. `next.config.ts` and `eslint.config.mjs` are where
+ * F-01 and F-05 actually live, and a scaffold marker that cannot be logged is
+ * a feature the build log silently drops.
+ */
+function sourceFiles() {
+  const out = []
+  for (const dir of SCAN_DIRS) {
+    const abs = path.join(ROOT, dir)
+    if (fs.existsSync(abs)) out.push(...walk(abs))
+  }
+  for (const e of fs.readdirSync(ROOT, { withFileTypes: true })) {
+    if (!e.isFile() || e.name.startsWith('.')) continue
+    if (SCAN_EXT.has(path.extname(e.name))) out.push(path.join(ROOT, e.name))
+  }
+  return out
+}
+
 // ------------------------------------------------------------------- commands
 
 function sync({ quiet = false } = {}) {
@@ -119,30 +138,26 @@ function sync({ quiet = false } = {}) {
   const now = new Date().toISOString()
   const sha = commitSha()
 
-  for (const dir of SCAN_DIRS) {
-    const abs = path.join(ROOT, dir)
-    if (!fs.existsSync(abs)) continue
-    for (const file of walk(abs)) {
-      const rel = path.relative(ROOT, file)
-      let text
-      try { text = fs.readFileSync(file, 'utf8') } catch { continue }
-      if (!text.includes('@built')) continue
-      for (const m of text.matchAll(MARKER)) {
-        const id = m[1]
-        const key = `${id}|${rel}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        fresh.push({
-          id,
-          phase: phaseOf(registry, id),
-          title: registry.find((r) => r.id === id)?.title ?? m[2].trim(),
-          file: rel,
-          ts: now,
-          commit: sha,
-          source: 'marker',
-          text: m[2].trim() || null,
-        })
-      }
+  for (const file of sourceFiles()) {
+    const rel = path.relative(ROOT, file)
+    let text
+    try { text = fs.readFileSync(file, 'utf8') } catch { continue }
+    if (!text.includes('@built')) continue
+    for (const m of text.matchAll(MARKER)) {
+      const id = m[1]
+      const key = `${id}|${rel}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      fresh.push({
+        id,
+        phase: phaseOf(registry, id),
+        title: registry.find((r) => r.id === id)?.title ?? m[2].trim(),
+        file: rel,
+        ts: now,
+        commit: sha,
+        source: 'marker',
+        text: m[2].trim() || null,
+      })
     }
   }
 

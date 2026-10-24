@@ -1,9 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "allowJs": false,
+    "incremental": true,
+    "noEmit": true,
     "strict": true,
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": true,
@@ -17,8 +25,38 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "noEmit": true,
-    "types": ["node"]
+    "types": [
+      "node",
+      "react",
+      "react-dom"
+    ],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
   },
-  "include": ["lib/**/*.ts", "data/**/*.json", "vitest.config.ts"]
+  "include": [
+    "next-env.d.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "lib/**/*.ts",
+    "data/**/*.json",
+    "next.config.ts",
+    "vitest.config.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "public"
+  ]
 }

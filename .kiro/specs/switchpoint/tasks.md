@@ -14,7 +14,7 @@ marked ✂ until P4 is green.
 
 | ID | Phase | Task | Owner | Est | Depends |
 | --- | --- | --- | --- | --- | --- |
-| F-01 | P0 | Next.js 15 + TypeScript + Tailwind scaffold, deploys to Vercel | A | 15m | — |
+| F-01 | P0 | Next.js 16 + TypeScript + Tailwind v4 scaffold, deploys to Vercel | A | 15m | — |
 | F-02 | P0 | App shell: type scale, colour tokens, verdict palette | A | 20m | F-01 |
 | F-03 | P0 | Build log tooling + Kiro hook wiring | D | 20m | F-01 |
 | F-04 | P0 | Commit `.kiro` specs + steering, confirm not gitignored | D | 10m | F-01 |
