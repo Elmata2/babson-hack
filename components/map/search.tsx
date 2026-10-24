@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { ALL_TOWNS } from '@/lib/utility'
 import { displayTown } from '@/lib/geo'
+import { intakeHrefForAddress } from '@/lib/intake/params'
 import { isZip, lookupZip } from '@/lib/map/zip'
 
 export type SearchResult =
@@ -85,6 +86,10 @@ export function Search({ knownTown, townAt, onResult, onUseHome }: Props) {
       setActive(-1)
       setFound(result)
       setSaved(false)
+      // R10.6: the field keeps the address the geocoder matched, not the fragment
+      // that was typed, so the map's own address field is prefilled with the parcel
+      // the pin is standing on.
+      if (result.kind === 'address') setQuery(result.address)
       setStatus(text ? { tone: 'info', text } : null)
       onResult(result)
     },
@@ -257,6 +262,14 @@ export function Search({ knownTown, townAt, onResult, onUseHome }: Props) {
                 Use as my home
               </button>
             )}
+            {found.kind === 'address' ? (
+              <a
+                href={intakeHrefForAddress(found.town, found.address)}
+                className="ml-2 rounded-md border border-rule-strong bg-surface px-2 py-0.5 text-ink hover:bg-paper-sunk"
+              >
+                Open in the calculator
+              </a>
+            ) : null}
           </p>
         ) : null}
       </div>

@@ -11,9 +11,11 @@ import type { SponsorKey } from '@/lib/elec-label'
 /** --color-heat-1 … --color-heat-5, as hex. */
 export const HEAT_RAMP = ['#f7efda', '#f0d5ac', '#e8ab70', '#d3793c', '#ac451c'] as const
 
-/** Class breaks for oil share: below the first is class 1, and so on. */
-export const HEAT_BREAKS = [0.05, 0.15, 0.3, 0.5] as const
-export const HEAT_LABELS = ['Under 5%', '5 to 15%', '15 to 30%', '30 to 50%', '50% or more'] as const
+/**
+ * Class breaks and legend labels per metric live with the maths that produces the
+ * values (`lib/map/heat.ts`), so a legend can never describe a scale the map is not
+ * drawing.
+ */
 
 /** A tract with no occupied households or no estimate. */
 export const NO_DATA = '#d9d6cf'

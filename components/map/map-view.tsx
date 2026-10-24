@@ -3,7 +3,12 @@
 /**
  * @built F-41 map shell: MapLibre canvas, left rail, right panel, state ownership
  * @built F-42 tract choropleth (Heat lens; layers live in `layers.ts`)
+ * @built F-43 Heat lens metrics: oil share, oil spend, the Jan 1 cliff
  * @built F-44 hover tooltip and click-a-tract → Town tab
+ * @built F-45 the 2026 ↔ 2027 scrubber and the tweened statewide loss
+ * @built F-46 click → panel → "use this tract" seeds the calculator
+ * @built F-47 the table view and its keyboard path, beside the map
+ * @built F-48 the static SVG fallback and the tile-failure path
  * @built F-71 lenses (Street | Energy | Heat), whoosh, camera
  * @built F-72 Energy lens: 3D town columns, timeline, polar clock
  * @built F-75 Energy lens on real usage, solar and zonal load data
@@ -20,16 +25,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BillPanel } from './bill-panel'
 import { CameraControls, prefersReducedMotion, useCamera } from './camera-controls'
 import { GridPanel } from './grid-panel'
+import { HeatControls, HeatHeadline } from './heat-controls'
+import { HeatStatic } from './heat-static'
+import { HeatTable } from './heat-table'
 import { applyLens, HIT_LAYERS, LENS_BG, STYLE_URL, type LensState } from './layers'
-import { loadEjTracts, loadTowns, loadTracts, markEj, townAtPoint, type TownData, type TractData } from './map-data'
-import { EJ_OPACITY, EJ_VIOLET, HEAT_LABELS, HEAT_RAMP, NO_DATA, PROVIDER_COLOUR } from './palette'
+import { loadTowns, loadTracts, townAtPoint, type TownData, type TractData } from './map-data'
+import { PROVIDER_COLOUR } from './palette'
 import { ProfileDrawer } from './profile-drawer'
 import { Search, type SearchResult } from './search'
 import { TownPanel } from './town-panel'
 import type { Lens, Profile } from './types'
 import { useProfile } from './use-profile'
 import { townKey, type SponsorKey } from '@/lib/elec-label'
-import { GEO_META, displayTown, stateTotals, townsOfTract } from '@/lib/geo'
+import { displayTown, townsOfTract } from '@/lib/geo'
 import { SPONSOR_NAME } from '@/lib/utility'
 import {
   METRIC_LABEL,
@@ -41,6 +49,16 @@ import {
   type Metric,
   type Zone,
 } from '@/lib/map/energy-model'
+import {
+  ASSUMPTION_NOTE,
+  OIL_PRICE_AS_OF,
+  cliffDollarsFor,
+  formatMillions,
+  headline,
+  oilSpendFor,
+  type HeatMetric,
+  type HeatYear,
+} from '@/lib/map/heat'
 
 type Tab = 'town' | 'bill' | 'grid'
 
@@ -87,12 +105,16 @@ export default function MapView() {
   const [showSolar, setShowSolar] = useState(false)
   const [showLabels, setShowLabels] = useState(true)
   const [ejOn, setEjOn] = useState(false)
+  const [heatMetric, setHeatMetric] = useState<HeatMetric>('cliff_dollars')
+  const [heatYear, setHeatYear] = useState<HeatYear>(2026)
+  const [showTable, setShowTable] = useState(false)
+  const [showStatic, setShowStatic] = useState(false)
+  const [staticReason, setStaticReason] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [ready, setReady] = useState(false)
   const [swapping, setSwapping] = useState(false)
   const [towns, setTowns] = useState<TownData | null>(null)
   const [tracts, setTracts] = useState<TractData | null>(null)
-  const [ejReady, setEjReady] = useState(false)
   const [dataError, setDataError] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -111,6 +133,7 @@ export default function MapView() {
   const hoverEvent = useRef<MapMouseEvent | null>(null)
   const hoverFrame = useRef<number | null>(null)
   const committedLens = useRef<Lens | null>(null)
+  const staticShown = useRef(false)
   const [mapError, setMapError] = useState<string | null>(null)
 
   const getMap = useCallback(() => mapRef.current, [])
@@ -135,26 +158,15 @@ export default function MapView() {
     let alive = true
     loadTracts()
       .then((d) => alive && setTracts(d))
-      .catch(() => alive && setDataError('Tract boundaries did not load. Reload the page to try again.'))
+      .catch(
+        () =>
+          alive &&
+          setDataError('Tract boundaries did not load. The county figures, the table view and the static map still work.'),
+      )
     return () => {
       alive = false
     }
   }, [lens, tracts])
-
-  useEffect(() => {
-    if (!ejOn || ejReady || !tracts) return
-    let alive = true
-    loadEjTracts()
-      .then((set) => {
-        if (!alive) return
-        markEj(tracts, set)
-        setEjReady(true)
-      })
-      .catch(() => alive && setDataError('The environmental justice layer did not load.'))
-    return () => {
-      alive = false
-    }
-  }, [ejOn, ejReady, tracts])
 
   // The saved home town is the selected town until the user picks another.
   useEffect(() => {
@@ -187,6 +199,21 @@ export default function MapView() {
     setSelectedKey(key)
     if (!keepTract) setSelectedTract(null)
   }, [])
+
+  /**
+   * Select a tract from anywhere — a map click, the table, a keyboard Enter — and
+   * open the panel that explains it. The map and the table are two doors to one room.
+   */
+  const selectTract = useCallback(
+    (geoid: string, townName?: string | null) => {
+      setSelectedTract(geoid)
+      const touching = townsOfTract(geoid)
+      const key = townName ? townKey(townName) : touching[0] ? townKey(touching[0]) : null
+      if (key) selectTown(key, true)
+      setTab('town')
+    },
+    [selectTown],
+  )
 
   const changeLens = useCallback(
     (next: Lens, opts: { skipCamera?: boolean } = {}) => {
@@ -275,10 +302,9 @@ export default function MapView() {
         if (!geoid) return
         const here = towns ? townAtPoint(towns, e.lngLat.lng, e.lngLat.lat) : null
         const touching = townsOfTract(geoid).map(townKey)
+        // The click point wins when the tract straddles a town line.
         const key = here && touching.includes(here.key) ? here.key : (touching[0] ?? here?.key ?? null)
-        setSelectedTract(geoid)
-        if (key) selectTown(key, true)
-        setTab('town')
+        selectTract(geoid, key ? displayTown(key) : null)
       } else if (lens === 'energy') {
         const key = hit ? String(hit.properties?.key ?? '') : ''
         selectTown(key || null)
@@ -310,9 +336,14 @@ export default function MapView() {
       }
       if (lens === 'heat') {
         const share = typeof p.oilShare === 'number' && p.oilShare >= 0 ? `${(Math.round(p.oilShare * 1000) / 10).toLocaleString('en-US')}%` : 'no estimate'
-        line(`Tract ${String(p.geoid)}`, true)
+        const oilHouseholds = Number(p.oilHouseholds)
+        const tractTowns = townsOfTract(String(p.geoid))
+        line(tractTowns[0] ? `${tractTowns[0]} · tract ${String(p.geoid)}` : `Tract ${String(p.geoid)}`, true)
         line(`${Number(p.households).toLocaleString('en-US')} households · ${share} oil-heated`)
-        line(`${Number(p.oilHouseholds).toLocaleString('en-US')} oil-heated households`)
+        line(`${oilHouseholds.toLocaleString('en-US')} oil-heated households`)
+        // R10.3 plus the design's transparency rule: the spend carries its assumption.
+        line(`Spend ${formatMillions(oilSpendFor(oilHouseholds))}/yr (${ASSUMPTION_NOTE}, DOER ${OIL_PRICE_AS_OF})`)
+        line(`Lost on Jan 1, 2027: ${formatMillions(cliffDollarsFor(oilHouseholds))}`)
       } else {
         const entry = towns?.byKey.get(String(p.key))
         if (!entry) return
@@ -376,7 +407,13 @@ export default function MapView() {
       const styleFailed = Boolean(err?.url) && Object.values(STYLE_URL).includes(err?.url ?? '')
       const tileFailed = Boolean((e as { sourceId?: string }).sourceId) && (!err?.status || err.status >= 500)
       if (!styleFailed && !tileFailed) return
-      setMapError("The map tiles didn't load. Try again or use another lens.")
+      setMapError("The map tiles didn't load. The static map and the table view still work.")
+      // R10.1: a tile failure is not a dead end. Show the committed image once, unsolicited.
+      if (pendingLens.current === 'heat' && !staticShown.current) {
+        staticShown.current = true
+        setStaticReason("The basemap tiles didn't load, so this is the same data as a still image.")
+        setShowStatic(true)
+      }
       if (!styleFailed) return
       setSwapping(false)
       const back = committedLens.current
@@ -411,15 +448,28 @@ export default function MapView() {
   }, [])
 
   const lensState = useMemo<LensState>(
-    () => ({ lens, towns, tracts, metric, colourBy, region, showSolar, showLabels, ejOn, selectedKey, selectedTract }),
-    [lens, towns, tracts, metric, colourBy, region, showSolar, showLabels, ejOn, selectedKey, selectedTract],
+    () => ({
+      lens,
+      towns,
+      tracts,
+      metric,
+      colourBy,
+      region,
+      showSolar,
+      showLabels,
+      ejOn,
+      heatMetric,
+      heatYear,
+      selectedKey,
+      selectedTract,
+    }),
+    [lens, towns, tracts, metric, colourBy, region, showSolar, showLabels, ejOn, heatMetric, heatYear, selectedKey, selectedTract],
   )
-  // `ejReady` re-syncs after `markEj` stamps the tract properties.
   useEffect(() => {
     lensStateRef.current = lensState
     const map = mapRef.current
     if (map && ready && styleLens.current === lens) applyLens(map, lensState)
-  }, [lensState, ready, lens, ejReady])
+  }, [lensState, ready, lens])
 
   // ------------------------------------------------------------------ timeline
   useEffect(() => {
@@ -513,7 +563,25 @@ export default function MapView() {
             />
           ) : null}
 
-          {lens === 'heat' ? <HeatControls ejOn={ejOn} onEj={setEjOn} /> : null}
+          {lens === 'heat' ? (
+            <>
+              <HeatHeadline year={heatYear} dollars={headline(2027).dollars} />
+              <HeatControls
+                metric={heatMetric}
+                onMetric={setHeatMetric}
+                year={heatYear}
+                onYear={setHeatYear}
+                ejOn={ejOn}
+                onEj={setEjOn}
+                onTable={() => setShowTable(true)}
+                onStatic={() => {
+                  setStaticReason(null)
+                  setShowStatic(true)
+                }}
+                tractsReady={tracts !== null}
+              />
+            </>
+          ) : null}
 
           {dataError ? <p className="text-micro text-deadline" role="alert">{dataError}</p> : null}
           {mapError ? <p className="text-micro text-deadline" role="alert">{mapError}</p> : null}
@@ -533,7 +601,13 @@ export default function MapView() {
             className="min-h-0 flex-1 overflow-y-auto p-4"
           >
             {tab === 'town' ? (
-              <TownPanel town={selectedName} tract={selectedTract} onClearTract={() => setSelectedTract(null)} />
+              <TownPanel
+                town={selectedName}
+                tract={selectedTract}
+                onClearTract={() => setSelectedTract(null)}
+                ejOn={ejOn}
+                year={heatYear}
+              />
             ) : null}
           </div>
           <div
@@ -585,6 +659,31 @@ export default function MapView() {
             </p>
           ) : null}
           <Timeline hour={hour} playing={playing} onHour={(h) => { setPlaying(false); setHour(h) }} onPlay={() => setPlaying((p) => !p)} ready={ready} />
+        </>
+      ) : null}
+
+      {lens === 'heat' ? (
+        <>
+          <HeatTable
+            open={showTable}
+            onClose={() => setShowTable(false)}
+            year={heatYear}
+            town={selectedKey}
+            selected={selectedTract}
+            onSelect={(geoid, townName) => {
+              selectTract(geoid, townName ?? selectedName)
+              setShowTable(false)
+            }}
+          />
+          <HeatStatic
+            open={showStatic}
+            reason={staticReason}
+            onClose={() => setShowStatic(false)}
+            onTable={() => {
+              setShowStatic(false)
+              setShowTable(true)
+            }}
+          />
         </>
       ) : null}
 
@@ -729,48 +828,6 @@ function EnergyControls(props: {
       <p className="text-micro text-ink-faint">
         Boundaries: US Census. Utilities: MassGIS Electricity Providers.
       </p>
-    </div>
-  )
-}
-
-function HeatControls({ ejOn, onEj }: { ejOn: boolean; onEj: (b: boolean) => void }) {
-  const totals = stateTotals()
-  const meta = GEO_META.tractStats
-  return (
-    <div className="flex flex-col gap-3 border-t border-rule pt-3">
-      <div>
-        <p className="text-micro font-medium text-ink">Homes heated with oil, by census tract</p>
-        <ul className="mt-2 flex flex-col gap-1" aria-label="Legend">
-          {HEAT_RAMP.map((colour, i) => (
-            <li key={colour} className="flex items-center gap-2 text-micro text-ink-muted">
-              <i className="h-3 w-6 rounded-sm border border-rule" style={{ background: colour }} />
-              {HEAT_LABELS[i]}
-            </li>
-          ))}
-          <li className="flex items-center gap-2 text-micro text-ink-muted">
-            <i className="h-3 w-6 rounded-sm border border-rule" style={{ background: NO_DATA }} />
-            No households or no estimate
-          </li>
-        </ul>
-        <p className="mt-2 text-micro text-ink-muted">
-          Statewide: <span className="num font-medium text-ink">{(Math.round(totals.oilShare * 1000) / 10).toLocaleString('en-US')}%</span> of{' '}
-          {totals.households.toLocaleString('en-US')} occupied homes.
-        </p>
-        <p className="mt-1 text-micro text-ink-faint">
-          {meta.source.split(' — ')[0]} · table B25040 · fetched {meta.fetchedAt.slice(0, 10)}
-        </p>
-      </div>
-      <div>
-        <label className="inline-flex items-center gap-2 text-micro text-ink">
-          <input type="checkbox" checked={ejOn} onChange={(e) => onEj(e.target.checked)} /> Environmental justice block groups
-        </label>
-        {ejOn ? (
-          <p className="mt-1.5 flex items-center gap-2 text-micro text-ink-muted">
-            <i className="h-3 w-6 rounded-sm border border-rule" style={{ background: EJ_VIOLET, opacity: EJ_OPACITY }} />
-            Tract holds an EJ block group (MassGIS EJ2020). Does not change the heat colours.
-          </p>
-        ) : null}
-      </div>
     </div>
   )
 }
