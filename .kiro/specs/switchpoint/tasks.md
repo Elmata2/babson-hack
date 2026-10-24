@@ -163,3 +163,43 @@ instead of 90.
 | 18:30 | No new features. Only fixes, polish, and cuts |
 | 19:30 | Video uploaded, repo pushed, submission started |
 | 20:00 | Submitted on SundAI. Done. |
+
+---
+
+# Addendum A — tasks (proposal, pending review · 2026-10-24)
+
+Not part of the 17:30 must-be-green line. P9 rows F-75…F-78 are cheap and can go
+in any time after F-05. P8 starts only after P4 is green, and only if the team
+agrees the agent beat is worth one 3-minute-video slot.
+
+## P8 — Decide, call, compare
+
+| ID | Phase | Task | Owner | Est | Depends |
+| --- | --- | --- | --- | --- | --- |
+| F-63 | P8 | `choicesFor()` + decision gate UI, four choices, nothing preselected | A | 30m | F-32 |
+| F-64 | P8 | `lib/quotes` types, `effectivePerGal`, `plausible`, `rankFuel`, `rankInstallers` + P13–P16 | B | 45m | F-23 |
+| F-65 | P8 | `data/providers/*.json` seed: team allowlist + MetroWest dealers and installers with source/date | C | 20m | — |
+| F-66 | P8 | `agents/quote-caller/` prompts, first message, data-collection schema; create agent + Twilio number on ElevenLabs | C | 40m | F-64 |
+| F-67 | P8 | `POST /api/calls` — closed facts schema, allowlist, business hours, outbound calls | C | 35m | F-66 |
+| F-68 | P8 | `GET` + `DELETE /api/calls/[sessionId]` — poll conversations, parse to `ProviderQuote`, delete | C | 35m | F-67 |
+| F-69 | P8 | Consent screen (R18) | A | 25m | F-63 |
+| F-70 | P8 | Live call board + ranked table + transcript-excerpt drawer | A | 45m | F-68 |
+| F-71 | P8 | "Use this price" → recompute verdict; switch kit | A | 20m | F-70 |
+| F-72 | P8 | `?demo=1` replay: three fixture conversations with staged timing | B | 20m | F-70 |
+| F-73 | P8 | ✂ Ask-for-a-better-price round (R21) | C | 30m | F-71 |
+| F-74 | P8 | ✂ Inbound verdict line, `computeVerdict` server tool, 4 languages (R23) | C | 45m | F-66 |
+
+## P9 — Continuous integration
+
+| ID | Phase | Task | Owner | Est | Depends |
+| --- | --- | --- | --- | --- | --- |
+| F-75 | P9 | `.github/workflows/ci.yml`: check, build-log drift, `.kiro` guard | D | 20m | F-05 |
+| F-76 | P9 | gitleaks secret scan job | D | 10m | F-75 |
+| F-77 | P9 | Agent contract tests + hostile fixture transcripts, no network | B | 25m | F-64 |
+| F-78 | P9 | ✂ ElevenLabs simulation tests on PRs touching `agents/**` | C | 30m | F-66 |
+| F-79 | P9 | ✂ Push `agents/` config to ElevenLabs on merge to `master` | C | 20m | F-66 |
+
+**Addendum cut line.** Minimum demoable slice: F-63, F-64, F-65, F-66, F-67,
+F-68, F-70, F-72 (≈ 4h30 with one person on C). Without a second person free
+after 15:00, ship the decision gate + switch kit (F-63, F-71 without calls) and
+put the call flow on a slide.

@@ -81,7 +81,7 @@ it.
 | Air-source cold-climate heat pumps | Ground-source (mention only, $25k tier) |
 | One address at a time | Portfolio / municipal tools |
 | Massachusetts | Every other state |
-| Verdict + next steps | Installer marketplace, scheduling, payments |
+| Verdict + next steps (+ phone quotes on request, if Addendum A is approved) | Installer marketplace, scheduling, payments, lead sales |
 
 ## What we say when a judge asks "why not just ChatGPT"
 
