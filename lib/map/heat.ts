@@ -59,6 +59,9 @@ export const CLIFF_CAPS = { 2026: CAP_2026, 2027: CAP_2027 } as const
 /** The most a home loses by installing in 2027 instead of 2026, and why smaller systems lose less. */
 export const CLIFF_NOTE = `Up to ${money(CAP_2026 - CAP_2027)} per oil-heated home: the 2026 cap minus the 2027 cap. Smaller systems lose less.`
 
+/** The toggle's helper line; both caps come from the rule tables. */
+export const YEAR_TOGGLE_NOTE = `The rebate cap drops from ${money(CAP_2026)} to ${money(CAP_2027)} on 1 January 2027 — this shows what oil-heated homes would lose by waiting.`
+
 /** Provenance for the cliff, rendered next to the dollars. */
 export const CLIFF_SOURCE = `Mass Save whole-home cap ${money(CAP_2026)} → ${money(CAP_2027)} on Jan 1 · read ${HEAT_PUMP_RULES_2026.source.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? '2026'}`
 
@@ -74,7 +77,7 @@ if (!(CLIFF_USD_PER_HOME > 0)) {
  */
 export type HeatMetric = 'oil_share' | 'oil_spend' | 'cliff_homes' | 'cliff_dollars'
 
-/** The install year the scrubber selects. */
+/** The install year the toggle selects. */
 export type HeatYear = 2026 | 2027
 
 /** The four the switcher offers: design §3's three, plus the cliff cohort in homes (R10.2). */
@@ -159,7 +162,7 @@ export function heatRow(input: {
  * The metric's value for one tract in one year, or null where the map draws grey.
  *
  * In 2026 nothing has been lost yet — the cliff is a 2027 fact — so both cliff
- * metrics are exactly zero before the scrubber moves. That is the animation: a pale
+ * metrics are exactly zero before the toggle moves. That is the animation: a pale
  * state that fills in with money when the year changes.
  */
 export function metricValue(row: HeatRow, metric: HeatMetric, year: HeatYear): number | null {
@@ -371,7 +374,7 @@ export function countyHeatRows(): readonly CountyHeatRow[] {
   return out
 }
 
-/** The statewide sentence the scrubber animates. */
+/** The statewide sentence the toggle animates. */
 export function headline(year: HeatYear): { dollars: number; homes: number; text: string } {
   const totals = stateHeatTotals()
   const dollars = year === 2027 ? totals.cliffDollars : 0

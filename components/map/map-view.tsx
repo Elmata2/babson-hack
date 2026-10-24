@@ -5,7 +5,7 @@
  * @built F-42 tract choropleth (Heat lens; layers live in `layers.ts`)
  * @built F-43 Heat lens metrics: oil share, oil spend, the Jan 1 cliff
  * @built F-44 hover tooltip and click-a-tract → Town tab
- * @built F-45 the 2026 ↔ 2027 scrubber and the tweened statewide loss
+ * @built F-45 the 2026 / 2027 toggle and the tweened statewide loss
  * @built F-46 click → panel → "use this tract" seeds the calculator
  * @built F-47 the table view and its keyboard path, beside the map
  * @built F-48 the static SVG fallback and the tile-failure path
@@ -210,7 +210,7 @@ export default function MapView() {
     (next: Lens, opts: { skipCamera?: boolean } = {}) => {
       const map = mapRef.current
       if (!map) {
-        // Without WebGL only the Heat lens has content (metrics, scrubber, table).
+        // Without WebGL only the Heat lens has content (metrics, year toggle, table).
         if (next !== lens && next === 'heat') {
           setLens(next)
           setTab('town')
