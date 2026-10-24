@@ -174,8 +174,10 @@ only works in winter.
 | `/api/parcel` | GET `?lat=&lon=` | point | `{ yearBuilt, useCode, town, siteAddr }` | require a key |
 | `/api/explain` | POST | `VerdictResult` (no PII) | `{ sentences: string[] }` | see the address or the bill |
 
-All routes: `export const runtime = 'edge'` where the SDK allows, aggressive
-`revalidate`, 6s timeout, typed error envelope `{ ok: false, code, message }`.
+All routes run on the **default Node runtime**. `export const runtime = 'edge'`
+is deprecated in Next 16.4 — do not add it back (see `next/dist/docs`,
+`edge-runtime-deprecated`). Use `revalidate` on the route, a 6s upstream timeout,
+and a typed error envelope `{ ok: false, code, message }`.
 The client treats every failure as "continue without this".
 
 ### 2.4 OCR prompt (verbatim in code, `.kiro/steering`-compliant)
@@ -267,6 +269,19 @@ Bake once, commit the output, and the runtime needs no keys at all.
 **Load order on `/map`:** stats + utilities first (paint county choropleth), then
 town geometry, then tract geometry on demand. The map is a dynamic import; the
 verdict must render with the map chunk never loaded.
+
+**Bake lessons (learned the expensive way — keep them):**
+- `maxAllowableOffset` on the ArcGIS query simplifies **per feature**, so
+  neighbours' shared borders stop matching: no arc sharing, hairline gaps, 8.5 MB.
+  Download full precision once, cache it, then cut and simplify the arcs locally
+  with shared topology → 440 KB. Shared-arc simplification is the whole 10×.
+- `B25040` has no population variable. Pull `B01003` and `B25035` alongside it.
+- `EJ2020` contains **EJ block groups only** (2,604 rows, all `EJ:"Yes"`, 187
+  municipalities). Never describe its percentages as whole-tract values.
+- Town↔tract is **many-to-many**. A single-winner spatial join silently orphans
+  towns; a town list that sums tract rows double-counts.
+- 7 water tracts (99xx + harbour) belong to no town. They are listed in
+  `_meta.unresolvedTracts`, not deleted.
 
 ## 4. Build log implementation
 
@@ -368,7 +383,7 @@ the repo.
 | t | Beat |
 | --- | --- |
 | 0:00 | Oil bill on screen: **$4,984**. "One winter, one house, Framingham." |
-| 0:15 | "Oil is up 75% in a year. 29% of Massachusetts heats with oil. In 68 days the rebate drops." |
+| 0:15 | "Oil is up 75% in a year. **624,510 Massachusetts households** heat with it — about **$2.9 billion a winter**. In 68 days the rebate drops." |
 | 0:30 | Paste the address → parcel fills in. Upload the receipt → fields land. |
 | 0:50 | The number flips: **$4,984 → $2,261**. Payback 5.2 years. 0% loan: **+$60/month** in your pocket. |
 | 1:10 | Click the number → formula, substituted values, source date. "Every figure is auditable." |

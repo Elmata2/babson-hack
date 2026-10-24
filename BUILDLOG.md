@@ -7,13 +7,13 @@
 
 **Built:** 28 / 62 features · █████████████░░░░░░░░░░░░░░░ **45%**
 
-**Last event:** 2026-10-24T14:43:20.318Z (10:43 ET) · **commit:** `76a5559`
+**Last event:** 2026-10-24T14:43:30.877Z (10:43 ET) · **commit:** `cc17e2f`
 
 ## Now
 
+- `10:43` 🤖 **F-01** F-01 deviation: Next.js 16.4.3 + TypeScript 6.0.3 (typescript-eslint rejects TS 7), Tailwind v4 tokens; deployed to Vercel as switchpoint-psi
 - `10:43` ✔ **F-01** Next.js 16 + TypeScript + Tailwind v4 scaffold, deploys to Vercel · `next.config.ts`
 - `10:43` ✔ **F-05** `npm run check` = tsc + eslint + vitest, run before every commit · `eslint.config.mjs`
-- `10:42` ✔ **F-61** State geometry trim: simplify + quantize `ma-tracts.topo.json` under 2.5 MB, verify gzip < 700 KB · `scripts/trim-geo.mjs`
 
 ## Next up
 
@@ -38,6 +38,7 @@
 
 ## Timeline
 
+- `10:43` 🤖 **F-01** — F-01 deviation: Next.js 16.4.3 + TypeScript 6.0.3 (typescript-eslint rejects TS 7), Tailwind v4 tokens; deployed to Vercel as switchpoint-psi · `76a5559`
 - `10:43` ✔ **F-01** — Next.js 16 + TypeScript + Tailwind v4 scaffold, deploys to Vercel · `next.config.ts` · `76a5559`
 - `10:43` ✔ **F-05** — `npm run check` = tsc + eslint + vitest, run before every commit · `eslint.config.mjs` · `76a5559`
 - `10:42` ✔ **F-61** — State geometry trim: simplify + quantize `ma-tracts.topo.json` under 2.5 MB, verify gzip < 700 KB · `scripts/trim-geo.mjs` · `76a5559`

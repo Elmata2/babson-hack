@@ -21,14 +21,21 @@ Track: **Climate Tech**, challenge **C2 — Cleaner, more affordable buildings**
 
 1. Heating oil in Massachusetts averaged **$6.23/gal** the week of 2026-10-19,
    up **75%** from $3.55 a year earlier (MA DOER weekly survey).
-2. **29.2%** of Massachusetts households heat with oil — 1.82M homes (ACS 2024
-   1-year, via Mass.gov heating profile).
+2. **22.4%** of Massachusetts households heat with oil — **624,510 occupied
+   units** of 2,785,042 (ACS 5-year B25040, baked statewide from 1,620 tracts).
+   At ~750 gal each that is roughly **$2.9 billion a year** leaving the state's
+   households in heating oil — an estimate, and labelled as one.
+
+   *Correction, 2026-10-24: an earlier draft said 29.2% / 1.82M homes. That came
+   from a Mass.gov table whose totals (6.2M) do not reconcile with Massachusetts'
+   ~2.8M occupied units. The baked ACS layer is the authority: 22.4%. The map and
+   the narration must quote the same number.*
 3. Whole-home heat pump rebates drop from **$2,650/ton (cap $8,500)** to
    **$2,350/ton (cap $7,500)** for installs on or after **2027-01-01**. The
    federal 25C credit is already gone — $0 for 2026 installs.
 
-That is 68 days of deadline, a doubling fuel price, and a state where three in
-ten homes are exposed.
+That is 68 days of deadline, a doubling fuel price, and 624,510 households
+holding the bill.
 
 ## The fourth fact, which nobody else checks
 
