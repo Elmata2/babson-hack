@@ -144,8 +144,10 @@ const svg = `<?xml version="1.0" encoding="UTF-8"?>
 `
 
 if (checkOnly) {
-  const bytes = statSync(resolve(process.cwd(), OUT)).size
-  console.log(`${OUT} — ${(bytes / 1024).toFixed(0)} KB`)
+  for (const rel of [OUT, 'public/data/ma-heat-map.png']) {
+    const bytes = statSync(resolve(process.cwd(), rel)).size
+    console.log(`${rel} — ${(bytes / 1024).toFixed(0)} KB`)
+  }
   process.exit(0)
 }
 
