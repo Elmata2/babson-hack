@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { FreshnessBadge } from '@/components/freshness-badge'
+import { InstallCostField } from '@/components/install-cost-field'
 import { RebateStack } from '@/components/rebate-stack'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
@@ -20,6 +21,7 @@ import {
   bonusOn,
   defaultInstallYear,
   plausibleElectricRate,
+  plausibleInstallCost,
   provenanceLine,
   queryString,
   questionsFor,
@@ -43,6 +45,8 @@ import { VERDICT_META } from '@/lib/verdicts'
  * @built F-38 the defaults and the disclaimer are on the page before any fold
  * @built F-39 three sentences of plain English, written from these numbers and checked against them
  * @built F-152 R8.3 — two reasons and one caveat are floored by `verdictNotes`, not sliced off a raw array
+ * @built F-153 R7.2 — the installed cost is editable here and on the form, badged with
+ * where the number came from, and carried in the link so the verdict recomputes in place
  *
  * Server-rendered from the URL and `lib/calc`. No client JavaScript is needed to
  * see the answer, no API route is required to produce it, and the same link
@@ -169,13 +173,17 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
     hdd65,
   }
 
+  // R7.2: a contractor quote if the household typed one, otherwise the program
+  // average. Outside the band the average wins and the screen keeps saying so.
+  const quote = plausibleInstallCost(first(params.ic))
+
   const { income } = questionsFor(tier, first(params.inc))
   const upgrade = {
     tier,
     installYear,
     // R7.2: the Mass Save average is the default quote, and the enhanced tier is
     // capped by an install cost, so the engine needs one to price it at all.
-    installCost: DEFAULT_INSTALL_COST_USD,
+    installCost: quote ?? DEFAULT_INSTALL_COST_USD,
     weatherizationBonus: bonusOn(params, 'wz'),
     sizingBonus: bonusOn(params, 'sz'),
     heatPumpRate: seasonal.rate,
@@ -252,11 +260,14 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
       document: `Residential heat-pump rebates, ${installYear} table`,
       asOf: 'read 24 Oct 2026',
     },
-    installCostSource: {
-      publisher: 'Mass Save',
-      document: 'Program-average installed cost',
-      asOf: '2026 programme year',
-    },
+    installCostSource:
+      quote === null
+        ? {
+            publisher: 'Mass Save',
+            document: 'Program-average installed cost',
+            asOf: '2026 programme year',
+          }
+        : { publisher: 'This household', document: 'Your contractor quote', asOf: 'as entered' },
     equipmentSource: {
       publisher: 'Mass Save',
       document: 'Air-source heat-pump specification (design assumption)',
@@ -435,6 +446,19 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
               entry={noMassSave ? null : figure('payback')}
             />
           </section>
+
+          {noMassSave ? null : (
+            <section className="mt-4 rounded-card border border-rule bg-surface p-5 sm:p-6">
+              <h2 className="text-small font-medium">What the install costs</h2>
+              <p className="mt-1 max-w-[62ch] text-micro text-ink-muted">
+                The rebate is subtracted from this number, so a quote changes the net cost, the payback and the
+                loan. It never changes the answer&rsquo;s honesty.
+              </p>
+              <div className="mt-4">
+                <InstallCostField value={result.installCost} fromQuote={quote !== null} query={queryString(params)} />
+              </div>
+            </section>
+          )}
 
           <CashFlow result={result} noMassSave={noMassSave} />
 

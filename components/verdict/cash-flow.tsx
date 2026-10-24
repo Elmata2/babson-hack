@@ -53,7 +53,7 @@ export function CashFlow({ result, noMassSave }: { result: VerdictResult; noMass
               <>
                 The loan is <span className="tabular-nums">{usd(result.monthlyLoan)}</span> a month and the heat pump
                 saves <span className="tabular-nums">{usd(result.monthlySavings)}</span>, so you are{' '}
-                <span className="tabular-nums">{usd(result.monthlySavings - result.monthlyLoan)}</span> a month ahead
+                <span className="tabular-nums">{usd(result.monthlyCashFlow)}</span> a month ahead
                 from the first payment.
               </>
             ) : (
@@ -61,9 +61,7 @@ export function CashFlow({ result, noMassSave }: { result: VerdictResult; noMass
                 The loan is <span className="tabular-nums">{usd(result.monthlyLoan)}</span> a month; the energy bill is{' '}
                 <span className="tabular-nums">{usd(monthlySavings)}</span> a month{' '}
                 {result.monthlySavings >= 0 ? 'saved' : 'higher'}, so you are{' '}
-                <span className="tabular-nums">
-                  {usd(Math.abs(result.monthlySavings - result.monthlyLoan))}
-                </span>{' '}
+                <span className="tabular-nums">{usd(Math.abs(result.monthlyCashFlow))}</span>{' '}
                 a month out of pocket until the loan is repaid
                 {result.paybackYears === null ? '.' : `, and the payback is ${one(result.paybackYears)} years.`}
               </>

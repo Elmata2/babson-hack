@@ -1,5 +1,7 @@
 /**
  * @built F-07 all interfaces for the calculation core, no logic
+ * @built F-37 `CashFlow` and the verdict's monthly fields — one month of the
+ * loan, one month of saving, and the difference the screen prints
  *
  * Shapes come from design.md §2.1. Additive fields are allowed; nothing from the
  * contract is removed. Every number is full precision USD / BTU / kWh — rounding
@@ -132,6 +134,16 @@ export interface HeatLoan {
   apr: number
 }
 
+/** Result of `cashFlow`: one month of the loan next to one month of savings. */
+export interface CashFlow {
+  /** Net cost after rebate ÷ term. At 0% this is exactly `netCost / months`. */
+  monthlyLoan: number
+  /** Annual savings ÷ 12. Signed: a losing heat pump saves a negative amount. */
+  monthlySavings: number
+  /** `monthlySavings − monthlyLoan`. Positive means the household is ahead. */
+  monthlyCashFlow: number
+}
+
 /** Everything the verdict screen needs. Full precision; round at render time. */
 export interface VerdictResult {
   deliveredMMBtu: number
@@ -154,6 +166,8 @@ export interface VerdictResult {
   paybackYears: number | null
   monthlyLoan: number
   monthlySavings: number
+  /** `monthlySavings − monthlyLoan`: the cash-flow line R7.3 asks for. */
+  monthlyCashFlow: number
   cashFlowPositive: boolean
   /** $/kWh at which savings reach zero. Computed for every run. */
   breakEvenElectricPrice: number | null

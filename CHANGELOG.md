@@ -14,6 +14,15 @@ because that is when the hackathon clock runs.
 
 ### Added
 
+- **F-153** — R7.2: the installed cost is editable, and says where it came from.
+  The verdict screen and the intake form both take a contractor quote; leaving it
+  blank keeps the Mass Save average of $22,000 with a program-data badge, and the
+  value rides in the link as `ic` behind a $1,000–$250,000 plausibility band, so a
+  slipped zero cannot silently stretch a payback. `cashFlow()` in
+  `lib/calc/finance.ts` now derives the loan payment, the monthly saving and
+  `monthlyCashFlow` once — property-tested — and the cash-flow module reads that
+  difference instead of dividing again. Provenance follows the source: the average
+  cites Mass Save, a typed quote cites the household.
 - **F-32–F-40 — the verdict screen is the product now.** The answer renders as a
   three-stop dial (icon, label, colour; the active stop marked) and the household's
   old annual cost turns over into the heat-pump cost in 900ms — or instantly under
