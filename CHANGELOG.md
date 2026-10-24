@@ -14,6 +14,68 @@ because that is when the hackathon clock runs.
 
 ### Added
 
+- **F-120–F-131 — the agent beat: decide, consent, call, compare.** The verdict
+  told a household whether to switch; it did not help them act. This adds the half
+  of Addendum A that was still a slide. `lib/calls/` holds the wire vocabulary
+  (`Cited<T>` — every field nullable, every value carrying the sentence that
+  produced it), the parse boundary (an untrusted payload in, redacted excerpts and
+  typed fields out), the dial plan, the platform client (three fetches, typed
+  failures, no retries) and the staged replay. `POST /api/calls` places calls only
+  when an agent, a consent body and a permitted line all line up: `PROVIDER_CALLS_ENABLED`
+  is the only way a real business is dialled (R19.8), team test lines are exempt
+  from business hours so a Saturday demo works (R19.6), and a vendor failure is one
+  `failed` row rather than a dead session. `GET /api/calls/[sessionId]` polls the
+  conversation ids the *browser* holds — no database, no webhook (ADR-010) — and
+  `DELETE` forgets them. The comparison screen sorts with `lib/switch/quotes.ts`
+  (already property-tested) and never promotes a row it does not believe: a dealer
+  who says ninety-nine cents is shown and not ranked, a prebuy is a bet and not a
+  price. "Use this price" writes the effective price into the verdict's own `price`
+  key, so the household sees the verdict change — including when a cheaper oil price
+  flips it to *don't switch yet*, which is the product working. The one negotiation
+  round (R21) cites a price only from a ranked quote and asks at most two dealers,
+  never naming the one it came from.
+- **F-123/F-131 — the agents are reviewed configuration, not a dashboard.** Two
+  folders under `agents/`: the outbound quote caller (fuel and installer scripts,
+  the disclosure verbatim from steering, nine and six extraction fields, four-minute
+  cap, no server tools) and the inbound verdict line (four languages, one
+  `compute_verdict` tool). The inbound route runs the *same* `computeVerdict` as the
+  web screen and returns a finished sentence per language, because R23.2 says the
+  model reads the number back and never computes it. Both routes are off by default:
+  a missing secret is a 503, an unconfigured agent is an `off` plan with a sentence,
+  never a fake ring.
+- **F-134–F-136 — CI for the parts vitest cannot see.** Contract tests read the
+  prompt files as data: the first message must equal `DISCLOSURE_TEMPLATE`, the
+  extraction schema must name exactly the fields `parse.ts` reads, and hostile
+  transcripts (refusal, voicemail, ninety-nine cents) must extract and rank the way
+  the product claims. Two workflows: simulation on PRs touching `agents/**` — which
+  runs the offline half always and the platform half only with an account, and says
+  which one it ran — and a config push on merge to master, so the deployed agent is
+  the reviewed one.
+- **F-52 — the demo video, cut from the live app.** `scripts/demo/record.mjs` renders
+  nine beats of the real product in `?demo=1` mode with headless Chrome, narrates them
+  with macOS `say`, and assembles one 1:37 H.264 cut at `public/demo/switchpoint-demo.mp4`.
+  The storyboard lives in the script, so a copy change is a re-run, not a re-shoot.
+  The Wellesley beat — *Mass Save rebates do not apply at this address* — is beat five.
+- **F-53/F-54 — the submission asks the repository.** `scripts/submission/check.mjs`
+  checks that the repo is public, `.kiro` is committed and not gitignored, the README
+  quotes C2 and names its datasets, the build log says every row is built and is not
+  drifted, the video is under three minutes, and the three workflows exist. The one
+  row it cannot check — the track chosen on the portal — is printed as MANUAL and
+  never counted as a pass. `--review` adds the F-54 read: commits, ahead/behind
+  `origin/master`, a dirty tree, and the last twelve commits.
+- **P13–P16** — the four quote-ranking properties, as properties: order-independence,
+  an implausible price never ranked, `effectivePerGal` never below the quoted price,
+  and the negotiation price always one of this session's ranked rows.
+
+### Fixed
+
+- **`?demo=1` could not contact anyone.** `POST /api/switch` validated the body
+  against the closed key list *before* it read the demo flag, and `demo` was not on
+  that list, so the exact body the switch screen sends in demo mode came back
+  `unknown_field`. The flag is now part of the closed set (with `sessionId`), and two
+  regression tests pin the shape the screen actually sends.
+
+
 - **F-153** — R7.2: the installed cost is editable, and says where it came from.
   The verdict screen and the intake form both take a contractor quote; leaving it
   blank keeps the Mass Save average of $22,000 with a program-data badge, and the

@@ -29,6 +29,18 @@ allow-list.
    figure, and the source date on every price.
 4. **Map.** Tract-level heat exposure across the region, with a 2026 ↔ 2027
    scrubber that shows exactly what the step-down costs each neighbourhood.
+5. **Decide → consent → call → compare.** The household picks what to do next —
+   nothing preselected. If they choose to shop, they read every fact an agent may
+   say about them, confirm, and an ElevenLabs voice agent calls dealers or
+   installers over a Twilio line and brings back one comparable number per row.
+   Code ranks; the model only extracts. The call flow is configuration in
+   [`agents/`](agents/) and is off unless the deployment configures it — the switch
+   kit, with the exact question and the number, always works.
+
+The 1:37 demo cut is at
+[`public/demo/switchpoint-demo.mp4`](public/demo/switchpoint-demo.mp4); it is made
+from the live app in `?demo=1` mode by `scripts/demo/record.mjs`, so it cannot show
+a screen the product does not have.
 
 If a gas-heated home will lose money on a heat pump, the screen says
 **DON'T SWITCH YET** and prints the break-even electricity price. That is the
@@ -124,6 +136,16 @@ average install **$22,000** (Mass Save program data); federal 25C **expired**
 
 **Estimate only. Not a quote. A Home Energy Assessment determines eligibility and
 sizing.**
+
+## Is the submission what we say it is?
+
+`node scripts/submission/check.mjs` asks the repository, not a markdown file: repo
+public, `.kiro` committed and not gitignored, specs and steering present, README
+quoting C2, the build log at every row and not drifted, the video under three
+minutes, the three workflows wired. `--review` adds the final read — commits,
+`origin/master` sync, a dirty tree, the last twelve commits. The one row it cannot
+check is the track chosen on the portal, and it prints that as MANUAL rather than
+pretending.
 
 ## The check nobody else makes
 

@@ -55,7 +55,7 @@ if (remote.ok) {
   const slug = remote.out.replace(/.*github\.com[:/]/, '').replace(/\.git$/, '')
   const gh = run('gh', ['api', `repos/${slug}`, '--jq', '.visibility'])
   if (gh.ok) {
-    if (gh.out === 'PUBLIC') pass('Repository is public (R12.1)', `https://github.com/${slug}`)
+    if (gh.out.toLowerCase() === 'public') pass('Repository is public (R12.1)', `https://github.com/${slug}`)
     else fail('Repository is public (R12.1)', `visibility is ${gh.out}`)
   } else {
     manual('Repository is public (R12.1)', `could not ask GitHub: ${gh.err.split('\n')[0]}`)
