@@ -110,6 +110,7 @@ marked ✂ until P4 is green.
 | F-56 | P7 | `lib/utility.ts` — sponsor → seasonal rate rule, MLP eligibility gate, `mixed` → ask | B | 20m | F-55 |
 | F-57 | P7 | Verdict screen utility badge + MLP refusal state (the Wellesley beat) | A | 20m | F-56 |
 | F-58 | P7 | EJ2020 bake + `ej-overlay` map layer toggle, no effect on heat values | C | 30m | F-42 |
+| F-63 | P7 | Cape Light Compact: infer the 21 member towns from Barnstable (25001) + Dukes (25007) county membership, rewrite `eversource` → `cape_light`, mark `inferred: true`, eligibility `true`, seasonal rule `null` | C | 25m | F-60 |
 | F-59 | P7 | README: challenge C2 quote, dataset citations, utility-coverage note | D | 15m | F-56 |
 
 **F-55/F-56/F-57 are not optional.** They are the difference between quoting a

@@ -103,6 +103,48 @@ if (townCount !== EXPECTED_TOWNS) {
   throw new Error(`expected ${EXPECTED_TOWNS} unique town keys, wrote ${townCount} (${duplicateKeys} duplicates)`)
 }
 
+// ---- Cape Light Compact (F-63) ---------------------------------------------
+// This dataset has no `Cape Light Compact` label: its member towns in Barnstable
+// and Dukes counties are published as Eversource *distribution*. CLC is a Mass
+// Save Electric Sponsor (masssave.com footer, 2026-10-24), so leaving those towns
+// as `eversource` mislabels the sponsor and applies the wrong seasonal rule.
+//
+// We infer membership from the county table we already baked — not from a
+// hand-typed list — strip the county/city suffix from the county's town names,
+// and mark every overridden row `inferred: true` so the UI can say "verify".
+const CLC_COUNTIES = new Set(['25001', '25007'])
+let clcInferred = 0
+try {
+  const countyRaw = await readFile('data/generated/towns-by-county.json', 'utf8')
+  const counties = JSON.parse(countyRaw).counties ?? {}
+  const clcTowns = new Set()
+  for (const [fips, county] of Object.entries(counties)) {
+    if (!CLC_COUNTIES.has(String(fips))) continue
+    for (const rawTown of Object.keys(county?.towns ?? {})) {
+      // County tables carry names like "Barnstable County" / "Barnstable City".
+      const bare = rawTown.replace(/\s+(County|City|Town)$/i, '').trim()
+      clcTowns.add(townKey(titleCaseTown(bare)))
+    }
+  }
+  for (const [name, record] of Object.entries(towns)) {
+    if (!clcTowns.has(townKey(name))) continue
+    if (!(record.sponsors.length === 1 && record.sponsors[0] === 'eversource')) continue
+    towns[name] = { ...record, sponsors: ['cape_light'], inferred: true }
+    clcInferred += 1
+  }
+  console.log(`  cape light: ${clcInferred} inferred from Barnstable + Dukes counties`)
+} catch (error) {
+  console.warn(`  warn   Cape Light Compact inference skipped: ${error.message}`)
+}
+
+// Recount after the override so the artefact never publishes a stale distribution.
+for (const key of Object.keys(counts)) counts[key] = 0
+for (const record of Object.values(towns)) {
+  if (record.mixed) counts.mixed += 1
+  if (record.sponsors.length === 1 && record.sponsors[0] === 'municipal') counts.municipalOnly += 1
+  for (const sponsor of record.sponsors) if (sponsor in counts) counts[sponsor] += 1
+}
+
 const artefact = {
   _meta: meta({
     source: 'MassGIS / Hackachusetts 2026 data portal — Electricity Providers by town',
@@ -113,8 +155,9 @@ const artefact = {
       fields: 'towns: display name → { sponsors, hasMunicipal, mixed }',
       sponsorKeys: ['eversource', 'nationalgrid', 'unitil', 'cape_light', 'municipal', 'other'],
       mixedMeans: 'more than one sponsor serves the town; ask the user which one bills them',
+      capeLightInferred: clcInferred,
       caveats: [
-        'Cape Light Compact is not a label in this dataset: its member towns appear as Eversource distribution, so cape_light is never emitted from this source.',
+        'Cape Light Compact has no label in this dataset. Its Barnstable and Dukes county member towns appear as Eversource distribution, so rows in those counties whose only sponsor parsed as eversource are rewritten to cape_light and marked inferred: true. Verify with Cape Light Compact; the seasonal rate adjustment is not published for CLC.',
         'A town whose label names no known sponsor gets sponsors: [] and the gate asks.',
       ],
       distribution: counts,

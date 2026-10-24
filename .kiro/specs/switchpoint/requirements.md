@@ -92,6 +92,17 @@ visible.
     a municipal light plant**, replacing the number with an explanation;
   - ask "which utility bills you?" when the town is mixed (municipal + IOU),
     never silently picking one.
+- 3.6b **Cape Light Compact.** The source dataset publishes CLC's member towns as
+  Eversource distribution. CLC *is* a Mass Save electric sponsor, so the system
+  SHALL infer membership from Barnstable (25001) and Dukes (25007) counties, treat
+  those towns as `cape_light`, keep `eligibleForMassSave: true`, set
+  `seasonalRateRule: null` (no adjustment is published for CLC), and mark the row
+  `inferred: true` so the UI shows "verify with Cape Light Compact". The inference
+  is derived from the county table, never from a hand-typed town list.
+
+  *Correction, 2026-10-24: an earlier version of this requirement treated CLC as
+  ineligible. masssave.com lists Cape Light Compact as a sponsor, so refusing a
+  rebate there would have been as wrong as quoting one in Wellesley.*
 - 3.7 The utility determination renders its own source badge
   (`MassGIS · Electricity Providers`), like every other number.
 

@@ -29,8 +29,11 @@ describe('utility table coverage', () => {
       // null eligibility and a question are the same state, by construction.
       expect(resolved.eligibleForMassSave === null).toBe(resolved.question !== null)
       if (resolved.eligibleForMassSave === true) {
-        expect(resolved.seasonalRateRule).not.toBeNull()
         expect(resolved.sponsors).toHaveLength(1)
+        // Cape Light Compact is a Mass Save sponsor for which no seasonal-rate
+        // adjustment is published. Eligibility and the rate rule are different
+        // facts, so only the IOUs are required to carry a rule.
+        if (resolved.sponsors[0] !== 'cape_light') expect(resolved.seasonalRateRule).not.toBeNull()
       }
       if (resolved.eligibleForMassSave === false) {
         expect(resolved.reason).toMatch(/Mass Save/)
@@ -166,5 +169,63 @@ describe('unknown towns', () => {
   it('accepts case and a Town of prefix', () => {
     expect(resolveUtility('town of wellesley').sponsors).toEqual(['municipal'])
     expect(resolveUtility('  FRAMINGHAM ').sponsors).toEqual(['eversource'])
+  })
+})
+
+/**
+ * @built F-63 Cape Light Compact inferred from county membership
+ *
+ * The MassGIS dataset has no `Cape Light Compact` label — its Cape and Vineyard
+ * member towns are published as Eversource distribution. CLC is a Mass Save
+ * sponsor, so treating those towns as Eversource would apply the wrong rate rule,
+ * and treating CLC as ineligible would deny a rebate the household can get.
+ * Membership is derived from the baked county table, never typed by hand.
+ */
+describe('Cape Light Compact inference', () => {
+  const CLC_TOWNS = ['Barnstable', 'Falmouth', 'Provincetown', 'Yarmouth', 'Edgartown', 'Oak Bluffs', 'Tisbury']
+
+  it('resolves every Cape and Vineyard town to cape_light, not eversource', () => {
+    for (const town of CLC_TOWNS) {
+      const resolved = resolveUtility(town)
+      expect(resolved.found, town).toBe(true)
+      expect(resolved.sponsors, town).toEqual(['cape_light'])
+      expect(resolved.mixed, town).toBe(false)
+    }
+  })
+
+  it('keeps CLC eligible for Mass Save but never invents a seasonal rate', () => {
+    for (const town of CLC_TOWNS) {
+      const resolved = resolveUtility(town)
+      expect(resolved.eligibleForMassSave, town).toBe(true)
+      expect(resolved.seasonalRateRule, town).toBeNull()
+      expect(resolved.question, town).toBeNull()
+      expect(resolved.reason, town).toMatch(/Cape Light Compact/)
+    }
+  })
+
+  it('marks every inferred row so the UI can say "verify"', () => {
+    for (const town of CLC_TOWNS) expect(resolveUtility(town).inferred, town).toBe(true)
+  })
+
+  it('does not leach into other counties', () => {
+    expect(resolveUtility('Framingham').sponsors).toEqual(['eversource'])
+    expect(resolveUtility('Framingham').inferred).toBe(false)
+    expect(resolveUtility('Wellesley').eligibleForMassSave).toBe(false)
+    expect(resolveUtility('Wellesley').inferred).toBe(false)
+    expect(resolveUtility('Springfield').sponsors).toEqual(['eversource'])
+  })
+
+  it('never reports a stale distribution in the artefact metadata', () => {
+    const meta = UTILITY_META as unknown as {
+      capeLightInferred?: number
+      distribution?: Record<string, number>
+    }
+    expect(meta.capeLightInferred).toBeGreaterThanOrEqual(CLC_TOWNS.length)
+    const distribution = meta.distribution
+    expect(distribution).toBeDefined()
+    const capeLight = distribution?.cape_light ?? 0
+    expect(capeLight).toBe(meta.capeLightInferred)
+    // The inference moves towns out of eversource, so the two must not both grow.
+    expect(distribution?.eversource).toBeLessThanOrEqual(351 - capeLight)
   })
 })

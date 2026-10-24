@@ -42,6 +42,8 @@ interface UtilityRecord {
   sponsors: SponsorKey[]
   hasMunicipal: boolean
   mixed: boolean
+  /** True when the sponsor was inferred (Cape Light Compact), not read from the dataset. */
+  inferred: boolean
 }
 
 /** What `resolveUtility` answers. `question` is non-null exactly when the app must ask. */
@@ -57,6 +59,8 @@ export interface UtilityResolution {
   eligibleForMassSave: boolean | null
   /** USD/kWh to subtract for Nov 1 – Apr 30, or null when there is no single answer. */
   seasonalRateRule: number | null
+  /** True when the sponsor came from the county inference, not the source dataset. */
+  inferred: boolean
   /** Human reason for a `false` or a `null` eligibility. Never a guess. */
   reason: string | null
   /** The question to put to the user when the data cannot decide. */
@@ -84,6 +88,7 @@ function parseRecord(town: string, raw: unknown): UtilityRecord {
     sponsors,
     hasMunicipal: record.hasMunicipal === true,
     mixed: record.mixed === true,
+    inferred: record.inferred === true,
   }
 }
 
@@ -136,6 +141,7 @@ export function resolveUtility(town: string): UtilityResolution {
       mixed: false,
       eligibleForMassSave: null,
       seasonalRateRule: null,
+      inferred: false,
       reason: `No utility record for "${display}". The table covers all 351 Massachusetts municipalities.`,
       question: `Which utility bills you? We could not match "${display}" to a Massachusetts town — check the spelling or pick the town from the list.`,
     }
@@ -155,6 +161,7 @@ export function resolveUtility(town: string): UtilityResolution {
       mixed: true,
       eligibleForMassSave: null,
       seasonalRateRule: null,
+      inferred: record.inferred,
       reason: `${sponsorList(sponsors)} both serve ${entry.town}. The Mass Save sponsor and the seasonal rate depend on which one bills this address.`,
       question: `Which utility bills you: ${sponsorList(sponsors)}?`,
     }
@@ -170,23 +177,30 @@ export function resolveUtility(town: string): UtilityResolution {
       mixed: false,
       eligibleForMassSave: false,
       seasonalRateRule: null,
+      inferred: record.inferred,
       reason: `${entry.town} is served by a municipal light plant. Municipal light plant customers are not served by Mass Save electric rebates — the town's own program may still offer something, so ask the municipally owned utility directly. The seasonal heat pump rate does not apply, and no Mass Save rebate is quoted.`,
       question: null,
     }
   }
 
   if (sole === 'cape_light') {
+    // Cape Light Compact IS a Mass Save Electric Sponsor (masssave.com footer), so
+    // the rebate applies. What is not published is the seasonal rate adjustment,
+    // which covers only Eversource, Unitil and National Grid — so we invent none,
+    // and we say where the sponsor came from when we inferred it from the county.
     return {
       town: entry.town,
       found: true,
       sponsors,
       hasMunicipal: false,
       mixed: false,
-      eligibleForMassSave: null,
+      eligibleForMassSave: true,
       seasonalRateRule: null,
-      reason:
-        'Cape Light Compact administers its own efficiency programs, so Mass Save rebate amounts do not carry over unchanged. Confirm the current offer with Cape Light Compact before quoting a number.',
-      question: 'Cape Light Compact serves this address. Is the account billed by Cape Light Compact?',
+      inferred: record.inferred,
+      reason: record.inferred
+        ? `Cape Light Compact is the Mass Save sponsor for ${entry.town}. This was inferred from Barnstable/Dukes county membership because the source dataset omits CLC — verify with Cape Light Compact. The seasonal heat pump rate adjustment is not published for CLC, so the standard rate is used.`
+        : `Cape Light Compact serves ${entry.town}. The seasonal heat pump rate adjustment is not published for CLC, so the standard rate is used.`,
+      question: null,
     }
   }
 
@@ -199,6 +213,7 @@ export function resolveUtility(town: string): UtilityResolution {
       mixed: false,
       eligibleForMassSave: null,
       seasonalRateRule: null,
+      inferred: record.inferred,
       reason: `${entry.town}'s utility could not be matched to a Mass Save sponsor. No rebate is quoted until that is resolved.`,
       question: 'Which utility bills you?',
     }
@@ -214,6 +229,7 @@ export function resolveUtility(town: string): UtilityResolution {
       mixed: false,
       eligibleForMassSave: true,
       seasonalRateRule: rule,
+      inferred: record.inferred,
       reason: null,
       question: null,
     }
@@ -228,6 +244,7 @@ export function resolveUtility(town: string): UtilityResolution {
     mixed: record.mixed,
     eligibleForMassSave: null,
     seasonalRateRule: null,
+    inferred: record.inferred,
     reason: 'Unrecognised sponsor.',
     question: 'Which utility bills you?',
   }
