@@ -223,7 +223,7 @@ export function applyLens(map: MlMap, state: LensState): void {
     type: 'fill-extrusion',
     source: 'towns',
     filter: ['==', ['get', 'key'], sel],
-    paint: { 'fill-extrusion-color': '#ffffff', 'fill-extrusion-height': HEIGHT_EXPR, 'fill-extrusion-opacity': 0.5 },
+    paint: { 'fill-extrusion-color': '#ffb703', 'fill-extrusion-height': HEIGHT_EXPR, 'fill-extrusion-opacity': 0.95 },
   })
   addLayerOnce(map, {
     id: 'outline',
@@ -250,7 +250,7 @@ export function applyLens(map: MlMap, state: LensState): void {
     layout: { 'text-field': ['get', 'name'], 'text-size': 11, 'text-font': ['Open Sans Regular'] },
     paint: { 'text-color': '#e6edf7', 'text-halo-color': '#0b1220', 'text-halo-width': 1.2 },
   })
-  addLayerOnce(map, { id: 'sel-line', type: 'line', source: 'sel', paint: { 'line-color': '#ffffff', 'line-width': 1.5 } })
+  addLayerOnce(map, { id: 'sel-line', type: 'line', source: 'sel', paint: { 'line-color': '#ffb703', 'line-width': 3 } })
   map.setFilter('columns', ['!=', ['get', 'key'], sel])
   map.setFilter('selected', ['==', ['get', 'key'], sel])
   map.setLayoutProperty('solar', 'visibility', state.showSolar ? 'visible' : 'none')

@@ -23,6 +23,7 @@ import { GridPanel } from './grid-panel'
 import { applyLens, HIT_LAYERS, LENS_BG, STYLE_URL, type LensState } from './layers'
 import { loadEjTracts, loadTowns, loadTracts, markEj, townAtPoint, type TownData, type TractData } from './map-data'
 import { EJ_OPACITY, EJ_VIOLET, HEAT_LABELS, HEAT_RAMP, NO_DATA, PROVIDER_COLOUR } from './palette'
+import { NextStepsPanel } from './next-steps-panel'
 import { ProfileDrawer } from './profile-drawer'
 import { Search, type SearchResult } from './search'
 import { TownPanel } from './town-panel'
@@ -31,6 +32,7 @@ import { useProfile } from './use-profile'
 import { townKey, type SponsorKey } from '@/lib/elec-label'
 import { GEO_META, displayTown, stateTotals, townsOfTract } from '@/lib/geo'
 import { SPONSOR_NAME } from '@/lib/utility'
+import { parseNextStepsQuery, type NextStepsQuery } from '@/lib/map/next-steps-query'
 import {
   METRIC_LABEL,
   ZONE_LABEL,
@@ -42,7 +44,7 @@ import {
   type Zone,
 } from '@/lib/map/energy-model'
 
-type Tab = 'town' | 'bill' | 'grid'
+type Tab = 'town' | 'bill' | 'grid' | 'next'
 
 const STATE_CENTER: [number, number] = [-71.75, 42.2]
 const STATE_ZOOM = 7.2
@@ -112,6 +114,8 @@ export default function MapView() {
   const hoverFrame = useRef<number | null>(null)
   const committedLens = useRef<Lens | null>(null)
   const [mapError, setMapError] = useState<string | null>(null)
+  const [query] = useState<NextStepsQuery>(() => parseNextStepsQuery(new URLSearchParams(window.location.search)))
+  const queryApplied = useRef(false)
 
   const getMap = useCallback(() => mapRef.current, [])
   const camera = useCamera(getMap, ready)
@@ -335,6 +339,31 @@ export default function MapView() {
     }
   })
 
+  // The verdict's hand-off: fly to the town, light up its column, open Next steps.
+  useEffect(() => {
+    if (queryApplied.current || !ready || !towns) return
+    queryApplied.current = true
+    const entry = query.town ? (towns.byKey.get(townKey(query.town)) ?? null) : null
+    if (!entry) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (query.next || query.town) setTab('next')
+      return
+    }
+    hydratedHome.current = true
+    selectTown(entry.key)
+    dropPin(entry.anchor)
+    changeLens('energy', { skipCamera: true })
+    setTab('next')
+    const map = mapRef.current
+    const [w, s, e, n] = entry.bbox
+    const cx = (w + e) / 2
+    const cy = (s + n) / 2
+    const hw = ((e - w) / 2) * 3
+    const hh = ((n - s) / 2) * 3
+    const fit = map?.cameraForBounds([cx - hw, cy - hh, cx + hw, cy + hh], { bearing: VIEW.energy.bearing })
+    moveTo({ center: fit?.center ? (maplibregl.LngLat.convert(fit.center).toArray() as [number, number]) : entry.anchor, zoom: Math.min(fit?.zoom ?? 10, 11), ...VIEW.energy })
+  }, [ready, towns, query, selectTown, dropPin, changeLens, moveTo])
+
   // ------------------------------------------------------------------ map lifecycle
   useEffect(() => {
     const container = containerRef.current
@@ -550,6 +579,25 @@ export default function MapView() {
           </div>
           <div
             role="tabpanel"
+            id="panel-next"
+            aria-labelledby="tab-next"
+            tabIndex={0}
+            hidden={tab !== 'next'}
+            className="min-h-0 flex-1 overflow-y-auto p-4"
+          >
+            {tab === 'next' ? (
+              <NextStepsPanel
+                town={selectedName}
+                energy={selectedEntry?.energy ?? null}
+                meta={towns?.baked._meta ?? null}
+                profile={profile}
+                query={query}
+                onEditProfile={() => setDrawerOpen(true)}
+              />
+            ) : null}
+          </div>
+          <div
+            role="tabpanel"
             id="panel-grid"
             aria-labelledby="tab-grid"
             tabIndex={0}
@@ -600,16 +648,18 @@ function Tabs({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
     { id: 'town', label: 'Town' },
     { id: 'bill', label: 'Your bill' },
     { id: 'grid', label: 'Grid' },
+    { id: 'next', label: 'Next steps' },
   ]
   return (
     <div
       role="tablist"
       aria-label="Panel"
-      className="grid grid-cols-3 border-b border-rule"
+      className="grid grid-cols-4 border-b border-rule"
       onKeyDown={(e) => {
         const i = tabs.findIndex((t) => t.id === tab)
+        const n = tabs.length
         const next =
-          e.key === 'ArrowRight' ? (i + 1) % 3 : e.key === 'ArrowLeft' ? (i + 2) % 3 : e.key === 'Home' ? 0 : e.key === 'End' ? 2 : -1
+          e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i + n - 1) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1
         if (next < 0) return
         e.preventDefault()
         onTab(tabs[next].id)

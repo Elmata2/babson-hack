@@ -8,7 +8,7 @@
  * The CSVs are the cleaned output of scripts/energy/*.py; each parser documents its source URL.
  *
  * Output `public/data/ma-town-energy.json`:
- *   towns[TOWN]  residentialMWh (null when usageStatus is not 'reported'), usageStatus, solarMW, solarSystems
+ *   towns[TOWN]  residentialMWh and incentivesUsd (null when not reported or suppressed), usageStatus, solarMW, solarSystems
  *   load[date]   { NEMA, SEMA, WCMA }, each 24 MW values; index 0 is the hour ending 1 AM
  * Fails if any town in the geometry is missing from a CSV, or a load day is not 3 zones x 24 hours.
  *
@@ -54,7 +54,12 @@ for (const name of names) {
     missing.push(name)
     continue
   }
-  towns[name] = { residentialMWh, usageStatus: u.status, solarMW: Number(s.installed_mw), solarSystems: Number(s.count) }
+  const incentivesUsd = u.status === 'reported' && u.res_incentives_usd !== '' ? Number(u.res_incentives_usd) : null
+  if (incentivesUsd !== null && !Number.isFinite(incentivesUsd)) {
+    missing.push(name)
+    continue
+  }
+  towns[name] = { residentialMWh, incentivesUsd, usageStatus: u.status, solarMW: Number(s.installed_mw), solarSystems: Number(s.count) }
 }
 if (missing.length > 0) throw new Error(`${missing.length} of ${names.length} towns lack usage or solar data: ${missing.join(', ')}`)
 
@@ -82,7 +87,7 @@ const bytes = await writeJson(OUT, {
         label: 'Mass Save',
         url: 'https://www.masssave.com/about-us/2024-annual-impact-report/town-by-town-data',
         year: 2023,
-        units: 'MWh per year, residential only',
+        units: 'MWh per year and incentives in USD, residential only',
         note: 'Municipal light plant towns do not report to Mass Save. Two towns are suppressed for privacy.',
       },
       solar: {

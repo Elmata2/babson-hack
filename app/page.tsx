@@ -1,5 +1,8 @@
 import Link from 'next/link'
 
+import { HeroMap } from '@/components/home/hero-map'
+import { CountUp } from '@/components/motion/count-up'
+import { Reveal } from '@/components/motion/reveal'
 import { FreshnessBadge } from '@/components/freshness-badge'
 import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
@@ -21,11 +24,14 @@ import { getPrices } from '@/lib/prices'
 
 export const revalidate = 86_400
 
+const step = (i: number) => ({ '--i': i }) as React.CSSProperties
+
 interface Fact {
   value: string
   unit?: string
   label: string
   source: string
+  countUp?: boolean
 }
 
 export default async function Home() {
@@ -48,6 +54,7 @@ export default async function Home() {
       value: '624,510',
       unit: 'homes',
       label: 'Massachusetts households heating with oil',
+      countUp: true,
       source:
         '22.4% of 2,785,042 occupied units · ACS 5-year B25040, baked statewide from 1,620 tracts · ≈$2.9B a winter at 750 gal each',
     },
@@ -55,39 +62,47 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader quietAtTop />
 
       <main id="main" className="flex-1">
-        <section className="border-b border-rule">
-          <div className="mx-auto max-w-[1180px] px-5 pb-14 pt-14 sm:px-8 sm:pb-20 sm:pt-24">
-            <p className="text-eyebrow uppercase text-ink-muted">
+        <section className="relative isolate overflow-hidden border-b border-rule bg-wash-warm">
+          <HeroMap />
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-wash-heat" />
+          <div className="relative mx-auto max-w-[1180px] px-5 pb-14 pt-14 sm:px-8 sm:pb-20 sm:pt-24">
+            <p className="rise text-eyebrow uppercase text-ink-muted" style={step(0)}>
               Hackachusetts 2026 · Climate Tech · Challenge C2
             </p>
 
-            <h1 className="mt-6 max-w-[20ch] text-balance text-display font-medium">
+            <h1
+              className="rise mt-6 max-w-[20ch] text-balance text-display font-medium"
+              style={step(1)}
+            >
               The honest heat pump verdict for Massachusetts.
             </h1>
 
-            <p className="mt-6 max-w-[58ch] text-lede text-ink-muted">
+            <p className="rise mt-6 max-w-[58ch] text-lede text-ink-muted" style={step(2)}>
               624,510 households here heat with oil — about $2.9 billion a winter. Give
               Switchpoint an address and a heating bill and it answers one question — switch,
               switch before 31 December, or leave it alone. When the numbers do not work, it
               says so and prints the break-even electricity price instead.
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="rise mt-8 flex flex-wrap items-center gap-3" style={step(3)}>
               <Link
                 href="/onboarding"
-                className="group inline-flex items-center gap-3 rounded-pill bg-ink px-5 py-3 text-small font-medium text-paper transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.6)]"
+                className="group inline-flex items-center gap-3 rounded-pill bg-ink px-5 py-3 text-small font-medium text-paper transition-[translate,scale,box-shadow] duration-200 ease-out-expo hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(0,0,0,0.6)] active:scale-[0.97]"
               >
                 Create your profile
-                <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
+                <span
+                  aria-hidden
+                  className="transition-transform duration-200 ease-out-expo group-hover:translate-x-0.5"
+                >
                   →
                 </span>
               </Link>
               <Link
                 href="/start"
-                className="rounded-card border border-rule-strong bg-surface px-5 py-3 text-small font-medium text-ink transition-colors hover:border-ink"
+                className="rounded-card border border-rule-strong bg-surface px-5 py-3 text-small font-medium text-ink transition-[border-color,scale] duration-200 ease-out-expo hover:border-ink active:scale-[0.97]"
               >
                 Try it without an account
               </Link>
@@ -97,12 +112,15 @@ export default async function Home() {
                 label="Fuel prices"
               />
             </div>
-            <p className="mt-3 max-w-[58ch] text-micro text-ink-muted">
+            <p className="rise mt-3 max-w-[58ch] text-micro text-ink-muted" style={step(4)}>
               A profile takes four steps and about two minutes: your name and email, one photo of a bill, your town,
               then the verdict. The profile stays in this browser; the bill image is never stored.
             </p>
 
-            <dl className="mt-12 grid overflow-hidden rounded-card border border-rule bg-surface sm:grid-cols-3">
+            <dl
+              className="rise glass mt-12 grid overflow-hidden rounded-card border border-rule shadow-soft sm:grid-cols-3"
+              style={step(5)}
+            >
               {facts.map((fact, i) => (
                 <div
                   key={fact.value}
@@ -113,9 +131,17 @@ export default async function Home() {
                 >
                   <dt className="text-small font-medium text-ink">{fact.label}</dt>
                   <dd className="order-first">
-                    <span className="text-title font-medium tabular-nums tracking-[-0.01em] text-ink">
-                      {fact.value}
-                    </span>
+                    {fact.countUp ? (
+                      <CountUp
+                        value={fact.value}
+                        delayMs={400}
+                        className="text-title font-medium tracking-[-0.01em] text-ink"
+                      />
+                    ) : (
+                      <span className="text-title font-medium tabular-nums tracking-[-0.01em] text-ink">
+                        {fact.value}
+                      </span>
+                    )}
                     {fact.unit ? (
                       <span className="ml-1.5 text-small text-ink-faint">{fact.unit}</span>
                     ) : null}
@@ -125,7 +151,7 @@ export default async function Home() {
               ))}
             </dl>
 
-            <p className="mt-4 max-w-[70ch] text-micro text-ink-muted">
+            <p className="rise mt-4 max-w-[70ch] text-micro text-ink-muted" style={step(6)}>
               The federal 25C heat pump credit expired on 31 December 2025. It is worth $0 on a
               2026 install, and any calculator still counting it is quoting you money that no
               longer exists.
@@ -135,51 +161,62 @@ export default async function Home() {
 
         <section className="border-b border-rule">
           <div className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
-            <DemoPresets />
+            <Reveal className="lift-cards">
+              <DemoPresets />
+            </Reveal>
           </div>
         </section>
 
         <section className="border-b border-rule bg-paper-sunk">
           <div className="mx-auto max-w-[1180px] px-5 py-14 sm:px-8 sm:py-20">
-            <div className="flex flex-wrap items-baseline justify-between gap-4">
-              <h2 className="text-headline font-medium">Three answers. One of them is no.</h2>
-              <p className="text-micro text-ink-muted">
-                The verdict palette — switch, deadline, hold
+            <Reveal>
+              <div className="flex flex-wrap items-baseline justify-between gap-4">
+                <h2 className="text-headline font-medium">Three answers. One of them is no.</h2>
+                <p className="text-micro text-ink-muted">
+                  The verdict palette — switch, deadline, hold
+                </p>
+              </div>
+            </Reveal>
+
+            <Reveal index={1} className="lift-cards">
+              <VerdictLegend className="mt-8" />
+            </Reveal>
+
+            <Reveal index={2}>
+              <p className="mt-8 max-w-[62ch] text-small text-ink-muted">
+                Mass Save rebates are paid by the utility sponsor serving the address, and
+                municipal light plant towns — Wellesley, Belmont, Holyoke and dozens more — are not
+                eligible for Mass Save electric rebates at all. Switchpoint resolves the sponsor
+                before it prints a dollar figure.
               </p>
-            </div>
-
-            <VerdictLegend className="mt-8" />
-
-            <p className="mt-8 max-w-[62ch] text-small text-ink-muted">
-              Mass Save rebates are paid by the utility sponsor serving the address, and
-              municipal light plant towns — Wellesley, Belmont, Holyoke and dozens more — are not
-              eligible for Mass Save electric rebates at all. Switchpoint resolves the sponsor
-              before it prints a dollar figure.
-            </p>
+            </Reveal>
           </div>
         </section>
 
-        <section>
+        <section className="bg-wash-switch">
           <div className="mx-auto grid max-w-[1180px] gap-10 px-5 py-14 sm:px-8 sm:py-20 md:grid-cols-[1fr_1.2fr]">
-            <div>
+            <Reveal>
               <h2 className="text-title font-medium">Every figure carries its source and its date.</h2>
               <p className="mt-3 max-w-[42ch] text-small text-ink-muted">
                 Any number on screen expands to the formula, the values that went into it, and
                 the day the source published them. If a source is missing, the screen says
                 <span className="text-ink"> verify</span> rather than guessing.
               </p>
-            </div>
+            </Reveal>
 
             <dl className="divide-y divide-rule border-y border-rule">
               <SourceRow
+                index={1}
                 term="Fuel and electricity prices"
                 detail="EIA API v2, with the MA DOER weekly survey as the dated fallback. When the live call fails the badge reads snapshot, with the date."
               />
               <SourceRow
+                index={2}
                 term="Rebate rules"
                 detail="Mass Save program documents, encoded as versioned JSON — 2026 and 2027 — and property-tested so a wrong tier cannot reach the screen."
               />
               <SourceRow
+                index={3}
                 term="Houses and utilities"
                 detail="MassGIS Level 3 parcels for year built, Electricity Providers for the sponsor, Census ACS for the tract."
               />
@@ -193,11 +230,11 @@ export default async function Home() {
   )
 }
 
-function SourceRow({ term, detail }: { term: string; detail: string }) {
+function SourceRow({ term, detail, index }: { term: string; detail: string; index: number }) {
   return (
-    <div className="grid gap-1 py-4 sm:grid-cols-[minmax(0,14rem)_1fr] sm:gap-6">
+    <Reveal index={index} className="grid gap-1 py-4 sm:grid-cols-[minmax(0,14rem)_1fr] sm:gap-6">
       <dt className="text-small font-medium text-ink">{term}</dt>
       <dd className="text-small text-ink-muted">{detail}</dd>
-    </div>
+    </Reveal>
   )
 }

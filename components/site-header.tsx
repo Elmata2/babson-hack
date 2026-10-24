@@ -1,13 +1,15 @@
 import Link from 'next/link'
 
+import { HeaderShell } from '@/components/motion/header-shell'
+
 /*
  * Site header — wordmark, scope, source link. Sticky, hairline-bordered, and
  * deliberately thin: the page belongs to the verdict, not to chrome.
  */
 
-export function SiteHeader() {
+export function SiteHeader({ quietAtTop = false }: { quietAtTop?: boolean }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-rule bg-paper/85 backdrop-blur-sm">
+    <HeaderShell quietAtTop={quietAtTop}>
       <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between gap-6 px-5 sm:h-16 sm:px-8">
         <Link
           href="/"
@@ -52,7 +54,7 @@ export function SiteHeader() {
           </a>
         </div>
       </div>
-    </header>
+    </HeaderShell>
   )
 }
 

@@ -19,6 +19,8 @@ export type UsageStatus = 'reported' | 'municipal' | 'suppressed'
 
 export interface BakedTown {
   residentialMWh: number | null
+  /** Mass Save electric incentives paid to residents in 2023, USD; null when not reported. */
+  incentivesUsd: number | null
   usageStatus: UsageStatus
   solarMW: number
   solarSystems: number
@@ -92,6 +94,8 @@ export interface EnergyTown extends TownInput {
   /** Installed DC MW. */
   solarMW: number
   solarSystems: number
+  /** Mass Save electric incentives paid to residents in 2023, USD, or null. */
+  incentivesUsd: number | null
 }
 
 function usageOf(baked: BakedTown): Usage {
@@ -116,6 +120,7 @@ export function buildEnergyTowns(inputs: readonly TownInput[], baked: BakedEnerg
       usage: usageOf(row),
       solarMW: row.solarMW,
       solarSystems: row.solarSystems,
+      incentivesUsd: row.incentivesUsd,
     }
   })
 }

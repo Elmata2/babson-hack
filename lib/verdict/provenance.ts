@@ -70,7 +70,10 @@ export const FIGURE_IDS = [
   'newCostSeasonal',
   'newCostStandard',
   'savings',
+  'savingsStandard',
   'rebate',
+  'rebate2026',
+  'rebate2027',
   'netCost',
   'payback',
   'monthlyLoan',
@@ -119,6 +122,9 @@ export function provenanceFor(result: VerdictResult, ctx: ProvenanceContext): Pr
     result.paybackYears === null
       ? 'none'
       : `${one(result.paybackYears)} yr${result.paybackYears > MAX_PAYBACK_YEARS ? ' — past the limit' : ''}`
+
+  const loses = result.annualSavings <= 0
+  const lossAbs = Math.abs(result.annualSavings)
 
   return [
     {
@@ -243,9 +249,11 @@ export function provenanceFor(result: VerdictResult, ctx: ProvenanceContext): Pr
     },
     {
       id: 'savings',
-      label: 'Annual savings',
-      value: usd(result.annualSavings),
-      formula: 'savings = old cost − new cost at the seasonal rate',
+      label: loses ? 'Extra cost per year' : 'Annual savings',
+      value: usd(lossAbs),
+      formula: loses
+        ? 'extra cost = new cost at the seasonal rate − old cost'
+        : 'savings = old cost − new cost at the seasonal rate',
       substitutes: [
         { label: 'Old annual cost', value: usd(result.oldAnnualCost) },
         { label: 'New annual cost, seasonal', value: usd(result.newAnnualCostHeatPumpRate) },
@@ -255,6 +263,18 @@ export function provenanceFor(result: VerdictResult, ctx: ProvenanceContext): Pr
         result.annualSavingsAtStandardRate <= 0 && result.annualSavings > 0
           ? `At the standard rate the same heat costs ${usd(-result.annualSavingsAtStandardRate)} more, not less.`
           : undefined,
+    },
+    {
+      id: 'savingsStandard',
+      label: result.annualSavingsAtStandardRate < 0 ? 'Extra cost per year, standard rate' : 'Annual savings, standard rate',
+      value: usd(Math.abs(result.annualSavingsAtStandardRate)),
+      formula: 'savings = old cost − new cost at the standard rate',
+      substitutes: [
+        { label: 'Old annual cost', value: usd(result.oldAnnualCost) },
+        { label: 'New annual cost, standard', value: usd(result.newAnnualCostStandard) },
+      ],
+      source: ctx.electricitySource,
+      note: 'The conservative view: the same heat at the price you pay all year.',
     },
     {
       id: 'rebate',
@@ -288,7 +308,10 @@ export function provenanceFor(result: VerdictResult, ctx: ProvenanceContext): Pr
       formula: 'payback = net cost ÷ annual savings; no payback exists when savings ≤ 0',
       substitutes: [
         { label: 'Net cost', value: usd(result.netCost) },
-        { label: 'Annual savings', value: usd(result.annualSavings) },
+        {
+          label: loses ? 'Extra cost per year (no savings)' : 'Annual savings',
+          value: usd(lossAbs),
+        },
         { label: 'Limit beyond which the answer is "not yet"', value: `${MAX_PAYBACK_YEARS} years` },
       ],
       source: ctx.installCostSource,
@@ -308,11 +331,11 @@ export function provenanceFor(result: VerdictResult, ctx: ProvenanceContext): Pr
     },
     {
       id: 'monthlySavings',
-      label: 'Monthly savings',
-      value: `${usd(result.monthlySavings)}/mo`,
-      formula: 'monthly savings = annual savings ÷ 12',
+      label: result.monthlySavings <= 0 ? 'Extra cost per month' : 'Monthly savings',
+      value: `${usd(Math.abs(result.monthlySavings))}/mo`,
+      formula: loses ? 'extra cost per month = annual extra cost ÷ 12' : 'monthly savings = annual savings ÷ 12',
       substitutes: [
-        { label: 'Annual savings', value: usd(result.annualSavings) },
+        { label: loses ? 'Extra cost per year' : 'Annual savings', value: usd(lossAbs) },
         { label: 'Months a year', value: '12' },
       ],
       source: ctx.fuelSource,
@@ -340,6 +363,30 @@ export function provenanceFor(result: VerdictResult, ctx: ProvenanceContext): Pr
       ],
       source: ctx.rebateSource,
       note: 'Both years use the same tier and tonnage, so the difference is the program step-down, not this house.',
+    },
+    {
+      id: 'rebate2026',
+      label: 'Rebate, 2026 install',
+      value: usd(result.rebate2026),
+      formula: 'rebate = Σ line items for a 2026 install, tier cap applied after bonuses',
+      substitutes: [
+        { label: 'Tier', value: TIER_LABEL[result.tier] },
+        { label: 'Install year', value: '2026' },
+      ],
+      source: ctx.rebateSource,
+      note: 'Estimate, not a quote. Same tier and tonnage as the 2027 figure.',
+    },
+    {
+      id: 'rebate2027',
+      label: 'Rebate, 2027 install',
+      value: usd(result.rebate2027),
+      formula: 'rebate = Σ line items for a 2027 install, tier cap applied after bonuses',
+      substitutes: [
+        { label: 'Tier', value: TIER_LABEL[result.tier] },
+        { label: 'Install year', value: '2027' },
+      ],
+      source: ctx.rebateSource,
+      note: 'Estimate, not a quote. The program steps down on 1 January.',
     },
   ]
 }
