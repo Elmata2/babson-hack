@@ -3,8 +3,22 @@
 This is the write-up the Hackachusetts rules ask for. Every claim names a file you can
 open. Where something is unfinished or unverified, the text says so.
 
-**Which Kiro surfaces.** Everything described here was done in the Kiro IDE: specs, steering, hooks, the
-MCP server and the agent chat. We have no record of using Kiro CLI, Web or Crew, so we do not claim them.
+**Which Kiro surfaces.** The build happened in the **Kiro IDE**: specs, steering, hooks, the MCP server and
+the agent chat. We also tried **Kiro Web** and **Kiro Crew** on this project, and we kept the build in the IDE.
+Kiro's own capability matrix is the reason, not habit: event-driven hooks are marked IDE/CLI only (*not*
+available on Web), and the `.kiro/` artifacts a judge opens — hooks, steering, specs — are authored where they
+run. Web's value is the PR flow against a remote branch; Crew's is unattended recurring work. Neither replaces
+a local workspace whose whole discipline is "save a file, get gated."
+
+**Which models.** Model choice inside Kiro is a setting, and we used it: Claude models backed a share of the
+turns, Kiro's default the rest. What matters more is that the model underneath could not change the answer.
+Steering files, hooks, the MCP server and the spec are the context a turn gets, and CI re-checks every guarantee
+on its own — so swapping the model changes how fast something gets written, not whether a number is allowed to
+reach the screen.
+
+**One thing to not misread.** `data-sources.md` lists `claude-sonnet-5` for bill OCR. That is a *product*
+dependency — the app reads a photographed utility bill through the Babson LiteLLM gateway — not a build tool.
+It is documented there because it handles a user's bill and therefore needs a data-boundary note.
 
 ## At a glance
 
@@ -91,12 +105,32 @@ what we must *not* claim (that a town has an aggregation program, a Nantucket ra
 
 `protect-kiro.mjs` has its own self-test (`npm run hooks:test`, nine cases including a quoted `echo ".kiro" >> .gitignore`).
 
-**Honest note.** The hooks were first written in an older file schema (`when` / `then`), and we never saw them fire.
-All ten were rewritten in the current v1 format, with PascalCase triggers and `command` or `agent` actions. Hooks
-load at session start, so they take effect from the next session, and **we have not yet observed one firing inside
-Kiro**, so we do not claim that any did. The scripts behind them are ordinary commands that also run by
-hand (`npm run log`, `npm run status`, `npm run check`), and CI runs the same checks, so no guarantee depends on a
-hook firing.
+**What we got wrong first, and how we verified the fix.** The hooks started in an older file schema
+(`when` / `then`) and none of them ever fired. All ten were rewritten to the current v1 schema — `version`,
+`hooks[]`, PascalCase `trigger`, `command` or `agent` action — which we checked against Kiro's hook and hook-type
+documentation rather than guessing. Two documented behaviours explain why a hook can look dead while being correct:
+
+- **File triggers fire on the agent's writes, not the human's.** "File triggers respond only to changes made by
+  the agent. Manual editor changes do not trigger File Create, File Save, or File Delete hooks." We edit by hand a
+  lot, so most of our early saves were never candidates.
+- **Hooks load at session start.** A hook authored mid-session cannot fire until the next one.
+
+So instead of claiming a firing we did not see, we tested the layer we can prove: **every command hook was replayed
+with the documented hook-event JSON on stdin**, and each returned the exit code the contract requires.
+
+| Hook | Replayed event | Expected | Got |
+| --- | --- | --- | --- |
+| `session-status` | `SessionStart` | exit 0, status in context | exit 0, `128/128 features · commit 897d5f4` |
+| `pre-commit-guard` | `PreToolUse`, `execute_bash`, `git commit -m` | exit 0 + reminder | exit 0, `/.kiro guard passed` |
+| `pre-commit-guard` | `PreToolUse`, `execute_bash`, `ls -la` | exit 0, silent | exit 0, silent |
+| `protect-kiro-dir` | `PreToolUse`, `fs_append`, `.kiro/` into `.gitignore` | **exit 2** (blocks the tool) | exit 2, with the reason on stderr |
+| `protect-kiro` self-test | `npm run hooks:test`, nine cases | 9/9 | 9/9 |
+
+Exit 2 is the blocking path: Kiro returns stderr to the agent and refuses the tool call, which is what makes the
+`/.kiro` guard a guarantee rather than a reminder. The agent hooks (`pbt-guard`, `spec-drift`, `scenario-check`,
+`steering-guard`, `task-quality-gate`) inject a prompt; we list what each one asks for above rather than claim a
+run we cannot show. Every script behind them is also an ordinary command (`npm run log`, `npm run status`,
+`npm run check`), and CI runs the same checks, so no guarantee in this repo depends on a hook firing.
 
 ## MCP
 
@@ -114,8 +148,19 @@ test or a fixture, so it does not type a payback from memory. `mcp-tools.md` ste
 each tool and to stop if a tool and a steering file disagree.
 
 How it was verified: `mcp/tools.test.ts` covers the handlers, including a property that a refusal never carries a
-verdict and an answer never carries `NaN`. We also drove the real server over stdio with an `initialize` frame and a
-`lookup_sponsor` call for Wellesley, and it answered `eligibleForMassSave: false`.
+verdict and an answer never carries `NaN`. We also drove the real server over stdio — `initialize`, then
+`tools/list`, then live calls — and it answered:
+
+- `tools/list` returned all four tools with their JSON schemas, so Kiro sees the same signatures a human reads.
+- `lookup_sponsor {town:"Wellesley"}` → `eligibleForMassSave: false`, `hasMunicipal: true`, with the reason that a
+  municipal light plant is not served by Mass Save. A town it cannot resolve returns `question` instead of a guess.
+- `get_fuel_snapshot {}` → carrying its own `asOf: 2026-10-19` and `@built F-08` marker, so a number can never
+  arrive undated.
+- `compute_verdict` (800 gal oil at $4.10) → 3 tons sized from the design load, $7,950 rebate, $14,050 net,
+  9.68-year payback, each figure carrying its rule source.
+
+That round trip is the point: the model asks a tool, the tool calls `lib/calc`, and the number the agent sees is
+the number the screen shows.
 
 **Setup note.** The config to register it is `mcp/kiro-mcp.json`. Copy its `switchpoint` entry into
 `.kiro/settings/mcp.json`. We did not write to `.kiro/settings/` from the build agent because that path is
@@ -174,6 +219,7 @@ a key is committed (gitleaks). The log is the honest answer to "what did you act
 
 ## Limits
 
-- The hooks were migrated late and have not been observed firing across a full session at the time of writing.
+- Hooks: the command hooks are verified by event replay (table above); no agent-action hook firing is claimed,
+  because we have no capture of one.
 - Calling real businesses is off unless a deployment enables it. `voice-agent-rules.md` still reads "proposal, pending review".
 - The Kiro Power has been authored and structured to the documented layout; it has not been installed through Kiro's power installer.
