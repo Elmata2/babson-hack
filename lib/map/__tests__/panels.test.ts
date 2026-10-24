@@ -11,6 +11,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { HeatControls } from '@/components/map/heat-controls'
+import { YEAR_TOGGLE_NOTE } from '@/lib/map/heat'
 import { HeatTable } from '@/components/map/heat-table'
 import { HeatStatic } from '@/components/map/heat-static'
 import { BillPanel } from '@/components/map/bill-panel'
@@ -21,7 +22,7 @@ import type { EnergyTown } from '@/lib/map/energy-model'
 const noop = () => {}
 
 describe('the heat panels', () => {
-  it('render the switcher, the scrubber, the legend and the assumption', () => {
+  it('render the switcher, the year toggle, the legend and the assumption', () => {
     const html = renderToStaticMarkup(
       createElement(HeatControls, {
         metric: 'cliff_dollars',
@@ -35,7 +36,14 @@ describe('the heat panels', () => {
         tractsReady: true,
       }),
     )
-    expect(html).toContain('Install year')
+    expect(html).toContain('Install in 2026')
+    expect(html).toContain('Wait until 2027')
+    expect(html).toContain('aria-pressed="true"')
+    expect(html).not.toContain('type="range"')
+    expect(html).toContain(YEAR_TOGGLE_NOTE)
+    expect(YEAR_TOGGLE_NOTE).toBe(
+      'The rebate cap drops from $8,500 to $7,500 on 1 January 2027 — this shows what oil-heated homes would lose by waiting.',
+    )
     expect(html).toContain('Most you could lose')
     expect(html).toContain('Up to $1,000 per oil-heated home: the 2026 cap minus the 2027 cap. Smaller systems lose less.')
     expect(html).toContain('assumes 750 gal/household')

@@ -2,7 +2,7 @@
 
 /**
  * @built F-43 the metric switcher: oil share, oil spend, cliff dollars
- * @built F-45 the 2026 ↔ 2027 scrubber, the tweened statewide loss, and reduced motion
+ * @built F-45 the 2026 / 2027 toggle, the tweened statewide loss, and reduced motion
  * @built F-48 the static-map and table buttons that keep the lens usable without tiles
  *
  * Everything numeric here comes from `lib/map/heat.ts`; this file formats and lays
@@ -25,6 +25,7 @@ import {
   OIL_PRICE_USD_PER_GAL,
   countyHeatRows,
   CLIFF_NOTE,
+  YEAR_TOGGLE_NOTE,
   formatMillions,
   heatScale,
   price,
@@ -72,7 +73,7 @@ export function HeatControls(props: HeatControlsProps) {
         <p className="mt-1.5 text-micro text-ink-muted">{HEAT_METRIC_HINT[metric]}</p>
       </div>
 
-      <YearScrubber year={year} onYear={props.onYear} />
+      <YearToggle year={year} onYear={props.onYear} />
 
       <div>
         <p className="text-micro font-medium text-ink">{year} · what the colour means</p>
@@ -167,43 +168,41 @@ export function CountyFigures({ year, tractsReady, onTable }: { year: HeatYear; 
   )
 }
 
-/** The single 2026 ↔ 2027 control: a real range input, two keys, and a readable value. */
-export function YearScrubber({ year, onYear }: { year: HeatYear; onYear: (year: HeatYear) => void }) {
+export const YEAR_OPTIONS: ReadonlyArray<{ year: HeatYear; label: string }> = [
+  { year: 2026, label: 'Install in 2026' },
+  { year: 2027, label: 'Wait until 2027' },
+]
+
+export function YearToggle({ year, onYear }: { year: HeatYear; onYear: (year: HeatYear) => void }) {
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor="heat-year" className="text-micro font-medium text-ink">
-          Install year
-        </label>
-        <p className="num text-micro text-ink-muted" aria-hidden>
-          {year}
-        </p>
+      <p className="text-micro font-medium text-ink" id="heat-year-label">
+        When do they install?
+      </p>
+      <div
+        role="group"
+        aria-labelledby="heat-year-label"
+        className="mt-1.5 grid grid-cols-2 rounded-md border border-rule-strong bg-paper p-0.5"
+      >
+        {YEAR_OPTIONS.map((o) => (
+          <button
+            key={o.year}
+            type="button"
+            aria-pressed={year === o.year}
+            onClick={() => onYear(o.year)}
+            className="h-8 rounded text-small text-ink-muted transition-colors hover:text-ink aria-pressed:bg-ink aria-pressed:text-paper"
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
-      <input
-        id="heat-year"
-        type="range"
-        min={2026}
-        max={2027}
-        step={1}
-        value={year}
-        aria-valuetext={year === 2026 ? '2026, before the step-down' : '2027, after the Jan 1 step-down'}
-        onChange={(e) => onYear(Number(e.target.value) === 2027 ? 2027 : 2026)}
-        className="mt-1.5 h-8 w-full accent-ink"
-      />
-      <div className="flex justify-between text-micro text-ink-muted">
-        <button type="button" className="hover:text-ink" aria-pressed={year === 2026} onClick={() => onYear(2026)}>
-          2026
-        </button>
-        <button type="button" className="hover:text-ink" aria-pressed={year === 2027} onClick={() => onYear(2027)}>
-          2027 · Jan 1
-        </button>
-      </div>
+      <p className="mt-1.5 text-micro text-ink-muted">{YEAR_TOGGLE_NOTE}</p>
     </div>
   )
 }
 
 /**
- * The headline the scrubber animates: "$0 lost" → "up to $624.5M lost on Jan 1 if these homes wait until 2027".
+ * The headline the year toggle animates: "$0 lost" → "up to $624.5M lost on Jan 1 if these homes wait until 2027".
  *
  * The visible digits are `aria-hidden` while they move; the settled sentence is
  * announced once through a status region, so a screen reader is not read a number
@@ -227,7 +226,7 @@ export function HeatHeadline({ year, dollars }: { year: HeatYear; dollars: numbe
       <p className="mt-0.5 text-micro text-ink-muted">
         {year === 2027
           ? CLIFF_NOTE
-          : 'Nothing has been lost yet. Move to 2027 to see the step-down.'}
+          : 'Nothing has been lost yet. Choose “Wait until 2027” to see the step-down.'}
       </p>
     </div>
   )

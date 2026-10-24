@@ -35,7 +35,7 @@ export interface LensState {
   ejOn: boolean
   /** Heat lens: which of the three metrics the choropleth encodes. */
   heatMetric: HeatMetric
-  /** Heat lens: the scrubber's install year. Only the cliff metrics move. */
+  /** Heat lens: the toggle's install year. Only the cliff metrics move. */
   heatYear: HeatYear
   selectedKey: string | null
   selectedTract: string | null

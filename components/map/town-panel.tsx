@@ -55,7 +55,7 @@ export interface TownPanelProps {
   lens?: 'energy' | 'heat'
   /** True when the equity lens is on; the EJ percentages appear only with the lens. */
   ejOn: boolean
-  /** The scrubber's install year, so "use this tract" seeds the year being looked at. */
+  /** The toggle's install year, so "use this tract" seeds the year being looked at. */
   year: HeatYear
 }
 

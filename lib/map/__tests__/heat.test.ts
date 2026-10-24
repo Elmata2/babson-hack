@@ -172,7 +172,7 @@ describe('metric selection', () => {
   })
 })
 
-describe('the scrubber delta', () => {
+describe('the year-toggle delta', () => {
   it('starts at $0 lost and ends in millions lost', () => {
     expect(headline(2026).text).toBe('$0 lost')
     expect(headline(2026).dollars).toBe(0)
