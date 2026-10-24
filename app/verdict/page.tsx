@@ -95,7 +95,7 @@ const UNIT_LABEL: Record<Fuel, string> = {
 
 export const metadata: Metadata = {
   title: 'Verdict',
-  description: 'The honest heat pump verdict for this house, with its arithmetic and its sources.',
+  description: 'The heat pump verdict for this house, with its arithmetic and its sources.',
   robots: { index: false, follow: false },
 }
 

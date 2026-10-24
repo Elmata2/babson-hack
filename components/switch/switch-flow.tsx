@@ -936,7 +936,7 @@ function SupplyPanel({
     <section className="grid gap-4 rounded-card border border-rule bg-surface p-5 sm:p-6">
       <div>
         <p className="text-eyebrow uppercase text-ink-muted">Electricity supply · published</p>
-        <h2 className="mt-2 text-title font-medium">Three ways to buy the same electrons.</h2>
+        <h2 className="mt-2 text-title font-medium">Three ways to buy your electricity.</h2>
         <p className="mt-2 max-w-[64ch] text-small text-ink-muted">
           No call is placed here: supply rates are published. Delivery stays with{' '}
           {model.supply.sponsorLabel ?? 'your utility'} whatever you choose.

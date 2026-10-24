@@ -9,7 +9,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://switchpoint-psi.ver
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Switchpoint — the honest heat pump verdict for Massachusetts',
+    default: 'Switchpoint — the heat pump verdict for Massachusetts',
     template: '%s · Switchpoint',
   },
   description:

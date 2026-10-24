@@ -91,7 +91,7 @@ export default async function Home({ searchParams }: HomeProps) {
           <HeroMap />
           <div className="relative mx-auto w-full max-w-[1180px] px-5 pb-20 pt-32 sm:px-8 sm:pb-24 sm:pt-36">
             <p className="rise text-eyebrow uppercase text-ink-muted" style={step(0)}>
-              The honest heat pump verdict for Massachusetts
+              The heat pump verdict for Massachusetts
             </p>
 
             <h1
