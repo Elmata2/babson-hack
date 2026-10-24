@@ -34,9 +34,9 @@ describe('the verdict screen — R14.3, R14.4, R15.2', () => {
     expect(page).toMatch(/\{offer \? <EnhancedOfferLine offer=\{offer\} \/> : null\}/)
   })
 
-  it('keeps the assumptions strip and the explanation panel', () => {
+  it('keeps the assumptions strip visible and drops the second plain-English panel', () => {
     expect(page).toMatch(/<AssumptionsStrip result=\{result\} \/>/)
-    expect(page).toMatch(/<ExplainPanel result=\{result\} \/>/)
+    expect(page).not.toContain('ExplainPanel')
   })
 
   it('reads its notes through the R8.3 floor rather than the raw arrays', () => {

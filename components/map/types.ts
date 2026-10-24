@@ -5,8 +5,8 @@
 
 import type { SponsorKey } from '@/lib/elec-label'
 
-/** The three ways to look at the same map. */
-export type Lens = 'street' | 'energy' | 'heat'
+/** The two ways to look at the same map. */
+export type Lens = 'energy' | 'heat'
 
 export type HeatingFuel = 'oil' | 'propane' | 'gas' | 'resistance' | 'heat_pump'
 export type HomeType = 'single' | 'two_to_four' | 'condo'
@@ -56,8 +56,6 @@ export const EMPTY_PROFILE: Profile = {
 }
 
 export interface BillPanelProps {
-  /** Town currently selected on the map (display name), or null. */
-  town: string | null
   profile: Profile
   /** Opens the profile drawer, e.g. to answer "which utility bills you?". */
   onEditProfile: () => void

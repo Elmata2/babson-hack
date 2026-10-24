@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createSwitch,
   laterStage,
+  STAGE_COPY,
   readStoredSwitch,
   serializeSwitch,
   stageRank,
@@ -83,6 +84,23 @@ describe('createSwitch / readStoredSwitch', () => {
     const raw = JSON.parse(serializeSwitch(request)) as Record<string, unknown>
     raw.statuses = [{ providerId: 'x' }]
     expect(readStoredSwitch(JSON.stringify(raw))?.statuses).toEqual([])
+  })
+})
+
+describe('kit stage', () => {
+  it('round-trips and ranks below consent', () => {
+    const request = createSwitch({
+      choice: 'SHOP_FUEL',
+      kind: 'fuel',
+      stage: 'kit',
+      verdict: 'SWITCH_NOW',
+      query: '',
+      facts: null,
+      at: new Date('2026-10-24T15:00:00.000Z'),
+    })
+    expect(readStoredSwitch(serializeSwitch(request))?.stage).toBe('kit')
+    expect(laterStage('kit', 'consented')).toBe('consented')
+    expect(STAGE_COPY.kit).not.toMatch(/approved/)
   })
 })
 

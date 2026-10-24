@@ -24,9 +24,11 @@ import {
   winterSavings,
 } from '@/lib/mass-save'
 import { formatMW, type EnergyMeta, type EnergyTown } from '@/lib/map/energy-model'
-import type { NextStepsQuery } from '@/lib/map/next-steps-query'
+import { switchHref, verdictFacts, type NextStepsQuery, type VerdictBillUtility, type VerdictFuel } from '@/lib/map/next-steps-query'
+import { CHOICE_COPY, choicesFor } from '@/lib/switch/choices'
+import type { SwitchChoice } from '@/lib/switch/types'
 import { buildQuoteRequest } from '@/lib/quote-request'
-import { basicServiceRate, daysUntil } from '@/lib/supply'
+import { basicServiceRate, daysUntil, type BasicServiceRate } from '@/lib/supply'
 import { SPONSOR_NAME, UTILITY_META, resolveUtility } from '@/lib/utility'
 import type { HeatingFuel, Profile } from './types'
 
@@ -46,6 +48,20 @@ const plural = (n: number) => (n === 1 ? '' : 's')
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const monthYear = (iso: string) => `${MONTH[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`
 const cents = (n: number) => `${n}¢`
+
+const SPONSOR_OF_BILL: Record<VerdictBillUtility, SponsorKey> = {
+  eversource: 'eversource',
+  national_grid: 'nationalgrid',
+  unitil: 'unitil',
+  municipal: 'municipal',
+}
+const BILL_OF_SPONSOR: Partial<Record<SponsorKey, VerdictBillUtility>> = {
+  eversource: 'eversource',
+  nationalgrid: 'national_grid',
+  unitil: 'unitil',
+  municipal: 'municipal',
+}
+const asVerdictFuel = (fuel: HeatingFuel | null): VerdictFuel | null => (fuel === 'heat_pump' || fuel === null ? null : fuel)
 
 function Src({ children }: { children: ReactNode }) {
   return <span className="text-micro text-ink-muted">{children}</span>
@@ -95,9 +111,27 @@ export function NextStepsPanel({ town, energy, meta, profile, query, onEditProfi
   const municipal = sponsor === 'municipal'
   const monthlyKwh = personal && !personal.kwhIsExample && personal.kwh > 0 ? personal.kwh : null
 
+  const facts = verdictFacts(query.back)
+  const choiceFuel = query.back ? facts.fuel : asVerdictFuel(query.fuel ?? personal?.fuel ?? null)
+  const billUtility = query.back ? facts.billUtility : ((personal?.utility && BILL_OF_SPONSOR[personal.utility]) || null)
+  const choices = choicesFor({ verdict: null, fuel: choiceFuel, utility: res, billUtility })
+  const supplySponsor = billUtility ? SPONSOR_OF_BILL[billUtility] : sponsor
+  const basic = supplySponsor ? basicServiceRate(rateSponsorFor(supplySponsor, res.sponsors)) : null
+
   return (
     <div className="flex flex-col gap-5">
       {query.saveUsd !== null ? <Verdict saveUsd={query.saveUsd} back={query.back} /> : null}
+
+      <Options
+        choices={choices}
+        href={switchHref(query.back)}
+        why={{
+          STAY: stayWhy(query.saveUsd),
+          SHOP_FUEL: facts.unitPrice !== null && choiceFuel !== null ? `You entered ${usdPrice(facts.unitPrice)} a gallon. A dealer price comes from a call, so we draft the ask.` : null,
+          SHOP_SUPPLY: supplyWhy(basic, supplySponsor, personal?.supplierRateCents ?? null),
+          SWITCH_HEAT_PUMP: gate === false ? 'Mass Save rebates do not apply in your town.' : heatPumpWhy(facts.tier, now),
+        }}
+      />
 
       <Section title={`Your town: ${res.town}`}>
         <P>
@@ -156,6 +190,53 @@ export function NextStepsPanel({ town, energy, meta, profile, query, onEditProfi
 
       <p className="text-micro text-ink-muted">Estimates only. Not a quote. A Home Energy Assessment determines eligibility and sizing.</p>
     </div>
+  )
+}
+
+const usdPrice = (n: number) => `$${n.toFixed(2)}`
+
+function stayWhy(saveUsd: number | null): string | null {
+  if (saveUsd === null) return null
+  if (saveUsd > 0) return `Your verdict puts a heat pump ${usd(saveUsd)} a year ahead of today's setup. Staying keeps what you have.`
+  if (saveUsd < 0) return `Your verdict puts a heat pump ${usd(saveUsd)} a year behind today's setup, so staying is a real option.`
+  return 'Your verdict is about break-even, so staying costs you little.'
+}
+
+function supplyWhy(basic: BasicServiceRate | null, sponsor: SponsorKey | null, yourRate: number | null): string | null {
+  if (!basic || basic.centsPerKwh === null || !sponsor) return null
+  const base = `${SPONSOR_NAME[sponsor]} Basic Service is ${cents(basic.centsPerKwh)}/kWh for ${basic.period} (${basic.source}, ${basic.sourceDate}).`
+  return yourRate !== null && yourRate > 0 ? `You entered ${cents(yourRate)}/kWh. ${base}` : base
+}
+
+function heatPumpWhy(tier: 'whole' | 'partial' | 'basic' | 'enhanced' | null, now: Date): string {
+  const t = tier === 'enhanced' ? hp2026.tiers.enhanced : (hp2026.tiers[tier ?? 'whole'] ?? hp2026.tiers.whole)
+  const left = daysUntil(hp2026.installWindow.to, now)
+  const amount = t.perTonUsd === null ? `up to ${usd(t.capUsd)}` : `${usd(t.perTonUsd)}/ton, cap ${usd(t.capUsd)}`
+  const deadline = left > 0 ? `${left} day${plural(left)} left at 2026 rates.` : 'The 2026 rates have ended.'
+  return `Mass Save rebate in 2026: ${amount}. ${deadline}`
+}
+
+function Options({ choices, why, href }: { choices: SwitchChoice[]; why: Record<SwitchChoice, string | null>; href: string | null }) {
+  return (
+    <Section title="Your options">
+      <ul className="flex flex-col gap-2">
+        {choices.map((choice) => (
+          <li key={choice} className="rounded-card border border-rule bg-surface p-3">
+            <p className="text-small font-medium text-ink">{CHOICE_COPY[choice].label}</p>
+            <p className="mt-0.5 text-micro text-ink-muted">{why[choice] ?? CHOICE_COPY[choice].detail}</p>
+          </li>
+        ))}
+      </ul>
+      {href ? (
+        <a
+          href={href}
+          className="inline-flex h-9 items-center self-start rounded-md bg-ink px-3 text-small font-medium text-paper hover:bg-ink-muted focus-visible:outline-2 focus-visible:outline-focus"
+        >
+          See your options →
+        </a>
+      ) : null}
+      <Src>Nothing is preselected. The same options as your verdict.</Src>
+    </Section>
   )
 }
 

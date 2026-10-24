@@ -245,7 +245,7 @@ export function Search({ knownTown, townAt, onResult, onUseHome }: Props) {
           ))}
         </ul>
       </div>
-      <p className="mt-1 text-micro text-ink-faint">Addresses go to the US Census geocoder. The street map then loads map tiles for that area from OpenFreeMap.</p>
+      <p className="mt-1 text-micro text-ink-faint">Addresses go to the US Census geocoder. Map tiles load from CARTO and OpenFreeMap for the area you view.</p>
       <div role="status" aria-live="polite" className="mt-1.5 min-h-0 text-micro">
         {status ? <p className={status.tone === 'error' ? 'text-deadline' : 'text-ink-muted'}>{status.text}</p> : null}
         {found && !busy ? (

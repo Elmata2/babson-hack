@@ -16,7 +16,6 @@ import {
   STAGE_COPY,
   readStoredSwitch,
   serverSwitchSnapshot,
-  stageRank,
   subscribeSwitch,
   switchSnapshot,
   writeSwitch,
@@ -38,6 +37,7 @@ import { daysUntil } from '@/lib/supply'
  */
 
 const STAGES: readonly SwitchStage[] = ['consented', 'contacting', 'quotes_ready', 'decided', 'introduced', 'switched']
+const KIT_STAGES: readonly SwitchStage[] = ['kit']
 
 export function DashboardView() {
   const profileRaw = useSyncExternalStore(subscribeProfile, profileSnapshot, serverProfileSnapshot)
@@ -47,7 +47,8 @@ export function DashboardView() {
 
   const daysLeft = daysUntil('2026-12-31', new Date())
   const firstName = profile?.name.trim().split(/\s+/)[0] ?? null
-  const reached = request ? stageRank(request.stage) : -1
+  const timeline = request?.stage === 'kit' ? KIT_STAGES : STAGES
+  const reached = request ? timeline.indexOf(request.stage) : -1
 
   return (
     <div className="grid gap-6">
@@ -144,7 +145,7 @@ export function DashboardView() {
           {request ? (
             <>
               <ol className="mt-3 grid gap-2">
-                {STAGES.map((stage, index) => {
+                {timeline.map((stage, index) => {
                   const done = reached >= index
                   return (
                     <li key={stage} className="flex items-start gap-2.5 text-small">

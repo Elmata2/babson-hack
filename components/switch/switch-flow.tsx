@@ -5,9 +5,10 @@ import { useMemo, useState, useSyncExternalStore } from 'react'
 
 import { FreshnessBadge } from '@/components/freshness-badge'
 import { demoFromLocation, isDemo, withDemo } from '@/lib/demo'
-import { CHOICE_COPY, kindOf } from '@/lib/switch/choices'
+import { kindOf } from '@/lib/switch/choices'
 import { DEFAULT_DELIVERY_GALLONS, NEVER_SAID, buildFacts, disclosureRows } from '@/lib/switch/consent'
 import type { SwitchModel } from '@/lib/switch/model'
+import { optionCard, optionsSummary, type OptionCard, type OptionInput } from '@/lib/switch/option-cards'
 import {
   CONTACT_STATUS_LABEL,
   createSwitch,
@@ -141,14 +142,15 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
   }
 
   function persist(
-    stage: 'consented' | 'contacting' | 'decided',
+    stage: 'kit' | 'consented' | 'contacting' | 'decided',
     decision: 'declined' | 'contacting' | null,
     statuses: ProviderStatus[] = outreach?.statuses ?? [],
+    forChoice: SwitchChoice | null = choice,
   ) {
-    if (!choice) return
+    if (!forChoice) return
     const request = createSwitch({
-      choice,
-      kind: kindOf(choice),
+      choice: forChoice,
+      kind: kindOf(forChoice),
       stage,
       verdict: model.result?.verdict ?? 'UNKNOWN',
       query: model.query,
@@ -158,6 +160,48 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
       at: new Date(),
     })
     writeSwitch(serializeSwitch(request))
+  }
+
+  const optionInput: OptionInput | null = model.result
+    ? {
+        result: model.result,
+        fuel: model.fuel,
+        unitPrice: model.unitPrice,
+        annualUnits: model.annualUnits,
+        market: { price: model.market.price, period: model.market.period },
+        basic: model.supply.basic
+          ? {
+              centsPerKwh: model.supply.basic.centsPerKwh,
+              source: model.supply.basic.source,
+              sourceDate: model.supply.basic.sourceDate,
+            }
+          : null,
+        noMassSave: model.noMassSave,
+        plan,
+        reachable: {
+          fuel: providers.filter((provider) => reachableBy(provider, 'fuel', plan.mode)).length,
+          installer: providers.filter((provider) => reachableBy(provider, 'installer', plan.mode)).length,
+        },
+      }
+    : null
+
+  function choose(option: SwitchChoice, intent: 'agent' | 'self') {
+    setChoiceOverride(option)
+    setError(null)
+    const kit: OutreachResult | null =
+      intent === 'self' && (option === 'SHOP_FUEL' || option === 'SWITCH_HEAT_PUMP')
+        ? { ok: true, mode: 'off', notice: 'Nothing was sent. The switch kit below is yours to use.', statuses: [] }
+        : null
+    setOutreachOverride(kit)
+    if (kit) persist('kit', null, [], option)
+    requestAnimationFrame(() => {
+      const panel = document.getElementById('choice-panel')
+      const heading = panel?.querySelector('h2')
+      if (!panel || !heading) return
+      heading.tabIndex = -1
+      heading.focus({ preventScroll: true })
+      panel.scrollIntoView({ behavior: 'smooth' })
+    })
   }
 
   async function contact() {
@@ -197,10 +241,10 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
 
   return (
     <div className="grid gap-10">
-      {/* ------------------------------------------------------- step five */}
-      <section aria-labelledby="best-case">
+      {/* ------------------------------------------------------ the options */}
+      <section aria-labelledby="decision">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p className="text-eyebrow uppercase text-ink-muted">Step five · Best case</p>
+          <p className="text-eyebrow uppercase text-ink-muted">Step five · Your options</p>
           <Link
             href={withDemo(`/verdict?${model.query}`, isDemo(model.query))}
             className="text-micro text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
@@ -208,92 +252,34 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
             ← Back to the verdict
           </Link>
         </div>
-        <h2 id="best-case" className="mt-3 text-headline font-medium">
-          Where this house stands.
+        <h2 id="decision" className="mt-3 text-headline font-medium">
+          {optionsSummary(model.choices.length)}
         </h2>
         <p className="mt-2 max-w-[64ch] text-small text-ink-muted">
-          Each line is a decision with a reason and a source. We do not say &ldquo;switch&rdquo; where the numbers do
-          not support it, and we do not say &ldquo;stay&rdquo; where we simply do not know.
+          Nothing is preselected, and staying is a real option. Picking one only opens it: no call is placed and no
+          email is sent until you read the facts and confirm.
         </p>
 
-        <dl className="mt-6 grid gap-3 md:grid-cols-2">
-          {model.bestCase.map((row) => (
-            <div key={row.id} className="rounded-card border border-rule bg-surface p-5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <dt className="text-eyebrow uppercase text-ink-muted">{row.label}</dt>
-                <OutcomeChip outcome={row.outcome} />
-              </div>
-              <dd className="mt-2">
-                <p className="text-small font-medium text-ink">{row.headline}</p>
-                <p className="mt-1 text-small text-ink-muted">{row.detail}</p>
-                <p className="mt-2 text-micro text-ink-faint">{row.source}</p>
-              </dd>
-            </div>
-          ))}
-        </dl>
-
-        {model.alreadyBest ? (
-          <p className="mt-4 rounded-card border border-switch-edge bg-switch-tint p-4 text-small text-ink">
-            <span className="font-medium">You&rsquo;re already on the best option.</span> We&rsquo;ll tell you if that
-            changes — the break-even price and the January step-down are below with the choices.
-          </p>
-        ) : null}
-      </section>
-
-      {/* -------------------------------------------------------- step six */}
-      <section aria-labelledby="decision" className="rounded-card border border-rule bg-surface p-5 sm:p-6">
-        <p className="text-eyebrow uppercase text-ink-muted">Step six · What happens next</p>
-        <h2 id="decision" className="mt-2 text-title font-medium">
-          {model.choices.length} ways forward. Nothing is preselected.
-        </h2>
-        <p className="mt-2 max-w-[64ch] text-small text-ink-muted">
-          Picking one only opens it. No call is placed, no email is sent, and no provider sees anything until you read
-          the facts and confirm.
-        </p>
-
-        <div role="group" aria-label="What would you like to do?" className="mt-5 grid gap-2 sm:grid-cols-2">
-          {model.result?.verdict === 'DO_NOT_SWITCH_YET' ? (
-            <p className="rounded-card border border-hold-edge bg-hold-tint p-3 text-small text-ink sm:col-span-2">
-              <span className="font-medium">The verdict above stands: don&rsquo;t switch yet.</span>{' '}
-              {model.result.breakEvenElectricPrice === null
-                ? 'The break-even price could not be computed.'
-                : `Break-even electricity is ${(model.result.breakEvenElectricPrice * 100).toFixed(1)}¢/kWh; above it, the heat pump costs you money.`}{' '}
-              A quote is still worth having — it may change the install cost, not the running cost.
-            </p>
-          ) : null}
-          {model.choices.map((option) => {
-            const active = choice === option
-            return (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={active}
-                onClick={() => {
-                  setChoiceOverride(option)
-                  setOutreachOverride(null)
-                  setError(null)
-                }}
-                className={`rounded-card border p-4 text-left transition-colors ${
-                  active ? 'border-ink bg-paper-sunk' : 'border-rule-strong bg-surface hover:border-ink'
-                }`}
-              >
-                <span className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-small font-medium text-ink">{CHOICE_COPY[option].label}</span>
-                  <span aria-hidden className={active ? 'text-ink' : 'text-ink-faint'}>
-                    {active ? '●' : '○'}
-                  </span>
-                </span>
-                <span className="mt-1 block text-micro text-ink-muted">{CHOICE_COPY[option].detail}</span>
-              </button>
-            )
-          })}
-        </div>
+        <ul className="mt-6 grid gap-4 md:grid-cols-2">
+          {optionInput
+            ? model.choices.map((option) => (
+                <OptionCardView
+                  key={option}
+                  card={optionCard(option, optionInput)}
+                  active={choice === option}
+                  onAgent={() => choose(option, 'agent')}
+                  onSelf={() => choose(option, 'self')}
+                />
+              ))
+            : null}
+        </ul>
 
         {choice === null ? (
-          <p className="mt-3 text-micro text-ink-faint">Pick one to see what it involves. Picking is not agreeing.</p>
+          <p className="mt-3 text-micro text-ink-faint">Picking is not agreeing. You can change your mind below.</p>
         ) : null}
       </section>
 
+<div id="choice-panel" className="scroll-mt-6 grid gap-10">
       {choice === 'STAY' ? (
         <StayPanel model={model} onSave={() => persist('decided', 'declined')} saved={storedStage === 'decided'} />
       ) : null}
@@ -483,7 +469,7 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
                   notice: 'Nothing was sent. The switch kit below is yours to use.',
                   statuses: [],
                 })
-                persist('consented', null)
+                persist('kit', null)
               }}
               className={
                 contactable.length > 0
@@ -557,11 +543,103 @@ export function SwitchFlow({ model, providers, plan }: SwitchFlowProps) {
           ) : null}
         </section>
       ) : null}
+
+      <details className="rounded-card border border-rule bg-surface p-5">
+        <summary className="cursor-pointer text-small font-medium text-ink">
+          The numbers behind each option
+        </summary>
+        <dl className="mt-4 grid gap-3 md:grid-cols-2">
+          {model.bestCase.map((row) => (
+            <div key={row.id} className="rounded-card border border-rule bg-paper-sunk/40 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <dt className="text-eyebrow uppercase text-ink-muted">{row.label}</dt>
+                <OutcomeChip outcome={row.outcome} />
+              </div>
+              <dd className="mt-2">
+                <p className="text-small font-medium text-ink">{row.headline}</p>
+                <p className="mt-1 text-small text-ink-muted">{row.detail}</p>
+                <p className="mt-2 text-micro text-ink-faint">{row.source}</p>
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {model.alreadyBest ? (
+          <p className="mt-4 text-small text-ink">
+            <span className="font-medium">Every line says stay or does not apply.</span> We will tell you if that
+            changes.
+          </p>
+        ) : null}
+      </details>
+      </div>
     </div>
   )
 }
 
 // ------------------------------------------------------------------ panels
+
+function OptionCardView({
+  card,
+  active,
+  onAgent,
+  onSelf,
+}: {
+  card: OptionCard
+  active: boolean
+  onAgent: () => void
+  onSelf: () => void
+}) {
+  return (
+    <li
+      aria-current={active ? 'true' : undefined}
+      className={`flex flex-col rounded-card border p-5 ${
+        active ? 'border-ink bg-paper-sunk' : 'border-rule-strong bg-surface'
+      }`}
+    >
+      <h3 className="text-title font-medium text-ink">{card.name}</h3>
+      <dl className="mt-3 grid flex-1 gap-3 text-small">
+        <div>
+          <dt className="text-eyebrow uppercase text-ink-faint">Why you&rsquo;d pick this</dt>
+          <dd className="mt-1 text-ink">{card.why}</dd>
+        </div>
+        <div>
+          <dt className="text-eyebrow uppercase text-ink-faint">What happens</dt>
+          <dd className="mt-1 text-ink-muted">{card.what}</dd>
+        </div>
+        <div>
+          <dt className="text-eyebrow uppercase text-ink-faint">Your effort</dt>
+          <dd className="mt-1 text-ink-muted">{card.effort}</dd>
+        </div>
+      </dl>
+      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule pt-4">
+        {card.agent ? (
+          <>
+            <button
+              type="button"
+              onClick={onAgent}
+              aria-pressed={active}
+              className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
+            >
+              {card.agent.label}
+            </button>
+            <button type="button" onClick={onSelf} className="text-small text-ink-muted underline underline-offset-4 hover:text-ink">
+              {card.selfLabel}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={onSelf}
+            aria-pressed={active}
+            className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
+          >
+            {card.selfLabel}
+          </button>
+        )}
+        {active ? <span className="text-micro text-ink-faint">Open below</span> : null}
+      </div>
+    </li>
+  )
+}
 
 function StayPanel({ model, onSave, saved }: { model: SwitchModel; onSave: () => void; saved: boolean }) {
   const result = model.result
@@ -803,6 +881,12 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
       {children}
     </label>
   )
+}
+
+function reachableBy(provider: SwitchProvider, kind: SwitchProvider['kind'], mode: SwitchFlowProps['plan']['mode']): boolean {
+  if (provider.kind !== kind || mode === 'off') return false
+  if (mode === 'allowlist') return provider.allowlist
+  return !provider.allowlist && provider.channels.includes('email') && provider.email !== null
 }
 
 function clampDelivery(raw: string): number {

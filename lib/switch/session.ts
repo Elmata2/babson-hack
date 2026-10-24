@@ -25,9 +25,10 @@ export const SWITCH_KEY = 'switchpoint.switch.v1'
 
 const CHOICES: readonly SwitchChoice[] = ['STAY', 'SHOP_FUEL', 'SHOP_SUPPLY', 'SWITCH_HEAT_PUMP']
 const KINDS: readonly SwitchKind[] = ['stay', 'fuel', 'supply', 'installer']
-const STAGES: readonly SwitchStage[] = ['consented', 'contacting', 'quotes_ready', 'decided', 'introduced', 'switched']
+const STAGES: readonly SwitchStage[] = ['kit', 'consented', 'contacting', 'quotes_ready', 'decided', 'introduced', 'switched']
 
 export const STAGE_COPY: Record<SwitchStage, string> = {
+  kit: 'You took the switch kit to do it yourself. Nothing was sent',
   consented: 'You approved what may be said and who may be contacted',
   contacting: 'Contacting the providers you chose',
   quotes_ready: 'Quotes are back and ranked',

@@ -4,6 +4,7 @@
  * @built F-44 Town tab: utility gate, selected tract stats, town heating-fuel roll-up
  * @built F-46 the tract panel completes: spend, the Jan 1 loss, and "use this tract"
  * @built F-47 the plain-language path when the equity lens shows a high limited-English share
+ * @built Grid section: the 24 h zone load clock and totals, or the statewide view with no town
  *
  * The utility line is the correctness gate from `resolveUtility`. A municipal light
  * plant town says so in plain words; a mixed town asks instead of guessing. Every
@@ -12,6 +13,7 @@
  */
 
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { GEO_META, tractStatsOfTown, townsOfTract } from '@/lib/geo'
 import { SPONSOR_NAME, UTILITY_META, resolveUtility } from '@/lib/utility'
 import {
@@ -38,22 +40,35 @@ import { EJ_META, ejSummary, formatEj, offersPlainLanguage, plainLanguageHref } 
 const int = (n: number) => n.toLocaleString('en-US')
 const day = (iso: string) => iso.slice(0, 10)
 
+function GridSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section aria-label={title} className="flex flex-col gap-3 border-t border-rule pt-4">
+      <p className="text-eyebrow uppercase text-ink-muted">{title}</p>
+      {children}
+    </section>
+  )
+}
+
 export interface TownPanelProps {
   town: string | null
   tract: string | null
   onClearTract: () => void
+  grid?: ReactNode
   /** True when the equity lens is on; the EJ percentages appear only with the lens. */
   ejOn: boolean
   /** The scrubber's install year, so "use this tract" seeds the year being looked at. */
   year: HeatYear
 }
 
-export function TownPanel({ town, tract, onClearTract, ejOn, year }: TownPanelProps) {
+export function TownPanel({ town, tract, onClearTract, grid, ejOn, year }: TownPanelProps) {
   if (!town) {
     return (
-      <p className="text-small text-ink-muted">
-        Pick a town: search for one, or click it on the map. In the Heat lens, click a tract to see its heating-fuel mix.
-      </p>
+      <div className="flex flex-col gap-4">
+        <p className="text-small text-ink-muted">
+          Pick a town: search for one, or click it on the map. In the Heat lens, click a tract to see its heating-fuel mix.
+        </p>
+        {grid ? <GridSection title="Grid · Massachusetts">{grid}</GridSection> : null}
+      </div>
     )
   }
   const res = resolveUtility(town)
@@ -188,6 +203,8 @@ export function TownPanel({ town, tract, onClearTract, ejOn, year }: TownPanelPr
         {GEO_META.tractStats.source.split(' — ')[0]} · B25040 · fetched {day(GEO_META.tractStats.fetchedAt)}. Estimates
         carry sampling error; read a small tract as a share.
       </p>
+
+      {grid ? <GridSection title={`Grid · ${town}`}>{grid}</GridSection> : null}
     </div>
   )
 }

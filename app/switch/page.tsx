@@ -28,7 +28,7 @@ import { loadProviders, outreachPlan } from '@/lib/switch/providers'
 export const metadata: Metadata = {
   title: 'What to do next',
   description:
-    'Best case across electricity supply, heating fuel, a heat pump and the programs — then four ways forward, nothing preselected.',
+    'Your options for heating fuel, electricity supply and a heat pump, why you would pick each, and what happens next. Nothing preselected.',
   robots: { index: false, follow: false },
 }
 
@@ -72,8 +72,9 @@ export default async function SwitchPage({ searchParams }: SwitchPageProps) {
             The verdict is the easy part.
           </h1>
           <p className="mt-3 max-w-[64ch] text-lede text-ink-muted">
-            Four choices, one of which is to do nothing. Every price carries its source and its date, nothing is
-            preselected, and no provider hears anything until you read exactly what would be said and confirm.
+            Each option says why you would pick it and who does the work. Every price carries its source and its
+            date, nothing is preselected, and no provider hears anything until you read exactly what would be said
+            and confirm.
           </p>
 
           <div className="mt-10">

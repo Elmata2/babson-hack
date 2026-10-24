@@ -9,11 +9,11 @@
  * @built F-46 click → panel → "use this tract" seeds the calculator
  * @built F-47 the table view and its keyboard path, beside the map
  * @built F-48 the static SVG fallback and the tile-failure path
- * @built F-71 lenses (Street | Energy | Heat), whoosh, camera
+ * @built F-71 lenses (Energy | Heat), camera
  * @built F-72 Energy lens: 3D town columns, timeline, polar clock
  * @built F-75 Energy lens on real usage, solar and zonal load data
  *
- * One map instance, three lenses. A lens is a basemap plus the sources and layers
+ * One map instance, two lenses. A lens is a basemap plus the sources and layers
  * in `layers.ts`; switching calls `setStyle(url, { diff: false })`, which drops every
  * custom layer, and `applyLens` re-adds only the active lens's layers on `style.load`.
  * The selected town, the pin and the profile live outside the style and survive it.
@@ -44,7 +44,6 @@ import { parseNextStepsQuery, type NextStepsQuery } from '@/lib/map/next-steps-q
 import {
   METRIC_LABEL,
   ZONE_LABEL,
-  dayLabel,
   describeTown,
   hourLabel,
   sourceLine,
@@ -62,13 +61,11 @@ import {
   type HeatYear,
 } from '@/lib/map/heat'
 
-type Tab = 'town' | 'bill' | 'grid' | 'next'
+type Tab = 'town' | 'bill' | 'next'
 
 const STATE_CENTER: [number, number] = [-71.75, 42.2]
 const STATE_ZOOM = 7.2
-const DEFAULT_TAB: Record<Lens, Tab> = { street: 'bill', energy: 'grid', heat: 'town' }
 const VIEW: Record<Lens, { pitch: number; bearing: number }> = {
-  street: { pitch: 30, bearing: 0 },
   energy: { pitch: 55, bearing: -12 },
   heat: { pitch: 0, bearing: 0 },
 }
@@ -79,7 +76,6 @@ const REGION_VIEW: Record<Zone | 'ALL', { center: [number, number]; zoom: number
   WCMA: { center: [-72.3, 42.35], zoom: 8.2 },
 }
 const LENSES: { id: Lens; label: string }[] = [
-  { id: 'street', label: 'Street' },
   { id: 'energy', label: 'Energy' },
   { id: 'heat', label: 'Heat' },
 ]
@@ -94,8 +90,8 @@ interface CameraTarget {
 export default function MapView() {
   const { profile, update, clear } = useProfile()
 
-  const [lens, setLens] = useState<Lens>('heat')
-  const [tab, setTab] = useState<Tab>(DEFAULT_TAB.heat)
+  const [lens, setLens] = useState<Lens>('energy')
+  const [tab, setTab] = useState<Tab>('town')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [selectedTract, setSelectedTract] = useState<string | null>(null)
   const [hour, setHour] = useState(18)
@@ -124,13 +120,13 @@ export default function MapView() {
   const pinRef = useRef<maplibregl.Marker | null>(null)
   const popupRef = useRef<maplibregl.Popup | null>(null)
   const styleLens = useRef<Lens | null>(null)
-  const pendingLens = useRef<Lens>('heat')
+  const pendingLens = useRef<Lens>('energy')
   const lensStateRef = useRef<LensState | null>(null)
   const handlersRef = useRef<{ click: (e: MapMouseEvent) => void; move: (e: MapMouseEvent) => void }>({
     click: () => {},
     move: () => {},
   })
-  const hydratedHome = useRef(false)
+  const homeFocused = useRef(false)
   const hoverKey = useRef<string | null>(null)
   const hoverEvent = useRef<MapMouseEvent | null>(null)
   const hoverFrame = useRef<number | null>(null)
@@ -138,7 +134,6 @@ export default function MapView() {
   const staticShown = useRef(false)
   const [mapError, setMapError] = useState<string | null>(null)
   const [query] = useState<NextStepsQuery>(() => parseNextStepsQuery(new URLSearchParams(window.location.search)))
-  const queryApplied = useRef(false)
 
   const getMap = useCallback(() => mapRef.current, [])
   const camera = useCamera(getMap, ready)
@@ -172,12 +167,6 @@ export default function MapView() {
     }
   }, [lens, tracts])
 
-  // The saved home town is the selected town until the user picks another.
-  useEffect(() => {
-    if (hydratedHome.current || !profile.town) return
-    hydratedHome.current = true
-    setSelectedKey(townKey(profile.town))
-  }, [profile.town])
 
   // ------------------------------------------------------------------ camera
   const moveTo = useCallback((target: Partial<CameraTarget>, how: 'fly' | 'ease' = 'fly') => {
@@ -200,6 +189,7 @@ export default function MapView() {
   }, [])
 
   const selectTown = useCallback((key: string | null, keepTract = false) => {
+    homeFocused.current = true
     setSelectedKey(key)
     if (!keepTract) setSelectedTract(null)
   }, [])
@@ -231,13 +221,10 @@ export default function MapView() {
       pendingLens.current = next
       setSwapping(!prefersReducedMotion())
       setLens(next)
-      setTab(DEFAULT_TAB[next])
       map.setStyle(STYLE_URL[next], { diff: false })
       if (opts.skipCamera) return
       const view = VIEW[next]
-      if (selectedEntry) {
-        moveTo({ center: selectedEntry.anchor, zoom: next === 'energy' ? 9.5 : next === 'heat' ? 10.5 : 12, ...view })
-      } else if (next === 'street') moveTo({ ...view })
+      if (selectedEntry) moveTo({ center: selectedEntry.anchor, zoom: next === 'energy' ? 9.5 : 10.5, ...view })
       else moveTo({ center: STATE_CENTER, zoom: STATE_ZOOM, ...view })
     },
     [camera, lens, moveTo, selectedEntry],
@@ -252,7 +239,7 @@ export default function MapView() {
 
   const resetView = useCallback(() => {
     camera.stopOrbit()
-    moveTo({ center: STATE_CENTER, zoom: lens === 'street' ? STATE_ZOOM : STATE_ZOOM, ...VIEW[lens] }, 'ease')
+    moveTo({ center: STATE_CENTER, zoom: STATE_ZOOM, ...VIEW[lens] }, 'ease')
   }, [camera, lens, moveTo])
 
   const onResult = useCallback(
@@ -266,18 +253,17 @@ export default function MapView() {
         moveTo({ center: entry.anchor, zoom: lens === 'energy' ? 10.5 : 12 })
         return
       }
-      // Address and ZIP: the whoosh. Street lens, flat-ish, north up.
       const point: [number, number] = [r.lon, r.lat]
       dropPin(point)
-      changeLens('street', { skipCamera: true })
-      setTab(r.kind === 'address' ? 'bill' : 'town')
-      moveTo({ center: point, zoom: r.kind === 'address' ? 17 : 14, pitch: 30, bearing: 0 })
+      setTab('town')
+      moveTo({ center: point, zoom: lens === 'energy' ? 11 : r.kind === 'address' ? 15 : 13 })
     },
-    [camera, changeLens, dropPin, lens, moveTo, selectTown, towns],
+    [camera, dropPin, lens, moveTo, selectTown, towns],
   )
 
   const onUseHome = useCallback(
     (r: SearchResult) => {
+      homeFocused.current = true
       const sameTown = r.town === profile.town
       const patch: Partial<Profile> = { town: r.town }
       // A ZIP or town result says nothing about the street: keep the saved address only if the town is unchanged.
@@ -309,12 +295,9 @@ export default function MapView() {
         // The click point wins when the tract straddles a town line.
         const key = here && touching.includes(here.key) ? here.key : (touching[0] ?? here?.key ?? null)
         selectTract(geoid, key ? displayTown(key) : null)
-      } else if (lens === 'energy') {
+      } else {
         const key = hit ? String(hit.properties?.key ?? '') : ''
         selectTown(key || null)
-      } else {
-        const here = towns ? townAtPoint(towns, e.lngLat.lng, e.lngLat.lat) : null
-        if (here) selectTown(here.key)
       }
     }
     const run = (e: MapMouseEvent) => {
@@ -370,30 +353,42 @@ export default function MapView() {
     }
   })
 
-  // The verdict's hand-off: fly to the town, light up its column, open Next steps.
+  const focusTown = useCallback(
+    (entry: TownData['entries'][number], next: Tab) => {
+      selectTown(entry.key)
+      dropPin(entry.anchor)
+      setTab(next)
+      const [w, s, e, n] = entry.bbox
+      const cx = (w + e) / 2
+      const cy = (s + n) / 2
+      const hw = ((e - w) / 2) * 3
+      const hh = ((n - s) / 2) * 3
+      const fit = mapRef.current?.cameraForBounds([cx - hw, cy - hh, cx + hw, cy + hh], { bearing: VIEW.energy.bearing })
+      moveTo({ center: fit?.center ? (maplibregl.LngLat.convert(fit.center).toArray() as [number, number]) : entry.anchor, zoom: Math.min(fit?.zoom ?? 10, 11), ...VIEW.energy })
+    },
+    [selectTown, dropPin, moveTo],
+  )
+
+  // The verdict's hand-off wins; otherwise the saved home town is where the map opens.
   useEffect(() => {
-    if (queryApplied.current || !ready || !towns) return
-    queryApplied.current = true
-    const entry = query.town ? (towns.byKey.get(townKey(query.town)) ?? null) : null
-    if (!entry) {
+    if (!ready || !towns || homeFocused.current) return
+    const fromQuery = query.town ? (towns.byKey.get(townKey(query.town)) ?? null) : null
+    if (fromQuery) {
+      homeFocused.current = true
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (query.next || query.town) setTab('next')
+      focusTown(fromQuery, query.next ? 'next' : 'town')
       return
     }
-    hydratedHome.current = true
-    selectTown(entry.key)
-    dropPin(entry.anchor)
-    changeLens('energy', { skipCamera: true })
-    setTab('next')
-    const map = mapRef.current
-    const [w, s, e, n] = entry.bbox
-    const cx = (w + e) / 2
-    const cy = (s + n) / 2
-    const hw = ((e - w) / 2) * 3
-    const hh = ((n - s) / 2) * 3
-    const fit = map?.cameraForBounds([cx - hw, cy - hh, cx + hw, cy + hh], { bearing: VIEW.energy.bearing })
-    moveTo({ center: fit?.center ? (maplibregl.LngLat.convert(fit.center).toArray() as [number, number]) : entry.anchor, zoom: Math.min(fit?.zoom ?? 10, 11), ...VIEW.energy })
-  }, [ready, towns, query, selectTown, dropPin, changeLens, moveTo])
+    if (query.next || query.town) {
+      homeFocused.current = true
+      setTab('next')
+      return
+    }
+    const home = profile.town ? (towns.byKey.get(townKey(profile.town)) ?? null) : null
+    if (!home) return
+    homeFocused.current = true
+    focusTown(home, 'town')
+  }, [ready, towns, query, profile.town, focusTown])
 
   // ------------------------------------------------------------------ map lifecycle
   useEffect(() => {
@@ -469,7 +464,6 @@ export default function MapView() {
         pendingLens.current = back
         styleLens.current = null
         setLens(back)
-        setTab(DEFAULT_TAB[back])
         map.setStyle(STYLE_URL[back], { diff: false })
       }
     })
@@ -536,6 +530,20 @@ export default function MapView() {
   const days = towns?.baked._meta.sources.load.days ?? []
   const activeDay = day ?? days[0]
   const energy = lens === 'energy'
+  const grid =
+    towns && activeDay && gridTowns.length > 0 ? (
+      <GridPanel
+        towns={gridTowns}
+        baked={towns.baked}
+        day={activeDay}
+        days={days}
+        onDay={setDay}
+        scopeLabel={selectedName ?? 'Massachusetts'}
+        region={region}
+        hour={hour}
+        isTown={selectedEntry !== null}
+      />
+    ) : null
   const vars = { '--mb': energy ? '124px' : '36px', '--cb': energy ? '112px' : '40px' } as React.CSSProperties
 
   return (
@@ -566,7 +574,7 @@ export default function MapView() {
             <p className="text-micro font-medium text-ink" id="lens-label">
               Lens
             </p>
-            <div role="group" aria-labelledby="lens-label" className="mt-1.5 grid grid-cols-3 rounded-md border border-rule-strong bg-paper p-0.5">
+            <div role="group" aria-labelledby="lens-label" className="mt-1.5 grid grid-cols-2 rounded-md border border-rule-strong bg-paper p-0.5">
               {LENSES.map((l) => (
                 <button
                   key={l.id}
@@ -582,33 +590,34 @@ export default function MapView() {
             </div>
           </div>
 
-          {lens === 'street' ? (
-            <p className="text-micro text-ink-muted">
-              Streets, house numbers and building footprints from OpenStreetMap. Search an address to land on it; your town is outlined.
-            </p>
-          ) : null}
+          {lens === 'energy' ? <MetricControl metric={metric} onMetric={setMetric} /> : null}
 
           {lens === 'energy' ? (
-            <EnergyControls
-              region={region}
-              onRegion={(z) => {
-                setRegion(z)
-                camera.stopOrbit()
-                moveTo({ ...REGION_VIEW[z] }, 'ease')
-              }}
-              metric={metric}
-              onMetric={setMetric}
-              days={days}
-              day={activeDay}
-              onDay={setDay}
-              colourBy={colourBy}
-              onColourBy={setColourBy}
-              showSolar={showSolar}
-              onSolar={setShowSolar}
-              showLabels={showLabels}
-              onLabels={setShowLabels}
-              ready={ready}
-            />
+          <details className="group rounded-md border border-rule">
+            <summary className="flex h-9 cursor-pointer list-none items-center justify-between px-3 text-small text-ink hover:bg-paper-sunk focus-visible:outline-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden">
+              More map options
+              <span aria-hidden className="text-ink-muted transition-transform group-open:rotate-180">
+                ▾
+              </span>
+            </summary>
+            <div className="border-t border-rule p-3">
+              <EnergyOptions
+                  region={region}
+                  onRegion={(z) => {
+                    setRegion(z)
+                    camera.stopOrbit()
+                    moveTo({ ...REGION_VIEW[z] }, 'ease')
+                  }}
+                  colourBy={colourBy}
+                  onColourBy={setColourBy}
+                  showSolar={showSolar}
+                  onSolar={setShowSolar}
+                  showLabels={showLabels}
+                  onLabels={setShowLabels}
+                  ready={ready}
+                />
+            </div>
+          </details>
           ) : null}
 
           {lens === 'heat' ? (
@@ -629,7 +638,9 @@ export default function MapView() {
                 tractsReady={tracts !== null}
               />
             </>
-          ) : null}
+          ) : (
+            <p className="text-micro text-ink-faint">Boundaries: US Census. Utilities: MassGIS Electricity Providers.</p>
+          )}
 
           {dataError ? <p className="text-micro text-deadline" role="alert">{dataError}</p> : null}
           {mapError ? <p className="text-micro text-deadline" role="alert">{mapError}</p> : null}
@@ -653,6 +664,7 @@ export default function MapView() {
                 town={selectedName}
                 tract={selectedTract}
                 onClearTract={() => setSelectedTract(null)}
+                grid={grid}
                 ejOn={ejOn}
                 year={heatYear}
               />
@@ -666,9 +678,7 @@ export default function MapView() {
             hidden={tab !== 'bill'}
             className="min-h-0 flex-1 overflow-y-auto p-4"
           >
-            {tab === 'bill' ? (
-              <BillPanel town={selectedName} profile={profile} onEditProfile={() => setDrawerOpen(true)} />
-            ) : null}
+            {tab === 'bill' ? <BillPanel profile={profile} onEditProfile={() => setDrawerOpen(true)} /> : null}
           </div>
           <div
             role="tabpanel"
@@ -686,26 +696,6 @@ export default function MapView() {
                 profile={profile}
                 query={query}
                 onEditProfile={() => setDrawerOpen(true)}
-              />
-            ) : null}
-          </div>
-          <div
-            role="tabpanel"
-            id="panel-grid"
-            aria-labelledby="tab-grid"
-            tabIndex={0}
-            hidden={tab !== 'grid'}
-            className="min-h-0 flex-1 overflow-y-auto p-4"
-          >
-            {tab === 'grid' && towns && activeDay && gridTowns.length > 0 ? (
-              <GridPanel
-                towns={gridTowns}
-                baked={towns.baked}
-                day={activeDay}
-                scopeLabel={selectedName ?? 'Massachusetts'}
-                region={region}
-                hour={hour}
-                isTown={selectedEntry !== null}
               />
             ) : null}
           </div>
@@ -765,14 +755,13 @@ function Tabs({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'town', label: 'Town' },
     { id: 'bill', label: 'Your bill' },
-    { id: 'grid', label: 'Grid' },
     { id: 'next', label: 'Next steps' },
   ]
   return (
     <div
       role="tablist"
       aria-label="Panel"
-      className="grid grid-cols-4 border-b border-rule"
+      className="grid grid-cols-3 border-b border-rule"
       onKeyDown={(e) => {
         const i = tabs.findIndex((t) => t.id === tab)
         const n = tabs.length
@@ -806,14 +795,25 @@ function Tabs({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
 const CHIP =
   'h-8 rounded-md border border-rule-strong bg-surface px-2.5 text-micro text-ink transition-colors hover:bg-paper-sunk aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-paper'
 
-function EnergyControls(props: {
+function MetricControl({ metric, onMetric }: { metric: Metric; onMetric: (m: Metric) => void }) {
+  const metrics = Object.keys(METRIC_LABEL) as Metric[]
+  return (
+    <div>
+      <p className="text-micro font-medium text-ink">Metric</p>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {metrics.map((m) => (
+          <button key={m} type="button" className={CHIP} aria-pressed={metric === m} onClick={() => onMetric(m)}>
+            {METRIC_LABEL[m]}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function EnergyOptions(props: {
   region: Zone | 'ALL'
   onRegion: (z: Zone | 'ALL') => void
-  metric: Metric
-  onMetric: (m: Metric) => void
-  days: string[]
-  day: string | undefined
-  onDay: (d: string) => void
   colourBy: 'provider' | 'intensity'
   onColourBy: (c: 'provider' | 'intensity') => void
   showSolar: boolean
@@ -822,10 +822,9 @@ function EnergyControls(props: {
   onLabels: (b: boolean) => void
   ready: boolean
 }) {
-  const metrics = Object.keys(METRIC_LABEL) as Metric[]
   const legend = (Object.keys(PROVIDER_COLOUR) as (SponsorKey | 'mixed')[]).filter((k) => k !== 'other' && k !== 'cape_light')
   return (
-    <div className="flex flex-col gap-3 border-t border-rule pt-3">
+    <div className="flex flex-col gap-3">
       <div>
         <label htmlFor="region" className="text-micro font-medium text-ink">
           Region (ISO-NE load zone)
@@ -843,26 +842,6 @@ function EnergyControls(props: {
             </option>
           ))}
         </select>
-      </div>
-      <div>
-        <p className="text-micro font-medium text-ink">Metric</p>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {metrics.map((m) => (
-            <button key={m} type="button" className={CHIP} aria-pressed={props.metric === m} onClick={() => props.onMetric(m)}>
-              {METRIC_LABEL[m]}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div>
-        <p className="text-micro font-medium text-ink">Grid load day</p>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {props.days.map((d) => (
-            <button key={d} type="button" className={CHIP} aria-pressed={props.day === d} onClick={() => props.onDay(d)}>
-              {dayLabel(d)}
-            </button>
-          ))}
-        </div>
       </div>
       <div>
         <p className="text-micro font-medium text-ink">Colour by</p>
@@ -894,9 +873,6 @@ function EnergyControls(props: {
       ) : (
         <p className="text-micro text-ink-muted">Brighter columns carry more load. Height is the square root of MW.</p>
       )}
-      <p className="text-micro text-ink-faint">
-        Boundaries: US Census. Utilities: MassGIS Electricity Providers.
-      </p>
     </div>
   )
 }

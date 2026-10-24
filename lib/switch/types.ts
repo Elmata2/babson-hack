@@ -19,8 +19,9 @@ export type OutreachChannel = 'email' | 'phone'
 /** What the household is asking an agent to do. */
 export type SwitchKind = 'stay' | 'fuel' | 'supply' | 'installer'
 
-/** Addendum B §3.6 step 6: consented → contacting → quotes ready → decided → introduced/switched. */
+/** `kit` is the self-serve path: nothing was consented to and nothing was sent. Addendum B §3.6 step 6: consented → contacting → quotes ready → decided → introduced/switched. */
 export type SwitchStage =
+  | 'kit'
   | 'consented'
   | 'contacting'
   | 'quotes_ready'

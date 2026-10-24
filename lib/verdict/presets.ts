@@ -61,7 +61,7 @@ export const DEMO_PRESETS: readonly DemoPreset[] = [
       tier: 'whole',
       year: '2026',
       inc: 'no',
-      ut: 'nationalgrid',
+      ut: 'national_grid',
       src: 'manual',
     }),
   },

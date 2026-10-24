@@ -9,29 +9,21 @@ import { SiteHeader } from '@/components/site-header'
 import { AssumptionsStrip } from '@/components/verdict/assumptions-strip'
 import { CashFlow } from '@/components/verdict/cash-flow'
 import { EnhancedOfferLine } from '@/components/verdict/enhanced-offer'
-import { ExplainPanel } from '@/components/verdict/explain-panel'
 import { NumberFlip } from '@/components/verdict/number-flip'
 import { PlainSummary } from '@/components/verdict/plain-summary'
 import { ProvenanceFigure } from '@/components/verdict/provenance-figure'
 import { VerdictDial } from '@/components/verdict/verdict-dial'
 import { computeVerdict, refusalFor } from '@/lib/calc'
-import { DEFAULT_INSTALL_COST_USD } from '@/lib/calc/constants'
-import type { Fuel, Tier } from '@/lib/calc/types'
+import type { Fuel } from '@/lib/calc/types'
 import { formatDateShort } from '@/lib/freshness'
-import { GEO_META, countyOfTown, displayTown, hdd65ForTown } from '@/lib/geo'
-import {
-  bonusOn,
-  defaultInstallYear,
-  plausibleElectricRate,
-  plausibleInstallCost,
-  provenanceLine,
-  queryString,
-  questionsFor,
-} from '@/lib/intake/params'
+import { GEO_META, countyOfTown, displayTown } from '@/lib/geo'
+import { provenanceLine, queryString } from '@/lib/intake/params'
 import { demoFromParams } from '@/lib/demo'
 import { getPrices } from '@/lib/prices'
-import { resolveUtility, SPONSOR_NAME, seasonalHeatPumpRate } from '@/lib/utility'
+import { CHOICE_COPY, choicesFor } from '@/lib/switch/choices'
+import { SPONSOR_NAME } from '@/lib/utility'
 import { enhancedOffer } from '@/lib/verdict/enhanced-offer'
+import { isVerdictQueryComplete, resolveVerdictInputs } from '@/lib/verdict/inputs'
 import { entryFor, provenanceFor, type FigureId, type ProvenanceEntry } from '@/lib/verdict/provenance'
 import { verdictHeadline, type Part } from '@/lib/verdict/headline'
 import { MIN_REASONS, verdictNotes } from '@/lib/verdict-notes'
@@ -64,7 +56,7 @@ import { VERDICT_META } from '@/lib/verdicts'
  * Server-rendered from the URL and `lib/calc`. No client JavaScript is needed to
  * see the answer, no API route is required to produce it, and the same link
  * recomputes the same number tomorrow at tomorrow's prices, with the date on
- * screen. The dial, the flip, the drawer and the plain-English panel are
+ * screen. The dial, the flip and the drawer are
  * client-side enhancements of a page that already works without them.
  *
  * The municipal-light-plant gate is applied here in its minimal honest form: if
@@ -73,8 +65,6 @@ import { VERDICT_META } from '@/lib/verdicts'
  * payback at all. Full refusal state and copy land with F-57.
  */
 
-const FUELS: readonly Fuel[] = ['oil', 'propane', 'gas', 'resistance']
-const TIERS: readonly Tier[] = ['whole', 'partial', 'basic', 'enhanced']
 
 const usd = (value: number): string =>
   value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
@@ -117,32 +107,8 @@ function number(value: string | string[] | undefined): number | null {
 
 export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const params = await searchParams
-  const fuelRaw = first(params.fuel)
-  const tierRaw = first(params.tier)
-  const townRaw = first(params.town) ?? ''
 
-  const fuel = FUELS.find((candidate) => candidate === fuelRaw) ?? null
-  const tier = TIERS.find((candidate) => candidate === tierRaw) ?? null
-  // R5.1: the table follows the install date, and the install date defaults to
-  // today. An explicit year that no table covers is still refused below.
-  const yearParam = first(params.year)
-  const installYear: 2026 | 2027 | null =
-    yearParam === null || yearParam.trim() === ''
-      ? defaultInstallYear() === '2027'
-        ? 2027
-        : 2026
-      : yearParam === '2027'
-        ? 2027
-        : yearParam === '2026'
-          ? 2026
-          : null
-
-  const units = number(params.units)
-  const unitPrice = number(params.price)
-  const yearBuilt = number(params.yb)
-  const sqft = number(params.sqft)
-
-  if (!fuel || !tier || !installYear || units === null || unitPrice === null || townRaw === '') {
+  if (!isVerdictQueryComplete(params)) {
     return (
       <Chrome>
         <section className="rounded-card border border-rule bg-surface p-6">
@@ -164,43 +130,14 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
 
   // R13.1: a demo verdict must not read EIA even when a key is present.
   const prices = await getPrices({ timeoutMs: 4_000, demo: demoFromParams(params) })
-  // A rate read off the household's own electric bill beats the statewide EIA
-  // average — but only inside a plausible band; a misread must not move the verdict.
-  const billRate = plausibleElectricRate(first(params.er))
-  const standardRate = billRate ?? prices.elec.usdPerUnit
-  const utilityKey = first(params.ut)
+  const inputs = resolveVerdictInputs(params, prices)
+  const { fuel, tier, town: townRaw, yearBuilt, quote, income, billUtility, billRate, seasonal, utility, installYear, sqft } = inputs
+  const { heating, upgrade } = inputs
+  if (!heating || !upgrade || !fuel || !tier || !installYear) throw new Error('verdict inputs incomplete after the completeness check')
+
   const provenance = provenanceLine((first(params.mn) ?? '').slice(0, 160) || null, number(params.mc))
   const buildingUnits = number(params.bu)
   const changeHref = `/start?${queryString(params)}`
-  const seasonal = seasonalHeatPumpRate(standardRate, townRaw)
-  const utility = resolveUtility(townRaw)
-  const hdd65 = hdd65ForTown(townRaw) ?? undefined
-
-  const heating = {
-    fuel,
-    annualUnits: units,
-    unitPrice,
-    yearBuilt: yearBuilt ?? undefined,
-    sqft: sqft ?? undefined,
-    hdd65,
-  }
-
-  // R7.2: a contractor quote if the household typed one, otherwise the program
-  // average. Outside the band the average wins and the screen keeps saying so.
-  const quote = plausibleInstallCost(first(params.ic))
-
-  const { income } = questionsFor(tier, first(params.inc))
-  const upgrade = {
-    tier,
-    installYear,
-    // R7.2: the Mass Save average is the default quote, and the enhanced tier is
-    // capped by an install cost, so the engine needs one to price it at all.
-    installCost: quote ?? DEFAULT_INSTALL_COST_USD,
-    weatherizationBonus: bonusOn(params, 'wz'),
-    sizingBonus: bonusOn(params, 'sz'),
-    heatPumpRate: seasonal.rate,
-    standardRate,
-  }
 
   const result = computeVerdict(heating, upgrade)
   const refusal = result ? null : refusalFor(heating, upgrade)
@@ -210,8 +147,8 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
   const notes = result ? verdictNotes(result) : null
   // The bill's own sender settles a mixed town: a light-plant bill means no Mass Save rebate;
   // an investor-owned sender means the question is answered.
-  const billSaysMunicipal = utilityKey === 'municipal'
-  const billSaysInvestorOwned = ['eversource', 'national_grid', 'unitil'].includes(utilityKey ?? '')
+  const billSaysMunicipal = billUtility === 'municipal'
+  const billSaysInvestorOwned = billUtility === 'eversource' || billUtility === 'national_grid' || billUtility === 'unitil'
   const noMassSave = billSaysMunicipal || utility.eligibleForMassSave === false
   const asksUtility = !billSaysMunicipal && !billSaysInvestorOwned && utility.eligibleForMassSave === null
   // R14.3: the income-qualified tier is offered in place when the rebate table says
@@ -305,6 +242,9 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
     save: String(Math.round(result?.annualSavings ?? 0)),
     back: `/verdict?${queryString(params)}`,
   }).toString()}`
+  const optionsLine = choicesFor({ verdict: result?.verdict ?? null, fuel, utility, billUtility })
+    .map((choice) => CHOICE_COPY[choice].label)
+    .join(' · ')
   const figure = (id: FigureId): ProvenanceEntry | null => entryFor(entries, id)
 
   return (
@@ -362,7 +302,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
             >
               <div className="mt-2 grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end">
                 <div>
-                  <p className="text-eyebrow uppercase text-ink-muted">The verdict</p>
+                  <p className="text-eyebrow uppercase text-ink-muted">The answer</p>
                   <h1 className="mt-2 max-w-[22ch] text-display font-medium">
                     <Parts entries={entries} parts={headline.parts.sentence} />
                   </h1>
@@ -428,8 +368,29 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
             </section>
           )}
 
-          <AssumptionsStrip result={result} />
+          {/* @built F-151 the verdict hands the whole query to the switch flow, so the household's claim survives the next screen */}
+          <section className="mt-6 rounded-card border border-rule bg-surface p-5 sm:p-6">
+            <h2 className="text-title font-medium">What to do next</h2>
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
+              <div>
+                <Link
+                  href={switchHref}
+                  className="inline-block rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
+                >
+                  See your options →
+                </Link>
+                <p className="mt-2 text-micro text-ink-muted">{optionsLine}</p>
+              </div>
+              <Link
+                href={mapHref}
+                className="text-small text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
+              >
+                See {townName} on the map →
+              </Link>
+            </div>
+          </section>
 
+          <h2 className="mt-10 text-title font-medium">The money</h2>
           <section className="mt-4 grid gap-3 sm:grid-cols-3">
             <Stat
               label={`Rebate, ${result.installYear} install`}
@@ -456,7 +417,7 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
 
           {noMassSave ? null : (
             <section className="mt-4 rounded-card border border-rule bg-surface p-5 sm:p-6">
-              <h2 className="text-small font-medium">What the install costs</h2>
+              <h3 className="text-small font-medium">What the install costs</h3>
               <p className="mt-1 max-w-[62ch] text-micro text-ink-muted">
                 The rebate is subtracted from this number, so a quote changes the net cost, the payback and the
                 loan. It never changes the answer&rsquo;s honesty.
@@ -469,146 +430,131 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
 
           <CashFlow result={result} noMassSave={noMassSave} />
 
-          {/* @built F-151 the verdict hands the whole query to the switch flow, so the household's claim survives the next screen */}
-          <section className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-card border border-rule bg-surface p-5">
-            <div>
-              <h2 className="text-small font-medium">What happens next</h2>
-              <p className="mt-1 max-w-[54ch] text-small text-ink-muted">
-                Four ways forward — including doing nothing. Every figure keeps its source, and you read the exact
-                facts a provider would hear before anything is sent.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-              <Link
-                href={switchHref}
-                className="rounded-pill bg-ink px-5 py-2.5 text-small font-medium text-paper"
-              >
-                Decide what to do next →
-              </Link>
-              <Link
-                href={mapHref}
-                className="text-small text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
-              >
-                See {townName} on the map →
-              </Link>
-            </div>
+          <section className="mt-10">
+            <h2 className="text-title font-medium">How we worked it out</h2>
+            <AssumptionsStrip result={result} />
+            <details className="mt-3 rounded-card border border-rule bg-surface p-5">
+              <summary className="cursor-pointer text-small font-medium">
+                Rebate stack, utility and arithmetic
+              </summary>
+              <div className="mt-4">
+                <RebateStack
+                  result={result}
+                  fuel={fuel}
+                  income={income}
+                  params={params}
+                  noMassSave={noMassSave}
+                />
+
+                <section className="mt-4 rounded-card border border-rule bg-surface p-5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-small font-medium">The utility at this address</h3>
+                    <span className="text-micro text-ink-faint">{displayTown(townRaw)}</span>
+                  </div>
+
+                  {asksUtility ? (
+                    <p className="mt-2 max-w-[62ch] text-small text-ink">
+                      {utility.question ?? 'This town has more than one sponsor, so we have to ask.'} The figures above
+                      assume the investor-owned sponsor; if a municipal department bills you, the rebate is $0.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-small text-ink-muted">
+                      {utility.found
+                        ? utility.sponsors.map((sponsor) => SPONSOR_NAME[sponsor]).join(' · ')
+                        : 'Not one of the 351 municipalities.'}
+                      {seasonal.applied ? ' · seasonal heat-pump rate applied' : ''}
+                    </p>
+                  )}
+
+                  <dl className="mt-4 grid gap-3 border-t border-rule pt-4 text-micro sm:grid-cols-3">
+                    <div>
+                      <dt className="text-ink-faint">Climate</dt>
+                      <dd className="tabular-nums text-ink">
+                        <Figure entries={entries} id="hdd">
+                          {result.hdd65.toLocaleString('en-US')} HDD65
+                        </Figure>{' '}
+                        · {result.designTempF}°F design
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-ink-faint">Sized</dt>
+                      <dd className="tabular-nums text-ink">
+                        <Figure entries={entries} id="tons">
+                          {result.tons.toFixed(1)} tons
+                        </Figure>{' '}
+                        · {Math.round(result.designBTUhr).toLocaleString('en-US')} BTU/hr
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-ink-faint">Bill used</dt>
+                      <dd className="tabular-nums text-ink">
+                        <Figure entries={entries} id="fuelUse">
+                          {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]}
+                        </Figure>{' '}
+                        at ${result.unitPrice.toFixed(2)} ·{' '}
+                        <Figure entries={entries} id="scop">
+                          {result.scop} SCOP
+                        </Figure>
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <div className="mt-4 rounded-card border border-rule bg-surface p-5">
+                  <h3 className="text-small font-medium">
+                    The arithmetic, the defaults, and what would change the answer
+                  </h3>
+
+                  <dl className="mt-4 divide-y divide-rule border-y border-rule">
+                    {provenance ? (
+                      <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
+                        <dt className="text-micro text-ink-faint">Yearly {UNIT_LABEL[result.fuel] === 'kWh' ? 'electricity' : 'fuel'}</dt>
+                        <dd className="text-small tabular-nums text-ink">
+                          {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]}
+                        </dd>
+                        <dd className="text-micro text-ink-muted">{provenance}</dd>
+                      </div>
+                    ) : null}
+                    {billRate !== null ? (
+                      <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
+                        <dt className="text-micro text-ink-faint">Electricity price</dt>
+                        <dd className="text-small tabular-nums text-ink">${billRate.toFixed(3)}/kWh</dd>
+                        <dd className="text-micro text-ink-muted">
+                          Read off your electric bill, used instead of the statewide average of $
+                          {prices.elec.usdPerUnit.toFixed(3)}/kWh.
+                        </dd>
+                      </div>
+                    ) : null}
+                    {buildingUnits !== null && buildingUnits > 1 ? (
+                      <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
+                        <dt className="text-micro text-ink-faint">Floor area</dt>
+                        <dd className="text-small tabular-nums text-ink">{sqft?.toLocaleString('en-US') ?? '—'} sqft</dd>
+                        <dd className="text-micro text-ink-muted">
+                          Assumption: the assessor&rsquo;s building area divided by {buildingUnits} units.
+                        </dd>
+                      </div>
+                    ) : null}
+                    {result.assumptions.map((assumption) => (
+                      <div key={`${assumption.field}-${assumption.value}`} className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
+                        <dt className="text-micro text-ink-faint">{assumption.field}</dt>
+                        <dd className="text-small tabular-nums text-ink">{assumption.value}</dd>
+                        <dd className="text-micro text-ink-muted">{assumption.reason}</dd>
+                      </div>
+                    ))}
+                  </dl>
+
+                  {result.caveats.length ? (
+                    <ul className="mt-4 grid gap-2 text-micro text-ink-muted">
+                      {result.caveats.map((caveat) => (
+                        <li key={caveat}>{caveat}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+
+              </div>
+            </details>
           </section>
-
-          <ExplainPanel result={result} />
-
-          <RebateStack
-            result={result}
-            fuel={fuel}
-            income={income}
-            params={params}
-            noMassSave={noMassSave}
-          />
-
-          <section className="mt-4 rounded-card border border-rule bg-surface p-5">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-small font-medium">The utility at this address</h2>
-              <span className="text-micro text-ink-faint">{displayTown(townRaw)}</span>
-            </div>
-
-            {asksUtility ? (
-              <p className="mt-2 max-w-[62ch] text-small text-ink">
-                {utility.question ?? 'This town has more than one sponsor, so we have to ask.'} The figures above
-                assume the investor-owned sponsor; if a municipal department bills you, the rebate is $0.
-              </p>
-            ) : (
-              <p className="mt-2 text-small text-ink-muted">
-                {utility.found
-                  ? utility.sponsors.map((sponsor) => SPONSOR_NAME[sponsor]).join(' · ')
-                  : 'Not one of the 351 municipalities.'}
-                {seasonal.applied ? ' · seasonal heat-pump rate applied' : ''}
-              </p>
-            )}
-
-            <dl className="mt-4 grid gap-3 border-t border-rule pt-4 text-micro sm:grid-cols-3">
-              <div>
-                <dt className="text-ink-faint">Climate</dt>
-                <dd className="tabular-nums text-ink">
-                  <Figure entries={entries} id="hdd">
-                    {result.hdd65.toLocaleString('en-US')} HDD65
-                  </Figure>{' '}
-                  · {result.designTempF}°F design
-                </dd>
-              </div>
-              <div>
-                <dt className="text-ink-faint">Sized</dt>
-                <dd className="tabular-nums text-ink">
-                  <Figure entries={entries} id="tons">
-                    {result.tons.toFixed(1)} tons
-                  </Figure>{' '}
-                  · {Math.round(result.designBTUhr).toLocaleString('en-US')} BTU/hr
-                </dd>
-              </div>
-              <div>
-                <dt className="text-ink-faint">Bill used</dt>
-                <dd className="tabular-nums text-ink">
-                  <Figure entries={entries} id="fuelUse">
-                    {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]}
-                  </Figure>{' '}
-                  at ${result.unitPrice.toFixed(2)} ·{' '}
-                  <Figure entries={entries} id="scop">
-                    {result.scop} SCOP
-                  </Figure>
-                </dd>
-              </div>
-            </dl>
-          </section>
-
-          <details className="mt-4 rounded-card border border-rule bg-surface p-5">
-            <summary className="cursor-pointer text-small font-medium">
-              The arithmetic, the defaults, and what would change the answer
-            </summary>
-
-            <dl className="mt-4 divide-y divide-rule border-y border-rule">
-              {provenance ? (
-                <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
-                  <dt className="text-micro text-ink-faint">Yearly {UNIT_LABEL[result.fuel] === 'kWh' ? 'electricity' : 'fuel'}</dt>
-                  <dd className="text-small tabular-nums text-ink">
-                    {result.annualUnits.toLocaleString('en-US')} {UNIT_LABEL[result.fuel]}
-                  </dd>
-                  <dd className="text-micro text-ink-muted">{provenance}</dd>
-                </div>
-              ) : null}
-              {billRate !== null ? (
-                <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
-                  <dt className="text-micro text-ink-faint">Electricity price</dt>
-                  <dd className="text-small tabular-nums text-ink">${billRate.toFixed(3)}/kWh</dd>
-                  <dd className="text-micro text-ink-muted">
-                    Read off your electric bill, used instead of the statewide average of $
-                    {prices.elec.usdPerUnit.toFixed(3)}/kWh.
-                  </dd>
-                </div>
-              ) : null}
-              {buildingUnits !== null && buildingUnits > 1 ? (
-                <div className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
-                  <dt className="text-micro text-ink-faint">Floor area</dt>
-                  <dd className="text-small tabular-nums text-ink">{sqft?.toLocaleString('en-US') ?? '—'} sqft</dd>
-                  <dd className="text-micro text-ink-muted">
-                    Assumption: the assessor&rsquo;s building area divided by {buildingUnits} units.
-                  </dd>
-                </div>
-              ) : null}
-              {result.assumptions.map((assumption) => (
-                <div key={`${assumption.field}-${assumption.value}`} className="grid gap-1 py-3 sm:grid-cols-[10rem_8rem_1fr] sm:gap-4">
-                  <dt className="text-micro text-ink-faint">{assumption.field}</dt>
-                  <dd className="text-small tabular-nums text-ink">{assumption.value}</dd>
-                  <dd className="text-micro text-ink-muted">{assumption.reason}</dd>
-                </div>
-              ))}
-            </dl>
-
-            {result.caveats.length ? (
-              <ul className="mt-4 grid gap-2 text-micro text-ink-muted">
-                {result.caveats.map((caveat) => (
-                  <li key={caveat}>{caveat}</li>
-                ))}
-              </ul>
-            ) : null}
-          </details>
 
           <p className="mt-6 max-w-[70ch] text-micro text-ink-muted">
             Prices: the {prices.mode === 'live' ? 'live' : 'dated'} reading for {prices.asOf}. The electricity

@@ -12,50 +12,23 @@
  */
 
 import { computeVerdict, refusalFor } from '../calc'
-import type { Fuel, Tier, VerdictResult } from '../calc/types'
-import { hdd65ForTown } from '../geo'
-import { plausibleElectricRate, queryString } from '../intake/params'
+import type { Fuel, VerdictResult } from '../calc/types'
+import { queryString } from '../intake/params'
 import type { BillUtility } from '../parse/contract'
 import type { PricePoint, Prices } from '../prices'
 import { basicServiceRate, SUPPLY_LINKS, type BasicServiceRate } from '../supply'
-import { resolveUtility, seasonalHeatPumpRate, SPONSOR_NAME, type SponsorKey } from '../utility'
+import { SPONSOR_NAME, type SponsorKey } from '../utility'
+import { resolveVerdictInputs, type Raw } from '../verdict/inputs'
 import { bestCase, type BestCaseRow } from './best-case'
 import { choicesFor, supplyChoiceAvailable } from './choices'
 import type { SwitchChoice } from './types'
 
-export type Raw = Record<string, string | string[] | undefined>
-
-const FUELS: readonly Fuel[] = ['oil', 'propane', 'gas', 'resistance']
-const TIERS: readonly Tier[] = ['whole', 'partial', 'basic', 'enhanced']
-const BILL_UTILITIES: readonly BillUtility[] = [
-  'eversource',
-  'national_grid',
-  'unitil',
-  'liberty',
-  'berkshire_gas',
-  'municipal',
-  'oil_dealer',
-  'propane_dealer',
-  'other',
-]
 
 const BILL_TO_SPONSOR: Partial<Record<BillUtility, SponsorKey>> = {
   eversource: 'eversource',
   national_grid: 'nationalgrid',
   unitil: 'unitil',
   municipal: 'municipal',
-}
-
-function first(value: string | string[] | undefined): string | null {
-  if (Array.isArray(value)) return value[0] ?? null
-  return value ?? null
-}
-
-function number(value: string | string[] | undefined): number | null {
-  const raw = first(value)
-  if (raw === null || raw.trim() === '') return null
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) ? parsed : null
 }
 
 export interface SwitchSupply {
@@ -107,29 +80,15 @@ export interface SwitchModel {
  */
 export function buildSwitchModel(params: Raw, prices: Prices): SwitchModel {
   const query = queryString(params)
-  const fuel = FUELS.find((candidate) => candidate === first(params.fuel)) ?? null
-  const tier = TIERS.find((candidate) => candidate === first(params.tier)) ?? null
-  const yearRaw = first(params.year)
-  const installYear: 2026 | 2027 | null = yearRaw === '2027' ? 2027 : yearRaw === '2026' ? 2026 : null
-  const town = (first(params.town) ?? '').trim()
-  const units = number(params.units)
-  const unitPrice = number(params.price)
-  const yearBuilt = number(params.yb)
-  const sqft = number(params.sqft)
-  const billUtility = BILL_UTILITIES.find((candidate) => candidate === first(params.ut)) ?? null
-  const incomeRaw = first(params.inc)
-  const income: SwitchModel['income'] = incomeRaw === 'yes' || incomeRaw === 'no' ? incomeRaw : 'unsure'
-
-  const utility = resolveUtility(town)
-  const billRate = plausibleElectricRate(first(params.er))
-  const standardRate = billRate ?? prices.elec.usdPerUnit
-  const seasonal = seasonalHeatPumpRate(standardRate, town)
-  const hdd65 = hdd65ForTown(town) ?? undefined
+  const claimedIncome = Array.isArray(params.inc) ? params.inc[0] : params.inc
+  const inputs = resolveVerdictInputs(params, prices)
+  const { fuel, units, unitPrice, sqft, billUtility, income, utility, standardRate, seasonal, heating, upgrade } = inputs
+  const town = inputs.town.trim()
 
   const supplyAvailable = supplyChoiceAvailable({ verdict: null, fuel, utility, billUtility })
 
   const billSaysMunicipal = billUtility === 'municipal'
-  const billSaysInvestorOwned = ['eversource', 'national_grid', 'unitil'].includes(billUtility ?? '')
+  const billSaysInvestorOwned = billUtility === 'eversource' || billUtility === 'national_grid' || billUtility === 'unitil'
   const noMassSave = billSaysMunicipal || utility.eligibleForMassSave === false
   const asksUtility = !billSaysMunicipal && !billSaysInvestorOwned && utility.eligibleForMassSave === null
 
@@ -157,7 +116,7 @@ export function buildSwitchModel(params: Raw, prices: Prices): SwitchModel {
   const marketPoint =
     fuel === 'oil' ? prices.oil : fuel === 'propane' ? prices.propane : null
 
-  if (!fuel || !tier || !installYear || units === null || unitPrice === null || town === '') {
+  if (!heating || !upgrade || !fuel || units === null || unitPrice === null) {
     return {
       ready: false,
       refusalMessage:
@@ -191,21 +150,6 @@ export function buildSwitchModel(params: Raw, prices: Prices): SwitchModel {
     }
   }
 
-  const heating = {
-    fuel,
-    annualUnits: units,
-    unitPrice,
-    yearBuilt: yearBuilt ?? undefined,
-    sqft: sqft ?? undefined,
-    hdd65,
-  }
-  const upgrade = {
-    tier,
-    installYear,
-    heatPumpRate: seasonal.rate,
-    standardRate,
-  }
-
   const result = computeVerdict(heating, upgrade)
   const refusal = result ? null : refusalFor(heating, upgrade)
 
@@ -220,7 +164,7 @@ export function buildSwitchModel(params: Raw, prices: Prices): SwitchModel {
     basicService: basic,
     sponsorLabel: supply.sponsorLabel,
     noMassSave,
-    incomeEligible: income === 'yes',
+    incomeEligible: claimedIncome === 'yes',
     seasonalApplied: seasonal.applied,
   })
 

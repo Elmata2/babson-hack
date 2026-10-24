@@ -7,13 +7,13 @@
 
 **Built:** 99 / 117 features · ████████████████████████░░░░ **85%**
 
-**Last event:** 2026-10-24T18:19:01.223Z (14:19 ET) · **commit:** `e113a1f`
+**Last event:** 2026-10-24T18:41:27.090Z (14:41 ET) · **commit:** `31d9433`
 
 ## Now
 
+- `14:41` ✔ **F-152** R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests · `lib/switch/option-cards.ts`
+- `14:41` ✔ **F-152** R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests · `lib/switch/__tests__/option-cards.test.ts`
 - `14:19` ✔ **F-59** README: challenge C2 quote, dataset citations, utility-coverage note · `README.md`
-- `14:19` ✔ **F-51** README + Kiro write-up (spec, steering, hooks, PBT, MCP) · `README.md`
-- `14:19` ✔ **F-57** Verdict screen utility badge + MLP refusal state (the Wellesley beat) · `app/verdict/page.tsx`
 
 ## Next up
 
@@ -42,6 +42,8 @@
 
 ## Timeline
 
+- `14:41` ✔ **F-152** — R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests · `lib/switch/option-cards.ts` · `31d9433`
+- `14:41` ✔ **F-152** — R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests · `lib/switch/__tests__/option-cards.test.ts` · `31d9433`
 - `14:19` ✔ **F-59** — README: challenge C2 quote, dataset citations, utility-coverage note · `README.md` · `e113a1f`
 - `14:19` ✔ **F-51** — README + Kiro write-up (spec, steering, hooks, PBT, MCP) · `README.md` · `e113a1f`
 - `14:19` ✔ **F-57** — Verdict screen utility badge + MLP refusal state (the Wellesley beat) · `app/verdict/page.tsx` · `e113a1f`

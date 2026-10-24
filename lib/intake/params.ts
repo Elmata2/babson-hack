@@ -97,9 +97,17 @@ export function plausibleInstallCost(raw: string | number | null | undefined): n
 }
 
 const METHODS: readonly AnnualMethod[] = ['printed_history', 'degree_days', 'tank_cadence', 'hdd_scaled', 'monthly_x12']
-const UTILITIES: readonly BillUtility[] = [
+export const BILL_UTILITIES: readonly BillUtility[] = [
   'eversource', 'national_grid', 'unitil', 'liberty', 'berkshire_gas', 'municipal', 'oil_dealer', 'propane_dealer', 'other',
 ]
+const UTILITY_ALIASES: Readonly<Record<string, BillUtility>> = { nationalgrid: 'national_grid' }
+
+export function parseBillUtility(raw: string | null | undefined): BillUtility | null {
+  if (raw === null || raw === undefined) return null
+  const key = raw.trim().toLowerCase()
+  return BILL_UTILITIES.find((x) => x === key) ?? UTILITY_ALIASES[key] ?? null
+}
+
 const FUELS: readonly BillFuel[] = ['oil', 'propane', 'gas', 'resistance']
 export const NOTE_MAX = 160
 /** A street address is a form value, not a payload: cap it where it enters the app. */
@@ -212,7 +220,7 @@ export function fromSearchParams(r: Raw): Partial<IntakeValues> {
   if (Number.isFinite(mc) && mc >= 0 && mc <= 1) out.methodConfidence = mc
   const mn = one(r, 'mn')
   if (mn) out.note = mn.slice(0, NOTE_MAX)
-  const ut = UTILITIES.find((x) => x === one(r, 'ut'))
+  const ut = parseBillUtility(one(r, 'ut'))
   if (ut) out.utility = ut
   const er = one(r, 'er')
   if (plausibleElectricRate(er) !== null) out.electricRate = er as string

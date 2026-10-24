@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * @built F-72 Grid tab: polar 24 h clock, hour stats, provider split
+ * @built F-72 Grid section of the Town tab: polar 24 h clock, hour stats, provider split
  * @built F-75 real zonal load, residential use, solar capacity and their sources
  */
 
@@ -30,6 +30,8 @@ export function GridPanel({
   towns,
   baked,
   day,
+  days,
+  onDay,
   scopeLabel,
   region,
   hour,
@@ -38,6 +40,8 @@ export function GridPanel({
   towns: EnergyTown[]
   baked: BakedEnergy
   day: string
+  days: readonly string[]
+  onDay: (d: string) => void
   scopeLabel: string
   region: Zone | 'ALL'
   hour: number
@@ -74,14 +78,27 @@ export function GridPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-small font-medium text-ink">
-        {scopeLabel}
-        {!isTown ? ` · ${ZONE_LABEL[region]}` : ''}
-      </p>
-      <p className="text-micro text-ink-muted">
-        {isTown ? `Grid load shown is the ${ZONE_LABEL[clockZone]} zone, not ${scopeLabel} alone. ` : ''}
-        {dayLabel(day)}.
-      </p>
+      {!isTown ? (
+        <p className="text-small font-medium text-ink">
+          {scopeLabel} · {ZONE_LABEL[region]}
+        </p>
+      ) : null}
+      <div role="group" aria-label="Grid load day" className="flex flex-wrap gap-1.5">
+        {days.map((d) => (
+          <button
+            key={d}
+            type="button"
+            aria-pressed={day === d}
+            onClick={() => onDay(d)}
+            className="h-8 rounded-md border border-rule-strong bg-surface px-2.5 text-micro text-ink transition-colors hover:bg-paper-sunk aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-paper"
+          >
+            {dayLabel(d)}
+          </button>
+        ))}
+      </div>
+      {isTown ? (
+        <p className="text-micro text-ink-muted">Grid load shown is the {ZONE_LABEL[clockZone]} zone, not {scopeLabel} alone.</p>
+      ) : null}
       <svg viewBox="-130 -130 260 260" role="img" aria-label={`Zone load by hour, ${ZONE_LABEL[clockZone]}, ${dayLabel(day)}.`} className="mx-auto w-full max-w-[260px]">
         {[0.25, 0.5, 0.75, 1].map((k) => (
           <circle key={k} r={R0 + (R - R0) * k} fill="none" stroke="var(--color-rule)" />

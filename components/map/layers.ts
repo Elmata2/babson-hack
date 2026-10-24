@@ -17,12 +17,11 @@ import type { TownData, TractData } from './map-data'
 import { EJ_OPACITY, EJ_VIOLET, ENERGY_BG, HEAT_RAMP, LIGHT_BG, NO_DATA, PROVIDER_COLOUR, SOLAR_COLOUR } from './palette'
 
 export const STYLE_URL: Record<Lens, string> = {
-  street: 'https://tiles.openfreemap.org/styles/liberty',
   energy: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
   heat: 'https://tiles.openfreemap.org/styles/positron',
 }
 
-export const LENS_BG: Record<Lens, string> = { street: LIGHT_BG, energy: ENERGY_BG, heat: LIGHT_BG }
+export const LENS_BG: Record<Lens, string> = { energy: ENERGY_BG, heat: LIGHT_BG }
 
 export interface LensState {
   lens: Lens
@@ -43,7 +42,6 @@ export interface LensState {
 }
 
 const OWNED: Record<Lens, { sources: string[]; layers: string[] }> = {
-  street: { sources: ['sel'], layers: ['sel-fill', 'sel-line'] },
   heat: {
     sources: ['tracts', 'sel'],
     layers: ['tracts-fill', 'ej-overlay', 'tracts-line', 'tract-sel', 'sel-line'],
@@ -57,7 +55,7 @@ const ALL_LAYERS = [...new Set(Object.values(OWNED).flatMap((o) => o.layers))]
 const ALL_SOURCES = [...new Set(Object.values(OWNED).flatMap((o) => o.sources))]
 
 /** Layers a pointer can hit, per lens. */
-export const HIT_LAYERS: Record<Lens, string[]> = { street: [], heat: ['tracts-fill'], energy: ['columns', 'selected', 'flat'] }
+export const HIT_LAYERS: Record<Lens, string[]> = { heat: ['tracts-fill'], energy: ['columns', 'selected', 'flat'] }
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 
@@ -149,12 +147,6 @@ export function applyLens(map: MlMap, state: LensState): void {
   for (const id of ALL_SOURCES) if (!owned.sources.includes(id) && map.getSource(id)) map.removeSource(id)
 
   setSource(map, 'sel', selectedFeature(state))
-
-  if (state.lens === 'street') {
-    addLayerOnce(map, { id: 'sel-fill', type: 'fill', source: 'sel', paint: { 'fill-color': '#266ec3', 'fill-opacity': 0.06 } })
-    addLayerOnce(map, { id: 'sel-line', type: 'line', source: 'sel', paint: { 'line-color': '#266ec3', 'line-width': 2.5 } })
-    return
-  }
 
   if (state.lens === 'heat') {
     if (!state.tracts) return
