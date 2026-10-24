@@ -7,13 +7,13 @@
 
 **Built:** 99 / 117 features · ████████████████████████░░░░ **85%**
 
-**Last event:** 2026-10-24T18:41:27.090Z (14:41 ET) · **commit:** `55a7d68`
+**Last event:** 2026-10-24T20:14:19.474Z (16:14 ET) · **commit:** `dd69943`
 
 ## Now
 
-- `14:41` ✔ **F-152** R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests · `lib/switch/option-cards.ts`
-- `14:41` ✔ **F-152** R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests · `lib/switch/__tests__/option-cards.test.ts`
-- `14:19` ✔ **F-59** README: challenge C2 quote, dataset citations, utility-coverage note · `README.md`
+- `16:14` ✔ **F-80** `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/scenarios-report.mjs`
+- `16:14` ✔ **F-80** `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/templates.mjs`
+- `16:14` ✔ **F-80** `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/scenarios.mjs`
 
 ## Next up
 
@@ -42,6 +42,10 @@
 
 ## Timeline
 
+- `16:14` ✔ **F-80** — `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/scenarios-report.mjs` · `dd69943`
+- `16:14` ✔ **F-80** — `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/templates.mjs` · `dd69943`
+- `16:14` ✔ **F-80** — `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/scenarios.mjs` · `dd69943`
+- `16:14` ✔ **F-80** — `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/chrome.mjs` · `dd69943`
 - `14:41` ✔ **F-152** — R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests · `lib/switch/option-cards.ts` · `31d9433`
 - `14:41` ✔ **F-152** — R8.3 at the display edge: `verdictNotes()` floors every rendered verdict at two reasons and one caveat; the verdict screen reads that guard instead of slicing raw arrays; explicit rule-order, closed-set, reasons/caveats and determinism tests · `lib/switch/__tests__/option-cards.test.ts` · `31d9433`
 - `14:19` ✔ **F-59** — README: challenge C2 quote, dataset citations, utility-coverage note · `README.md` · `e113a1f`
