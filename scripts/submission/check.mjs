@@ -184,9 +184,11 @@ if (existsSync(join(ROOT, 'README.md'))) {
   if (/docs\/KIRO\.md/.test(readme)) pass('README links the Kiro write-up', 'docs/KIRO.md')
   else fail('README links the Kiro write-up', 'no link to docs/KIRO.md')
   // The rules require the video to be public on a hosted platform, not just committed.
-  const video = /https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|vimeo\.com|facebook\.com|fb\.watch|youku\.com)\/\S+/i.exec(readme)
+  // cap.so is a public hosted share link (no login, no expiry) — the rules name four
+  // platforms, so a YouTube mirror is still the belt-and-braces answer.
+  const video = /https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|vimeo\.com|facebook\.com|fb\.watch|youku\.com|cap\.so)\/[^\s)<>*]+/i.exec(readme)
   if (video) pass('README links a public hosted demo video (Submission Requirements)', video[0])
-  else fail('README links a public hosted demo video (Submission Requirements)', 'no YouTube, Vimeo, Facebook or Youku URL in README.md')
+  else fail('README links a public hosted demo video (Submission Requirements)', 'no YouTube, Vimeo, Facebook, Youku or Cap URL in README.md')
 } else {
   fail('README exists', 'no README.md at the root')
 }

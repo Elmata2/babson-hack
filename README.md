@@ -37,9 +37,10 @@ allow-list.
    [`agents/`](agents/) and is off unless the deployment configures it — the switch
    kit, with the exact question and the number, always works.
 
-The demo video is being re-recorded from the live app in `?demo=1` mode, so the
-new cut cannot show a screen the product does not have. Drop it at
-`public/demo/switchpoint-demo.mp4` and `npm run submission` turns green.
+Demo video (1:37, public): **https://cap.so/s/3c6s602q4r9k3he** — cut from the
+live app in `?demo=1` mode, so it cannot show a screen the product does not have.
+`scripts/demo/record.mjs` is the recorder; `npm run demo:video` re-renders the
+same cut to `public/demo/switchpoint-demo.mp4`.
 
 If a gas-heated home will lose money on a heat pump, the screen says
 **DON'T SWITCH YET** and prints the break-even electricity price. That is the
@@ -208,4 +209,4 @@ pressures."* This is the tool for the household at the end of that sentence.
 Track: **Climate Tech, challenge C2**. Checklist and scoring map:
 [`.kiro/steering/submission-checklist.md`](.kiro/steering/submission-checklist.md).
 
-Demo video (public, under three minutes): add the YouTube or Vimeo link here before submitting.
+Demo video (public, under three minutes): **https://cap.so/s/3c6s602q4r9k3he**

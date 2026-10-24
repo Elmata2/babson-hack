@@ -20,6 +20,9 @@ reach the screen.
 dependency — the app reads a photographed utility bill through the Babson LiteLLM gateway — not a build tool.
 It is documented there because it handles a user's bill and therefore needs a data-boundary note.
 
+**The demo video** (1:37, public) runs the real app on the offline `?demo=1` path, so every screen it
+shows is one the product has: <https://cap.so/s/3c6s602q4r9k3he>.
+
 ## At a glance
 
 | Kiro capability | What we did | Evidence |

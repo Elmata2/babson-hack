@@ -16,6 +16,7 @@ screen recording — each beat is a real page of the app served with `?demo=1`, 
 the script is in the repo and a changed sentence is a re-run, not a re-record.
 
 Current cut: **1:37 (96.7s), H.264/AAC, 1440×900, 2.65 MB, nine beats.**
+Published (public, no login): **https://cap.so/s/3c6s602q4r9k3he**
 
 ```
 npm run demo:plan     # print the beats, touch nothing
@@ -79,6 +80,6 @@ stronger beat than a staged one, and it matches what `docs/KIRO.md` claims.
 - [ ] Kiro segment captured live, in the IDE
 - [ ] Audible narration, English, sound-off readable labels
 - [ ] No third-party trademarks, no music
-- [ ] Uploaded public (not unlisted — the rules say publicly visible)
+- [x] Uploaded public (not unlisted — the rules say publicly visible)
 - [ ] Link pasted into the submission form
-- [ ] Same link in `README.md` and `docs/KIRO.md`
+- [x] Same link in `README.md` and `docs/KIRO.md` — https://cap.so/s/3c6s602q4r9k3he
