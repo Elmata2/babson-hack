@@ -49,7 +49,11 @@ export interface FreshnessBadgeProps {
 export function FreshnessBadge({ kind, date, label, className = '' }: FreshnessBadgeProps) {
   const style = STYLES[kind]
   const short = formatDateShort(date ?? null)
-  const text = [label ?? style.label, short].filter(Boolean).join(' · ')
+  // The kind is always said in words. Colour alone would hide `live` from a
+  // greyscale projector or a reader who cannot distinguish the tints.
+  const parts = label ? [label, style.label] : [style.label]
+  if (short) parts.push(short)
+  const text = parts.join(' · ')
 
   return (
     <span
