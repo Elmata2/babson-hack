@@ -8,6 +8,7 @@
 
 import { MAX_INSTALL_COST_USD } from './constants'
 import { isTier, rulesForYear, TIER_LABEL } from './rules'
+import { usd } from '../verdict/format'
 import type { Assumption, Fuel, RebateLine, RebateResult, Tier } from './types'
 
 /** Optional context for a rebate calculation. */
@@ -24,11 +25,6 @@ export interface RebateOptions {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
-}
-
-function usd(amount: number): string {
-  const abs = Math.abs(amount)
-  return `${amount < 0 ? '-' : ''}$${Math.round(abs).toLocaleString('en-US')}`
 }
 
 /**

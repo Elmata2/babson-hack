@@ -67,9 +67,45 @@ export function questionsFor(tier: string | null, income: string | null): { scop
   return { scope, income: inc }
 }
 
-/** 2026 now; 2027 once the calendar says so. The 2027 toggle stays available. */
+const NEW_YEAR_FORMAT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric' })
+
+/** 2026 now; 2027 once the calendar in Massachusetts says so. The 2027 toggle stays available. */
 export function defaultInstallYear(now: Date = new Date()): '2026' | '2027' {
-  return now.getUTCFullYear() >= 2027 ? '2027' : '2026'
+  return Number(NEW_YEAR_FORMAT.format(now)) >= 2027 ? '2027' : '2026'
+}
+
+const PLAIN_NUMBER = /^-?(\d+\.?\d*|\.\d+)$/
+
+/** A decimal as typed. Hex, exponents, "Infinity" and blanks are not numbers here. */
+export function parsePlainNumber(raw: string | number | null | undefined): number | null {
+  if (raw === null || raw === undefined) return null
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
+  const text = raw.trim()
+  return PLAIN_NUMBER.test(text) ? Number(text) : null
+}
+
+export const SQFT_MIN = 100
+export const SQFT_MAX = 100_000
+export const BUILDING_UNITS_MAX = 200
+
+export function plausibleSqft(raw: string | null | undefined): number | null {
+  const value = parsePlainNumber(raw === null || raw === undefined ? null : raw.replace(/,/g, ''))
+  return value !== null && value >= SQFT_MIN && value <= SQFT_MAX ? value : null
+}
+
+export function plausibleBuildingUnits(raw: string | null | undefined): number | null {
+  const value = parsePlainNumber(raw)
+  return value !== null && Number.isInteger(value) && value > 1 && value <= BUILDING_UNITS_MAX ? value : null
+}
+
+export function plausibleConfidence(raw: string | null | undefined): number | null {
+  const value = parsePlainNumber(raw)
+  return value !== null && value >= 0 && value <= 1 ? value : null
+}
+
+export function cleanNote(raw: string | null | undefined): string | null {
+  const text = (raw ?? '').replace(/\s+/g, ' ').trim().slice(0, NOTE_MAX)
+  return text === '' ? null : text
 }
 
 /** A household $/kWh outside this band is a misread, not a rate. */
@@ -78,8 +114,8 @@ export const ELECTRIC_RATE_MAX = 0.6
 
 export function plausibleElectricRate(raw: string | number | null | undefined): number | null {
   if (raw === null || raw === undefined || raw === '') return null
-  const value = typeof raw === 'number' ? raw : Number(raw)
-  return Number.isFinite(value) && value >= ELECTRIC_RATE_MIN && value <= ELECTRIC_RATE_MAX ? value : null
+  const value = parsePlainNumber(raw)
+  return value !== null && value >= ELECTRIC_RATE_MIN && value <= ELECTRIC_RATE_MAX ? value : null
 }
 
 /**
@@ -93,8 +129,8 @@ export const INSTALL_COST_MAX = 250_000
 
 export function plausibleInstallCost(raw: string | number | null | undefined): number | null {
   if (raw === null || raw === undefined || raw === '') return null
-  const value = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, ''))
-  return Number.isFinite(value) && value >= INSTALL_COST_MIN && value <= INSTALL_COST_MAX ? value : null
+  const value = parsePlainNumber(typeof raw === 'number' ? raw : raw.replace(/,/g, ''))
+  return value !== null && value >= INSTALL_COST_MIN && value <= INSTALL_COST_MAX ? value : null
 }
 
 const METHODS: readonly AnnualMethod[] = ['printed_history', 'degree_days', 'tank_cadence', 'hdd_scaled', 'monthly_x12']
@@ -209,18 +245,17 @@ export function fromSearchParams(r: Raw): Partial<IntakeValues> {
   const yb = one(r, 'yb')
   if (yb) out.yearBuilt = yb
   const sqft = one(r, 'sqft')
-  if (sqft) out.sqft = sqft
+  if (plausibleSqft(sqft) !== null) out.sqft = sqft as string
   const src = one(r, 'src')
   if (src === 'assessor' || src === 'manual') out.src = src
-  const bu = Number(one(r, 'bu'))
-  if (Number.isInteger(bu) && bu > 1) out.buildingUnits = bu
+  const bu = plausibleBuildingUnits(one(r, 'bu'))
+  if (bu !== null) out.buildingUnits = bu
   const m = METHODS.find((x) => x === one(r, 'm'))
   if (m) out.method = m
-  const mcRaw = one(r, 'mc')
-  const mc = mcRaw === null || mcRaw === '' ? NaN : Number(mcRaw)
-  if (Number.isFinite(mc) && mc >= 0 && mc <= 1) out.methodConfidence = mc
-  const mn = one(r, 'mn')
-  if (mn) out.note = mn.slice(0, NOTE_MAX)
+  const mc = plausibleConfidence(one(r, 'mc'))
+  if (mc !== null) out.methodConfidence = mc
+  const mn = cleanNote(one(r, 'mn'))
+  if (mn !== null) out.note = mn
   const ut = parseBillUtility(one(r, 'ut'))
   if (ut) out.utility = ut
   const er = one(r, 'er')

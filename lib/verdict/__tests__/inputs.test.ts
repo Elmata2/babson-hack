@@ -6,7 +6,8 @@ import { buildSwitchModel } from '@/lib/switch/model'
 import { choicesFor } from '@/lib/switch/choices'
 import { parseBillUtility } from '@/lib/intake/params'
 
-import { isVerdictQueryComplete, resolveVerdictInputs } from '../inputs'
+import { isVerdictQueryComplete, resolveVerdictInputs, verdictQueryIssue } from '../inputs'
+import { leadCaveat } from '../lead-caveat'
 import { DEMO_PRESETS } from '../presets'
 
 const EXPECTED_SAVINGS: Record<string, number> = {
@@ -134,5 +135,86 @@ describe('resolveVerdictInputs', () => {
     const inputs = resolveVerdictInputs(params, prices)
     expect(inputs.income).toBe('yes')
     expect(buildSwitchModel(params, prices).result).toEqual(computeVerdict(inputs.heating!, inputs.upgrade!))
+  })
+})
+
+describe('query hardening', () => {
+  const base = { fuel: 'oil', units: '800', price: '3.5', town: 'Worcester', tier: 'whole', year: '2026' }
+
+  it('rejects hex and exponent numbers and a blank town', () => {
+    expect(isVerdictQueryComplete({ ...base, units: '0x10' })).toBe(false)
+    expect(isVerdictQueryComplete({ ...base, units: '1e3' })).toBe(false)
+    expect(isVerdictQueryComplete({ ...base, price: 'Infinity' })).toBe(false)
+    expect(isVerdictQueryComplete({ ...base, town: ' ' })).toBe(false)
+    expect(isVerdictQueryComplete({ ...base, units: ' 800 ' })).toBe(true)
+  })
+
+  it('names a year it does not model', () => {
+    expect(verdictQueryIssue({ ...base, year: '2028' })).toBe('year')
+    expect(verdictQueryIssue({ ...base, year: '2027' })).toBeNull()
+    expect(verdictQueryIssue({ ...base, year: '' })).toBeNull()
+  })
+
+  it('drops implausible sqft and building units', () => {
+    const inputs = resolveVerdictInputs({ ...base, sqft: '1e9', bu: '1000000000' }, prices)
+    expect(inputs.sqft).toBeNull()
+    expect(inputs.buildingUnits).toBeNull()
+  })
+
+  it('leaves the install cost to the engine when there is no quote, so the assumption fires', () => {
+    const inputs = resolveVerdictInputs(base, prices)
+    expect(inputs.upgrade?.installCost).toBeUndefined()
+    const result = computeVerdict(inputs.heating!, inputs.upgrade!)!
+    expect(result.assumptions.some((a) => a.field === 'installCost')).toBe(true)
+    expect(result.caveats.some((c) => /not a quote/.test(c))).toBe(true)
+  })
+
+  it('states the enhanced default as an assumption too', () => {
+    const inputs = resolveVerdictInputs({ ...base, tier: 'enhanced' }, prices)
+    const result = computeVerdict(inputs.heating!, inputs.upgrade!)!
+    expect(result.assumptions.some((a) => a.field === 'installCost')).toBe(true)
+  })
+
+  it('an unmatched town says so, not "no town"', () => {
+    const inputs = resolveVerdictInputs({ ...base, town: 'Atlantis' }, prices)
+    const result = computeVerdict(inputs.heating!, inputs.upgrade!)!
+    expect(result.caveats.join(' ')).toContain("couldn't match that town")
+    expect(result.caveats.join(' ')).not.toContain('No town supplied')
+  })
+
+  it('buildSwitchModel reuses passed inputs and result', () => {
+    const inputs = resolveVerdictInputs(base, prices)
+    const result = computeVerdict(inputs.heating!, inputs.upgrade!)
+    expect(buildSwitchModel(base, prices, { inputs, result }).result).toBe(result)
+    expect(buildSwitchModel(base, prices).result?.annualSavings).toBe(result?.annualSavings)
+  })
+})
+
+describe('first caveat leads with the decisive one', () => {
+  const caveatsOf = (query: Record<string, string>) => {
+    const inputs = resolveVerdictInputs(query, prices)
+    return computeVerdict(inputs.heating!, inputs.upgrade!)!.caveats
+  }
+  const oil = { fuel: 'oil', units: '900', price: '6.23', town: 'Framingham', tier: 'whole', year: '2026' }
+  const costCaveat = /Install cost is the Mass Save average/
+
+  it('Wellesley (municipal) skips the cost average when there is no rebate to price', () => {
+    const query = { ...oil, town: 'Wellesley', ut: 'municipal' }
+    expect(resolveVerdictInputs(query, prices).billUtility).toBe('municipal')
+    const caveats = caveatsOf(query)
+    expect(caveats[0]).toMatch(costCaveat)
+    expect(leadCaveat(caveats, true)).toMatch(/^Sizing is approximate/)
+    expect(leadCaveat(caveats, false)).toBe(caveats[0])
+  })
+
+  it('gas with the enhanced tier leads with the eligibility reason', () => {
+    const caveats = caveatsOf({ ...oil, fuel: 'gas', units: '1000', price: '1.6', tier: 'enhanced' })
+    expect(caveats[0]).not.toMatch(costCaveat)
+  })
+
+  it('a normal oil home with no quote leads with the cost average, then sizing', () => {
+    const caveats = caveatsOf(oil)
+    expect(caveats[0]).toMatch(costCaveat)
+    expect(caveats[1]).toMatch(/^Sizing is approximate/)
   })
 })

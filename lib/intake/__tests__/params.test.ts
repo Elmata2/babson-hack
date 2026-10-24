@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  bonusOn, defaultInstallYear, enhancedTierNote, fromSearchParams, plausibleElectricRate,
+  bonusOn, cleanNote, defaultInstallYear, parsePlainNumber, plausibleBuildingUnits, plausibleConfidence, plausibleSqft, enhancedTierNote, fromSearchParams, plausibleElectricRate,
   plausibleInstallCost, provenanceLine, queryString, tierFor, toQuery, withBonus, withInstallCost,
   type IntakeValues,
 } from '../params'
@@ -129,5 +129,40 @@ describe('R5.2 — the enhanced tier says no to gas out loud', () => {
     expect(enhancedTierNote('gas', 'unsure', 'whole')).toBeNull()
     expect(enhancedTierNote('oil', 'yes', 'enhanced')).toBeNull()
     expect(enhancedTierNote('resistance', 'yes', 'enhanced')).toBeNull()
+  })
+})
+
+describe('install year in Massachusetts time', () => {
+  it.each([
+    ['2026-12-31T04:30:00Z', '2026'],
+    ['2026-12-31T05:30:00Z', '2026'],
+    ['2027-01-01T04:30:00Z', '2026'],
+    ['2027-01-01T05:30:00Z', '2027'],
+  ])('%s -> %s', (iso, year) => {
+    expect(defaultInstallYear(new Date(iso))).toBe(year)
+  })
+})
+
+describe('plain number parsing', () => {
+  it.each(['0x10', '1e3', 'Infinity', '', '  ', 'NaN', '1,000', '--1'])('rejects %j', (raw) => {
+    expect(parsePlainNumber(raw)).toBeNull()
+  })
+  it('accepts decimals and trims', () => {
+    expect(parsePlainNumber(' 641.5 ')).toBe(641.5)
+    expect(parsePlainNumber('.5')).toBe(0.5)
+  })
+})
+
+describe('bill-reading fields from the link', () => {
+  it('bounds confidence, building units, sqft and the note', () => {
+    expect(plausibleConfidence('500')).toBeNull()
+    expect(plausibleConfidence('0.5')).toBe(0.5)
+    expect(plausibleBuildingUnits('1000000000')).toBeNull()
+    expect(plausibleBuildingUnits('3')).toBe(3)
+    expect(plausibleSqft('5')).toBeNull()
+    expect(plausibleSqft('1,600')).toBe(1600)
+    expect(cleanNote('  a\n\nb  ')).toBe('a b')
+    expect(cleanNote('x'.repeat(500))).toHaveLength(160)
+    expect(cleanNote('   ')).toBeNull()
   })
 })
