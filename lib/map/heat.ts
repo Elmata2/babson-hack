@@ -264,7 +264,7 @@ export function heatProps(row: HeatRow): Record<string, number> {
   return {
     oilShare: row.oilShare ?? -1,
     oilSpend: row.oilShare === null ? -1 : row.oilSpendUsd,
-    cliffHomes2026: row.oilShare === null ? -1 : 0,
+    cliffHomes2026: row.oilShare === null ? -1 : row.cliffHomes,
     cliffHomes2027: row.oilShare === null ? -1 : row.cliffHomes,
     cliffDollars2026: 0,
     cliffDollars2027: row.oilShare === null ? -1 : row.cliffDollars,
@@ -542,9 +542,11 @@ export function formatMillions(dollars: number): string {
   if (!Number.isFinite(dollars)) return '—'
   const abs = Math.abs(dollars)
   const sign = dollars < 0 ? '-' : ''
-  if (abs >= 1_000_000_000) return `${sign}$${trim((abs / 1_000_000_000).toFixed(1))}B`
-  if (abs >= 1_000_000) return `${sign}$${trim((abs / 1_000_000).toFixed(1))}M`
-  if (abs >= 1_000) return `${sign}$${trim((abs / 1_000).toFixed(0))}k`
+  const thousands = Math.round(abs / 1_000)
+  const millions = Math.round(abs / 100_000) / 10
+  if (millions >= 1_000) return `${sign}$${trim((millions / 1_000).toFixed(1))}B`
+  if (thousands >= 1_000) return `${sign}$${trim(millions.toFixed(1))}M`
+  if (abs >= 1_000) return `${sign}$${thousands}k`
   return `${sign}$${Math.round(abs).toLocaleString('en-US')}`
 }
 

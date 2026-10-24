@@ -12,7 +12,7 @@ import type { Topology } from 'topojson-specification'
 import { townKey } from '@/lib/elec-label'
 import { displayTown, tractStats } from '@/lib/geo'
 import { resolveUtility } from '@/lib/utility'
-import { anchorOf, bboxOf, centroidOf, geometryHas, type AreaGeometry } from '@/lib/map/geometry'
+import { anchorOf, bboxOf, geometryHas, type AreaGeometry } from '@/lib/map/geometry'
 import { buildEnergyTowns, type BakedEnergy, type EnergyTown } from '@/lib/map/energy-model'
 import { EJ_TRACTS } from '@/lib/map/equity'
 import { heatProps, heatRow } from '@/lib/map/heat'
@@ -67,7 +67,7 @@ export async function loadTowns(): Promise<TownData> {
       source: f.properties.town,
       town: name,
       county: f.properties.county,
-      centroid: centroidOf(geometry),
+      centroid: anchorOf(geometry),
       sponsors: resolveUtility(name).sponsors,
     }
   })

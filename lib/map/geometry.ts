@@ -1,5 +1,5 @@
 /**
- * @built F-71 plain-GeoJSON helpers for the map: centroid, anchor, area, point-in-polygon
+ * @built F-71 plain-GeoJSON helpers for the map: anchor, area, point-in-polygon
  *
  * Pure and dependency-free. Rings are `[lng, lat]`; a polygon is `[outer, ...holes]`.
  */
@@ -31,18 +31,6 @@ export function inPolygon(x: number, y: number, rings: PolygonCoords): boolean {
 
 export function geometryHas(geometry: AreaGeometry, x: number, y: number): boolean {
   return polygonsOf(geometry).some((polygon) => inPolygon(x, y, polygon))
-}
-
-/** Mean of the outer-ring vertices, the point the Energy lens anchors a town's solar marker and label to. */
-export function centroidOf(geometry: AreaGeometry): [number, number] {
-  const points = polygonsOf(geometry).flatMap((polygon) => polygon[0])
-  let sx = 0
-  let sy = 0
-  for (const [x, y] of points) {
-    sx += x
-    sy += y
-  }
-  return [sx / points.length, sy / points.length]
 }
 
 function ringArea(ring: Ring): number {
