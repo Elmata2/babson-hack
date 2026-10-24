@@ -57,7 +57,10 @@ describe('a clean annual bill', () => {
   })
 
   it('marks a seasonal statement as annual without deriving anything', () => {
-    const result = readBill(bill({ billing_period: 'season' }), NOW)
+    const result = readBill(
+      bill({ billing_period: 'season', period_start: '2025-10-01', period_end: '2026-09-30' }),
+      NOW,
+    )
     if (!result.ok) throw new Error('expected a bill')
     expect(result.bill.units.value).toBe(800)
     expect(result.bill.units.derived).toBe(false)

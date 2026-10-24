@@ -7,7 +7,8 @@ used in code.
 > **ID allocation — read this before adding a row.** Two agents are building in
 > this repo at once and both took F-64/F-65 within ten minutes of each other.
 > Blocks: **F-01–F-63** original spec · **F-64–F-75** app/ and components/ ·
-> **F-76–F-99** lib/, data/, parse/. Take the next free number *inside your block*,
+> **F-76–F-99** lib/, data/, parse/ · **F-100–F-119** one-photo intake fix
+> (`fix/one-photo-intake`). Take the next free number *inside your block*,
 > and add your row in the same commit as your marker.
 
 Owner slots: **A** = UI/frontend · **B** = calc/data · **C** = OCR/map/integration
@@ -204,3 +205,22 @@ agrees the agent beat is worth one 3-minute-video slot.
 F-68, F-70, F-72 (≈ 4h30 with one person on C). Without a second person free
 after 15:00, ship the decision gate + switch kit (F-63, F-71 without calls) and
 put the call flow on a slide.
+
+---
+
+# One-photo intake fix — tasks (2026-10-24)
+
+Spec: `docs/fixes/2026-10-24-one-photo-intake.md`. Amends R1.4, R2, R4.
+
+| ID | Phase | Task | Owner | Est | Depends |
+| --- | --- | --- | --- | --- | --- |
+| F-100 | P10 | `lib/parse/contract.ts`: `BillParseExtras`, `BillApplied`, `BillRole`, `BillUtility` | C | 10m | F-28 |
+| F-101 | P10 | Prompt v3: utility, ZIP/town, service dates, totals, supplier, R-1…R-4, discount line, read type, budget billing, CCF + therm factor, history kind, multi-page | C | 30m | F-100 |
+| F-102 | P10 | Validator: price = total ÷ quantity in code; `role`; gas heat/non-heat; low-income signal; CCF; season ≠ year; unknown-doc refusal | B | 45m | F-101 |
+| F-103 | P10 | Annualise: service-day weighting, bars vs numbers confidence, baseload, county name, client-side `reannualiseWithFills` | B | 45m | F-102 |
+| F-104 | P10 | Parcel guard on every match + residential use code + units; dedupe address suggestions | A | 30m | F-11 |
+| F-105 | P10 | Bill-first `/start`; town only on lookup failure; plain-language tier and income questions | A | 45m | F-104 |
+| F-106 | P10 | Verdict round-trip; method/confidence/note in provenance; bill electricity rate override | A | 35m | F-105 |
+| F-107 | P10 | Client image prep: orientation, ≤2000px JPEG < 1.5 MB, PDF < 4 MB | C | 25m | — |
+| F-108 | P10 | Route: up to 3 pages in one read; client sends `countyFips` and `heating` | C | 25m | F-107 |
+| F-109 | P10 | Confirm card: found-chips, check? on low confidence, auto-apply + Undo, "+ Add your electric bill" | A | 45m | F-102, F-108 |

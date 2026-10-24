@@ -247,3 +247,80 @@ describe('/api/parse-bill with an OpenRouter key', () => {
     expect((fetchMock.mock.calls[0] as [string])[0]).toBe('https://api.anthropic.com/v1/messages')
   })
 })
+
+/**
+ * @built F-108 several pages of one bill, one vision call; HEIC refused by name
+ */
+describe('/api/parse-bill with several files', () => {
+  beforeEach(() => {
+    vi.stubEnv('ANTHROPIC_API_KEY', API_KEY)
+    vi.stubEnv('OPENROUTER_API_KEY', '')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  function multiRequest(files: File[], fields: Record<string, string> = {}): Request {
+    const form = new FormData()
+    for (const file of files) form.append('file', file)
+    for (const [key, value] of Object.entries(fields)) form.set(key, value)
+    return new Request('https://switchpoint.test/api/parse-bill', { method: 'POST', body: form })
+  }
+
+  const jpeg = (name = 'p.jpg') => new File([TINY_JPEG], name, { type: 'image/jpeg' })
+
+  it('sends every page as a block of ONE upstream call', async () => {
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => anthropicEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    const response = await POST(multiRequest([jpeg('1.jpg'), jpeg('2.jpg'), new File([TINY_JPEG], 'x.pdf', { type: 'application/pdf' })]))
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const sent = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body)) as {
+      messages: { content: { type: string; text?: string }[] }[]
+    }
+    expect(sent.messages[0].content.map((part) => part.type)).toEqual(['image', 'image', 'document', 'text'])
+    expect(sent.messages[0].content[3].text).toMatch(/ONE bill/)
+  })
+
+  it('sends several image_url parts to OpenRouter', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
+    vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-v1-test-key')
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => openRouterEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    await POST(multiRequest([jpeg(), jpeg()]))
+    const sent = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body)) as {
+      messages: { content: { type: string }[] }[]
+    }
+    expect(sent.messages[0].content.map((part) => part.type)).toEqual(['image_url', 'image_url', 'text'])
+  })
+
+  it('refuses a fourth page', async () => {
+    const response = await POST(multiRequest([jpeg(), jpeg(), jpeg(), jpeg()]))
+    expect(response.status).toBe(400)
+  })
+
+  it('caps the total at 4 MB with a typed 413', async () => {
+    const big = new File([new Uint8Array(2.5 * 1024 * 1024)], 'big.jpg', { type: 'image/jpeg' })
+    const response = await POST(multiRequest([big, big]))
+    expect(response.status).toBe(413)
+    expect(((await response.json()) as { code: string }).code).toBe('too_large')
+  })
+
+  it('answers HEIC with "export as JPG" before calling any reader', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const heic = new File([TINY_JPEG], 'IMG_1.HEIC', { type: '' })
+    const response = await POST(multiRequest([heic]))
+    expect(response.status).toBe(415)
+    expect(((await response.json()) as { message: string }).message).toMatch(/JPG/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards countyFips and heating to the parser', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => anthropicEnvelope(fixtureB)))
+    const response = await POST(multiRequest([jpeg()], { countyFips: '25009', heating: 'false', deliveriesPerSeason: '4' }))
+    expect(response.status).toBe(200)
+  })
+})

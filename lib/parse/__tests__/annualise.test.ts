@@ -74,12 +74,14 @@ describe('the heating-year table the decision rests on', () => {
 
 describe('1 — printed history', () => {
   it('sums the bars and claims the highest confidence', () => {
-    const outcome = annualise(input({ quantity: 1043, usageHistory: YEAR_OF_BARS, bounds: RANGES.resistance.units }))
+    const outcome = annualise(
+      input({ quantity: 1043, usageHistory: YEAR_OF_BARS, historyKind: 'numbers', bounds: RANGES.resistance.units }),
+    )
     expect(outcome.refusal).toBeNull()
     expect(outcome.estimate?.method).toBe('printed_history')
     expect(outcome.estimate?.value).toBe(10_240)
     expect(outcome.estimate?.confidence).toBe(METHOD_CONFIDENCE.printed_history)
-    expect(outcome.estimate?.assumptions).toHaveLength(0)
+    expect(outcome.estimate?.assumptions.join(' ')).not.toMatch(/bar heights/)
   })
 
   it('wins over degree days, because a printed year needs no ratio', () => {
@@ -177,6 +179,8 @@ describe('4 — one winter month scaled by its share of the heating year', () =>
         fuel: 'gas',
         quantity: 142,
         documentPeriod: 'month',
+        periodStart: '2026-01-01',
+        periodEnd: '2026-01-31',
         bounds: RANGES.gas.units,
       }),
     )
@@ -194,13 +198,15 @@ describe('4 — one winter month scaled by its share of the heating year', () =>
   })
 
   it('refuses a summer month instead of inventing a winter from it', () => {
+    // A bill dated in June covers May: the service days, not the statement month, decide.
     for (const month of ['05', '06', '07', '08', '09']) {
       const outcome = annualise(
         input({
           fuel: 'gas',
           quantity: 18,
           documentPeriod: 'month',
-          documentDate: `2026-${month}-12`,
+          periodStart: `2026-${month}-01`,
+          periodEnd: `2026-${month}-28`,
           bounds: RANGES.gas.units,
         }),
       )

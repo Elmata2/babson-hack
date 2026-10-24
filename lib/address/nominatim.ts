@@ -111,6 +111,23 @@ function finiteCoordinate(value: unknown): number | null {
   return parsed
 }
 
+const STREET_ABBREVIATIONS: Record<string, string> = {
+  street: 'st', avenue: 'ave', road: 'rd', drive: 'dr', lane: 'ln', court: 'ct',
+  place: 'pl', boulevard: 'blvd', terrace: 'ter', circle: 'cir', parkway: 'pkwy', highway: 'hwy',
+}
+
+/** `12 Adams Street` and `12 ADAMS ST.` → `12 adams st`, plus the postcode (or town). */
+export function suggestionKey(line1: string, postcodeOrTown: string | null | undefined): string {
+  const line = line1
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => STREET_ABBREVIATIONS[word] ?? word)
+    .join(' ')
+  return `${line}|${(postcodeOrTown ?? '').toLowerCase().trim()}`
+}
+
 /**
  * Turn Nominatim's JSON into dropdown rows. Total function: hostile, empty or
  * non-array payloads produce an empty list, never a throw.
@@ -130,9 +147,12 @@ export function readSuggestions(json: unknown): AddressSuggestion[] {
     if (lat === null || lon === null) continue
 
     const label = labelOf(item)
+    // @built F-104 one row per house: OSM lists the same address as a building,
+    // a node and an interpolation, each with its own place_id and coordinate.
+    const dedupeKey = suggestionKey(line1Of(item), item.address?.postcode ?? townOf(item.address ?? {}))
+    if (seen.has(dedupeKey)) continue
+    seen.add(dedupeKey)
     const key = `${label}|${lat.toFixed(5)}|${lon.toFixed(5)}`
-    if (seen.has(key)) continue
-    seen.add(key)
 
     out.push({
       id: String(item.place_id ?? key),

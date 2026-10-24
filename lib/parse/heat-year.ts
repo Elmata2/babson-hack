@@ -1,5 +1,6 @@
 /**
  * @built F-26a the heating-year table, as `annualise` needs it
+ * @built F-103 `placeNameFor`: the county's name for user-facing text, never "Boston" by default
  *
  * The numbers come from `data/generated/hdd-monthly-weights.json`, which
  * `scripts/bake-hdd.mjs` computes from the same ERA5 daily means as the county
@@ -39,6 +40,18 @@ export function heatYearFor(countyFips: string | null | undefined): HeatYear | n
   const county = counties[countyFips]
   if (!county || county.months.length !== 12) return null
   return { seasonHdd: county.seasonHdd, monthShares: county.months }
+}
+
+/**
+ * What to call the climate behind an estimate in user-facing text. The county's
+ * name when the FIPS is baked ("Worcester County"), else "Massachusetts" — the
+ * default table is Boston's weather, but we do not tell a Pittsfield household
+ * that its year is Boston's.
+ */
+export function placeNameFor(countyFips: string | null | undefined): string {
+  if (!countyFips) return 'Massachusetts'
+  const county = counties[countyFips]
+  return county ? `${county.name} County` : 'Massachusetts'
 }
 
 /** Boston, used when the caller names no county. Never silently per-county wrong. */

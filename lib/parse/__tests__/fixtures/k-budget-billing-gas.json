@@ -1,0 +1,21 @@
+{
+  "_synthetic": "SYNTHETIC FIXTURE K — invented. Gas R-3 on budget billing: amount due ($190.00) is levelised and differs from total current charges ($260.40).",
+  "document_type": "gas_bill",
+  "fuel": "gas",
+  "utility": "eversource",
+  "quantity": 140,
+  "unit": "therm",
+  "total_charge": 260.4,
+  "amount_due": 190.0,
+  "billing_period": "month",
+  "period_start": "2026-01-20",
+  "period_end": "2026-02-19",
+  "document_date": "2026-02-22",
+  "rate_class": "R-3",
+  "discount_line_present": false,
+  "read_type": "estimated",
+  "budget_billing": true,
+  "history_kind": "bars",
+  "usage_history": null,
+  "confidence": "high"
+}

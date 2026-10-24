@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { IntakeForm } from '@/components/intake-form'
+import { fromSearchParams } from '@/lib/intake/params'
 import { TOWNS } from '@/lib/geo'
 import { getPrices } from '@/lib/prices'
 
@@ -12,11 +13,9 @@ import { getPrices } from '@/lib/prices'
  * prices and the 351-town table are read on the server so the browser never
  * downloads the tract geometry or a key.
  *
- * Prices are resolved once per day at build/revalidate time; the badge says which
+ * Prices come from the cached price reader (daily); the badge says which
  * reading is on screen and the date it describes.
  */
-
-export const revalidate = 86_400
 
 export const metadata: Metadata = {
   title: 'Start',
@@ -24,7 +23,13 @@ export const metadata: Metadata = {
     'A Massachusetts address, a heating bill, and one verdict: switch, switch before 31 December, or leave it alone.',
 }
 
-export default async function StartPage() {
+interface StartPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+export default async function StartPage({ searchParams }: StartPageProps) {
+  // @built F-106 the verdict's "Change the numbers" link brings its query back here.
+  const initial = fromSearchParams(await searchParams)
   const prices = await getPrices({ timeoutMs: 4_000 })
 
   return (
@@ -54,6 +59,7 @@ export default async function StartPage() {
           <div className="mt-10 grid gap-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <IntakeForm
               towns={TOWNS}
+              initial={initial}
               prices={{
                 mode: prices.mode,
                 asOf: prices.asOf,

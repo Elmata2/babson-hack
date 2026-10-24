@@ -2,6 +2,7 @@
  * @built F-26 /api/parse-bill — one vision call, in memory, nothing stored
  * @built F-77 route options — the household facts the photograph cannot carry
  * @built F-79 two readers — a console API key or an OpenRouter key, same contract
+ * @built F-108 up to three pages/photos of one bill in one vision call; county + heating wiring
  *
  * The privacy rule from steering: the image is read in this request and discarded.
  * No filesystem, no blob store, no cache key, no log line that contains the image,
@@ -28,15 +29,23 @@
  * rate-limited, not a bill. Every one of them leaves the user with manual entry,
  * which is faster than a retry anyway.
  *
- * POST multipart/form-data, field `file`. GET is a 405.
+ * POST multipart/form-data, one to three `file` fields (pages of ONE bill, sent to
+ * the reader together). Total decoded size is capped at 4 MB because Vercel
+ * answers a larger body with a non-JSON 413 before this code ever runs; the
+ * client shrinks photos first (`lib/client/prepare-image.ts`). HEIC/HEIF is
+ * refused by name with "export as JPG": neither provider reads it. GET is a 405.
  */
 
 import { readBill, type ReadBillOptions } from '@/lib/parse/plausibility'
 import { BILL_PROMPT, readJsonBody } from '@/lib/parse/prompt'
 import type { BillReadResult } from '@/lib/parse/types'
 
-/** The same ceiling `next.config.ts` sets for a server action body. */
-const MAX_BYTES = 12 * 1024 * 1024
+/** Pages of one bill per request. */
+const MAX_FILES = 3
+/** Total decoded bytes. Vercel's body limit is 4.5 MB; base64 is not in play on the wire (multipart). */
+const MAX_TOTAL_BYTES = 4 * 1024 * 1024
+
+export const maxDuration = 30
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
 
@@ -78,6 +87,25 @@ interface AnthropicResponse {
 
 interface OpenRouterResponse {
   choices?: { message?: { content?: string | null } }[]
+}
+
+/** A phone may label a HEIC upload with a blank type; the extension is the fallback. */
+function isHeic(file: File): boolean {
+  return /^image\/hei[cf]$/i.test(file.type) || /\.hei[cf]$/i.test(file.name)
+}
+
+const HEIC_MESSAGE = 'That photo is in HEIC format, which the reader cannot open. Export it as a JPG (or take the photo again) and retry.'
+
+interface BillPart {
+  mediaType: string
+  data: string
+}
+
+const PAGES_NOTE =
+  '\n\nThe attached images/pages are consecutive pages or photos of ONE bill. Combine them into a single answer.'
+
+function promptFor(parts: BillPart[]): string {
+  return parts.length > 1 ? BILL_PROMPT + PAGES_NOTE : BILL_PROMPT
 }
 
 function isImage(mediaType: string): boolean {
@@ -140,16 +168,17 @@ function upstreamFailure(status: number): ReadOutcome {
   }
 }
 
-async function readWithAnthropic(provider: Provider, mediaType: string, data: string): Promise<ReadOutcome> {
+async function readWithAnthropic(provider: Provider, parts: BillPart[]): Promise<ReadOutcome> {
   const model = process.env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-4-5'
-  const isPdf = mediaType === 'application/pdf'
-  if (!isImage(mediaType) && !isPdf) {
+  if (parts.some((part) => !isImage(part.mediaType) && part.mediaType !== 'application/pdf')) {
     return { ok: false, status: 415, code: 'unsupported', message: 'Send a JPEG, PNG, WebP or PDF.' }
   }
 
-  const block = isPdf
-    ? { type: 'document', source: { type: 'base64', media_type: mediaType, data } }
-    : { type: 'image', source: { type: 'base64', media_type: mediaType, data } }
+  const blocks = parts.map((part) =>
+    part.mediaType === 'application/pdf'
+      ? { type: 'document', source: { type: 'base64', media_type: part.mediaType, data: part.data } }
+      : { type: 'image', source: { type: 'base64', media_type: part.mediaType, data: part.data } },
+  )
 
   const upstream = await fetch(ANTHROPIC_URL, {
     method: 'POST',
@@ -160,9 +189,9 @@ async function readWithAnthropic(provider: Provider, mediaType: string, data: st
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1_024,
+      max_tokens: 1_500,
       temperature: 0,
-      messages: [{ role: 'user', content: [block, { type: 'text', text: BILL_PROMPT }] }],
+      messages: [{ role: 'user', content: [...blocks, { type: 'text', text: promptFor(parts) }] }],
     }),
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
@@ -176,10 +205,10 @@ async function readWithAnthropic(provider: Provider, mediaType: string, data: st
     : { ok: false, status: 502, code: 'unreadable', message: 'The reader returned nothing. Try a clearer photo, or type the numbers.' }
 }
 
-async function readWithOpenRouter(provider: Provider, mediaType: string, data: string): Promise<ReadOutcome> {
+async function readWithOpenRouter(provider: Provider, parts: BillPart[]): Promise<ReadOutcome> {
   // OpenRouter's image_url takes images. A PDF has to be photographed or exported
   // as one — better a straight answer than a confusing 400 from a provider.
-  if (!isImage(mediaType)) {
+  if (parts.some((part) => !isImage(part.mediaType))) {
     return {
       ok: false,
       status: 415,
@@ -199,14 +228,17 @@ async function readWithOpenRouter(provider: Provider, mediaType: string, data: s
     },
     body: JSON.stringify({
       model,
-      max_tokens: 700,
+      max_tokens: 1_200,
       temperature: 0,
       messages: [
         {
           role: 'user',
           content: [
-            { type: 'image_url', image_url: { url: `data:${mediaType};base64,${data}` } },
-            { type: 'text', text: BILL_PROMPT },
+            ...parts.map((part) => ({
+              type: 'image_url',
+              image_url: { url: `data:${part.mediaType};base64,${part.data}` },
+            })),
+            { type: 'text', text: promptFor(parts) },
           ],
         },
       ],
@@ -247,7 +279,7 @@ function optionalBool(value: FormDataEntryValue | null): boolean | undefined {
 function optionalCounty(value: FormDataEntryValue | null): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
-  return /^250\d\d$/.test(trimmed) ? trimmed : null
+  return /^250(?:0[13579]|1[13579]|2[1357])$/.test(trimmed) ? trimmed : null
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -258,24 +290,30 @@ export async function POST(request: Request): Promise<Response> {
     return fail(400, 'bad_request', 'Send the bill as multipart/form-data in a `file` field.')
   }
 
-  const file = form.get('file')
-  if (!(file instanceof File)) {
+  const files = form.getAll('file').filter((entry): entry is File => entry instanceof File)
+  if (files.length === 0) {
     return fail(400, 'bad_request', 'No file in the request. Attach one image or PDF in `file`.')
   }
-  if (file.size === 0) {
-    return fail(400, 'bad_request', 'The file is empty.')
+  if (files.length > MAX_FILES) {
+    return fail(400, 'bad_request', `Send at most ${MAX_FILES} pages or photos of one bill.`)
   }
-  if (file.size > MAX_BYTES) {
-    return fail(413, 'too_large', 'That file is over 12 MB. A phone photo is usually under 4 MB.')
+  if (files.some((file) => file.size === 0)) {
+    return fail(400, 'bad_request', 'A file is empty.')
+  }
+  if (files.reduce((sum, file) => sum + file.size, 0) > MAX_TOTAL_BYTES) {
+    return fail(413, 'too_large', 'Those files add up to more than 4 MB. Send fewer pages, or a closer photo.')
   }
 
-  const mediaType = file.type || 'application/octet-stream'
-  if (!isImage(mediaType) && mediaType !== 'application/pdf') {
-    return fail(
-      415,
-      'unsupported',
-      'Send a JPEG, PNG, WebP or PDF. If it is a scan app export, save it as PDF or a photo.',
-    )
+  for (const file of files) {
+    if (isHeic(file)) return fail(415, 'unsupported', HEIC_MESSAGE)
+    const type = file.type || 'application/octet-stream'
+    if (!isImage(type) && type !== 'application/pdf') {
+      return fail(
+        415,
+        'unsupported',
+        'Send a JPEG, PNG, WebP or PDF. If it is a scan app export, save it as PDF or a photo.',
+      )
+    }
   }
 
   const { provider, reason } = pickProvider()
@@ -294,14 +332,19 @@ export async function POST(request: Request): Promise<Response> {
   const countyFips = optionalCounty(form.get('countyFips'))
   if (countyFips !== null) options.countyFips = countyFips
 
-  const data = Buffer.from(await file.arrayBuffer()).toString('base64')
+  const parts: BillPart[] = await Promise.all(
+    files.map(async (file) => ({
+      mediaType: file.type,
+      data: Buffer.from(await file.arrayBuffer()).toString('base64'),
+    })),
+  )
 
   let outcome: ReadOutcome
   try {
     outcome =
       provider.name === 'anthropic'
-        ? await readWithAnthropic(provider, mediaType, data)
-        : await readWithOpenRouter(provider, mediaType, data)
+        ? await readWithAnthropic(provider, parts)
+        : await readWithOpenRouter(provider, parts)
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'TimeoutError'
     return fail(

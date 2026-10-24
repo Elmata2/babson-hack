@@ -38,6 +38,13 @@ can find (year built, use code, town) with a per-field source badge.
 - 1.3 `YEAR_BUILT` is used only for the weatherization check and heating-load
   fallback; it never silently overrides a bill-derived number.
 - 1.4 Address is never persisted server-side and never sent to the LLM.
+  *Amended 2026-10-24 (F-101, `docs/fixes/2026-10-24-one-photo-intake.md`):* the
+  model may return the **service ZIP and town** printed on a bill, never the
+  street, account number or name. The street still reaches only the geocoder.
+- 1.8 *(F-104)* A parcel record prefills only when its house number matches the
+  address the user picked **and** its use code is residential (1xx, or mixed-use
+  013/031). Exact-point and buffered matches get the same check. `units` is
+  carried; with more than one unit the area is divided and marked an assumption.
 - 1.5 A bad address produces "we could not find that parcel — continue manually",
   not a stack trace.
 - 1.6 **Statewide, no allow-list.** Any of the 351 municipalities resolves.
@@ -68,6 +75,28 @@ confidence score per field.
   analytics event.
 - 2.6 Manual entry is always available and equally fast: one fuel select, two
   numbers, one winter total.
+- 2.7 *(F-102)* `pricePerUnit` is computed in code from `totalCharge ÷ quantity`
+  and marked `derived`. The model never divides (ADR-005). Amount Due is never
+  used: under budget billing it is levelised.
+- 2.8 *(F-101/F-102)* An electric bill that is not the heat source returns
+  `role: "electricity"` and no heating fuel. It supplies the household's $/kWh,
+  utility and income signal only.
+- 2.9 *(F-102)* Gas rate class R-3/R-4 means gas heats the home; R-1/R-2 means it
+  does not. R-2/R-4 or a printed discount line sets `lowIncomeSignal`, which the
+  UI offers as "you may qualify" and never applies without the user's answer.
+- 2.10 *(F-102)* CCF converts to therms with the printed therm factor, else 1.037
+  flagged. A `season` period is partial unless the printed period spans ≥ 330 days.
+- 2.11 *(F-103)* Single-bill annualisation weights the actual service days
+  (`periodStart`–`periodEnd`), not the statement month. A printed history read
+  from bars caps confidence at 0.75; a numeric table at 0.95.
+- 2.12 *(F-107/F-108)* Photos are re-encoded in the browser (long edge ≤ 2000px,
+  JPEG, < 1.5 MB, EXIF orientation applied) so no request meets Vercel's 4.5 MB
+  limit. Up to three pages of one bill go to one vision call.
+- 2.13 *(F-109)* When no field is below the confidence bar the bill applies
+  without a confirm click, with Undo. A second "electric bill" slot is offered
+  after a heating document.
+- 2.14 *(F-106)* The annualisation method, its confidence and its note reach
+  `/verdict` and are shown in provenance. "Change the numbers" returns every input.
 
 ## R3 — Live fuel and rate data
 
@@ -118,6 +147,9 @@ design load, and recommend a system size in tons rounded to 0.5.
 - 4.4 Without a bill, fall back to `sqft × 35–50 BTU/hr/sqft` and mark the result
   `assumption: envelope estimate`, high-end for pre-1950.
 - 4.5 Tonnage never exceeds what the rebate cap implies without a warning.
+- 4.6 *(F-103)* When a 12-month history is printed, non-heating use
+  (`baseloadAnnual` ≈ lowest summer months × 12: hot water, cooking) is removed
+  before 4.1. Without a history nothing is removed and the verdict says so.
 
 ## R5 — Rebate stack
 

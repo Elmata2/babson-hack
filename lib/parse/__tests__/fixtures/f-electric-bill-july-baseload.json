@@ -6,6 +6,8 @@
   "price_per_unit": 0.289,
   "billing_period": "month",
   "document_date": "2026-07-08",
+  "period_start": "2026-07-01",
+  "period_end": "2026-07-31",
   "document_type": "electric_bill",
   "usage_history": null,
   "degree_days": null,

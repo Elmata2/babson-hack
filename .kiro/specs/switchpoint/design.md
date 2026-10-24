@@ -206,6 +206,15 @@ price, which on an Eversource bill is the **supply** rate (17.3¢) and not the
 30.5¢ the household actually pays. Every saving figure downstream inherits that
 error, so the prompt now asks for total ÷ quantity.*
 
+*Amended again 2026-10-24 (F-101/F-102, `docs/fixes/2026-10-24-one-photo-intake.md`):*
+dividing in the prompt fixed the number but broke ADR-005. Prompt v3 extracts the
+printed `total_charge`, `supply_charge`, `delivery_charge` and `quantity`, and
+`readBill` divides. It also reads the utility, service ZIP and town (never the
+street), service dates, the full R-1…R-4 rate class, a discount line, read type,
+budget billing, CCF with its therm factor, and whether the history is a numeric
+table or bars. The prompt in `lib/parse/prompt.ts` is the verbatim source; this
+block shows v2.
+
 Then a deterministic validator (`lib/parse/plausibility.ts`) rejects impossible
 values and returns `flags[]` instead of silently trusting the model. LLM reads;
 code decides.
@@ -648,3 +657,17 @@ holds them; the cut line and which outreach channel (phone or email) is the demo
 centrepiece; whether Addendum A is approved and who supplies real dealer and
 installer lists; whether a dated Energy Switch MA snapshot is an acceptable source
 for competitive offers.
+
+### 15.x Bill intake shared with `/start` (2026-10-24, F-100–F-109)
+
+Steps 2–4 of `/onboarding` reuse the one-photo pieces built on `/start`: the
+`BillApplied` contract (`lib/parse/contract.ts`), client image prep, the
+found-chips confirm card and the parcel guard. Three corrections to §3.3–3.4 and
+§6 of the Addendum B draft, detailed in `docs/fixes/2026-10-24-one-photo-intake.md` §5:
+
+- The utility is read from the bill first. Address → MassGIS is the fallback, and
+  the user is asked only when both are missing.
+- The electricity profile needs the electric bill and the heat-pump verdict needs
+  the heating document, so there are two bill slots.
+- The privacy table must name both readers: Anthropic and the OpenRouter fallback
+  added in F-79. **Open for team review.**

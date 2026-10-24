@@ -1,0 +1,10 @@
+{
+  "_synthetic": "SYNTHETIC FIXTURE L — invented. A document the model could not classify and read no fuel from.",
+  "document_type": "unknown",
+  "fuel": null,
+  "quantity": 100,
+  "unit": null,
+  "total_charge": 50,
+  "billing_period": null,
+  "confidence": "low"
+}
