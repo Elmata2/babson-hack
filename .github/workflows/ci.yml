@@ -1,0 +1,107 @@
+# Switchpoint CI — R25.1–25.4, 25.8. Feature rows F-132 (checks, build-log
+# drift, /.kiro guard) and F-133 (gitleaks).
+#
+# @built F-132 typecheck + lint + 593 tests, build-log drift, /.kiro submission guard
+# @built F-133 gitleaks secret scan on every push and pull request
+#
+# Two jobs, ~90s total on a warm npm cache:
+#   checks  — npm ci, `npm run check`, build-log drift, /.kiro submission guard
+#   secrets — gitleaks over the full history
+# No build step: Vercel's Git integration owns previews and production (R25.8),
+# so Actions never runs `next build`.
+#
+# The gates that are not obvious:
+#
+# * Build-log drift cannot be a raw `git diff -- BUILDLOG.md`. The generated
+#   header records the HEAD sha at generation time ("**commit:** `abc1234`"), so
+#   a BUILDLOG.md regenerated before its own commit can never match the commit
+#   that ships it. `scripts/ci-guard.mjs` compares the two files with that one
+#   token normalised, and every other line — the feature count, the timeline,
+#   the "Now" list — still has to match exactly. Fix locally with
+#   `node scripts/buildlog.mjs hook`.
+#
+# * `/.kiro` must be committed AND not gitignored (R12.1). A gitignore line
+#   added months ago silently disqualifies the submission; the guard fails the
+#   build instead.
+#
+# * gitleaks runs from the official release binary rather than
+#   `gitleaks/gitleaks-action@v2`. The action requires a paid
+#   `GITLEAKS_LICENSE` secret on any repository owned by an organisation, and a
+#   CI gate that cannot run without a purchase is not a gate. The binary is
+#   free, pinned, and needs no token. It scans the whole history, so a key
+#   committed and then deleted still fails the build.
+
+name: CI
+
+on:
+  # Every pushed branch: a key must fail before it ever reaches a PR.
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A superseded PR run is worthless — cancel it. A push to main is never
+# cancelled: the run that lands is the run that has to stay green.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: checks (tsc · eslint · vitest · log · .kiro)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Node 20 with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Check — tsc, eslint, vitest (property suite included)
+        run: npm run check
+
+      - name: Build-log drift — BUILDLOG.md must match the @built markers
+        run: node scripts/ci-guard.mjs --buildlog
+
+      - name: Submission guard — /.kiro committed and not gitignored (R12.1)
+        run: node scripts/ci-guard.mjs --kiro
+
+  secrets:
+    name: secrets (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GITLEAKS_VERSION: 8.30.1
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          # A key committed and deleted later still sits in history; a shallow
+          # clone would report the repo clean.
+          fetch-depth: 0
+
+      - name: Install gitleaks (official binary, no license token)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/gitleaks" version
+
+      - name: Scan — ElevenLabs, Twilio, Anthropic, EIA keys never enter the repo
+        run: gitleaks git --no-banner --redact --config .gitleaks.toml --exit-code 1 .

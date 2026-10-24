@@ -1,0 +1,27 @@
+# gitleaks configuration — R25.4, feature row F-133.
+#
+# @built F-133 gitleaks secret scan on every push and pull request
+#
+# The workflow installs the official gitleaks binary and runs:
+#
+#   gitleaks git --no-banner --redact --config .gitleaks.toml .
+#
+# over the full history. This file must never narrow the gate.
+
+[extend]
+# Keep the upstream ruleset (AWS, GCP, Anthropic, OpenAI, Slack, Twilio,
+# Stripe, private keys, JWTs …) and add no local rules.
+useDefault = true
+
+# No allowlist, on purpose — a key is allowed to fail the build.
+#
+# The whole history scans clean against the default ruleset with gitleaks
+# 8.30.1, so nothing needed exempting. An allowlist entry here is how a real key
+# gets waved through, so one would have to arrive with a reviewable reason. In
+# particular the committed placeholder file for environment variables is not
+# exempt: it holds empty values today, and if a real key ever lands there the
+# scan has to fail.
+#
+# gitleaks requires at least one populated matcher inside an allowlist, and an
+# empty matcher is a config error — so the honest encoding of "nothing is
+# exempt" is the absence of the section.

@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "tsc --noEmit && eslint . && vitest run",
+    "guard": "node scripts/ci-guard.mjs",
     "log": "node scripts/buildlog.mjs hook",
     "status": "node scripts/buildlog.mjs status",
     "bills": "node scripts/demo-bills/render.mjs",
