@@ -1,0 +1,79 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Sample gas bill: Natural gas on a discount rate (R-4)</title><style>
+  @page { size: 8.5in 11in; margin: 0 }
+  * { box-sizing: border-box }
+  html, body { margin: 0; background: #fff; color: #1b1f23 }
+  body { font: 13px/1.4 "Helvetica Neue", Arial, sans-serif }
+  .page { width: 816px; min-height: 1056px; padding: 44px 52px; position: relative; overflow: hidden }
+  .wm { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none }
+  .wm span { transform: rotate(-32deg); font: 700 46px/1 Arial, sans-serif; color: rgba(200, 30, 30, .15); white-space: nowrap; letter-spacing: 4px }
+  .foot { position: absolute; left: 52px; right: 52px; bottom: 28px; border-top: 1px solid #ccc; padding-top: 8px; font-size: 10.5px; color: #666 }
+  h1 { font-size: 22px; margin: 0 }
+  h2 { font-size: 13px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .06em; color: #333 }
+  table { width: 100%; border-collapse: collapse }
+  td, th { padding: 3px 6px; text-align: left; vertical-align: top }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #555; border-bottom: 1.5px solid #333 }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap }
+  .rule td { border-top: 1px solid #ddd }
+  .total td { border-top: 2px solid #222; font-weight: 700; font-size: 14px }
+  .muted { color: #666 }
+  .box { border: 1.5px solid #222; padding: 12px 14px }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px }
+  .big { font-size: 26px; font-weight: 700 }
+</style></head><body><style>
+  .band { background: #1f7fd6; color: #fff; font-weight: 700; padding: 5px 8px; margin-top: 12px }
+  .svc { background: #1f7fd6; color: #fff; padding: 8px 10px; font-weight: 700; line-height: 1.35 }
+  .meter th { background: #bfe3ef; color: #123; font-size: 11px; text-transform: none; letter-spacing: 0; border: 1px solid #fff; text-align: center }
+  .meter td { background: #8fd18a; text-align: center; font-weight: 700; border: 1px solid #fff }
+  .grid td { text-align: center; padding: 2px 4px; border-bottom: 1px solid #ddd }
+  .grid .mh td { background: #d9eef6; font-size: 11.5px }
+  .cols { display: grid; grid-template-columns: 330px 1fr; gap: 22px; margin-top: 14px }
+  .li td { padding: 2px 4px }
+  .li td:nth-child(2) { text-align: right; white-space: nowrap; color: #333 }
+  .li td:nth-child(3) { text-align: right; white-space: nowrap; width: 80px }
+  .sub td { border-top: 1px solid #333; font-weight: 700 }
+  .ind { padding-left: 16px !important }
+</style><div class="page"><div class="wm"><span>SAMPLE — NOT A REAL BILL</span></div><div style="position:absolute;top:14px;left:52px;right:52px;text-align:center;font:700 11px/1 Arial,sans-serif;letter-spacing:.12em;color:#c81e1e">SAMPLE FOR SOFTWARE TESTING — NOT A REAL BILL</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><h1>Eversource</h1><div class="muted">Account Number 0000 000 0000 · Statement Date 02/05/2026</div></div>
+      <div class="muted" style="text-align:right">Service Provided To:<br><b style="color:#222">SAMPLE CUSTOMER</b></div>
+    </div>
+    <div class="cols">
+      <div>
+        <div class="svc">Svc Addr: 123 Sample St<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Boston, MA 02116<br>
+          Rate R-4 Heating Assistance<br>Service from 01/02/2026 - 02/02/2026 &nbsp; 31 Days</div>
+        <table class="meter">
+          <tr><th>Meter Number</th><th>Current Read</th><th>Previous Read</th><th>CCF Used</th><th>Therm Factor</th><th>Therms</th></tr>
+          <tr><td>000000</td><td>7493</td><td>7310</td><td>183</td><td>1.0378</td><td>190</td></tr>
+        </table>
+        <h2>Contact Information</h2>
+        <div class="muted">Customer Service: (555) 010-0100<br>Gas Emergency: (555) 010-0122</div>
+        <h2>Your gas supplier is</h2><div class="muted">Eversource</div>
+      </div>
+      <div>
+        <table class="li">
+      <tr><td>Amount Due On 01/06/2026</td><td></td><td>$345.61</td></tr>
+      <tr><td>Last Payment Received On 01/24/2026</td><td></td><td>-$345.61</td></tr>
+      <tr><td>Balance Forward</td><td></td><td>$0.00</td></tr>
+      <tr><td>Current Charges/Credits</td><td></td><td></td></tr>
+      <tr><td class="ind">Supply</td><td></td><td>$169.10</td></tr>
+      <tr><td class="ind">Maintenance, Infrastructure &amp; Public Benefits</td><td></td><td>$153.90</td></tr>
+      <tr class="sub"><td>Total Current Charges</td><td></td><td>$323.00</td></tr>
+      <tr class="sub"><td>Total Amount Due</td><td></td><td>$323.00</td></tr>
+    </table>
+        <div class="band" style="margin-top:14px">Total Charges for Gas</div>
+        <table class="li">
+          <tr><td><b>Supply</b></td><td></td><td></td></tr>
+          <tr><td>Gas Supply Charge</td><td>190 Therms X 0.8900</td><td>$169.10</td></tr>
+          <tr class="sub"><td>Subtotal Supply</td><td></td><td>$169.10</td></tr>
+          <tr><td style="padding-top:10px"><b>Maintenance and Infrastructure Investment</b></td><td></td><td></td></tr>
+          <tr><td>Customer Charge</td><td></td><td>$10.50</td></tr>
+          <tr><td>Delivery Charge</td><td>190 Therms X 0.5940</td><td>$112.86</td></tr><tr><td>Local Distribution Adjustment</td><td>190 Therms X 0.1485</td><td>$28.22</td></tr>
+          <tr><td style="padding-top:10px"><b>Public Benefits</b></td><td></td><td></td></tr>
+          <tr><td>Energy Efficiency Charge</td><td>190 Therms X 0.2227</td><td>$42.32</td></tr><tr><td>Residential Assistance Charge</td><td>190 Therms X 0.0796</td><td>$15.12</td></tr><tr><td>Geothermal Charge</td><td>190 Therms X 0.0159</td><td>$3.02</td></tr>
+          <tr><td>Assistance Rate Discount</td><td></td><td>-$58.14</td></tr>
+          <tr class="sub"><td>Total Current Charges</td><td></td><td>$323.00</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="foot">SAMPLE DOCUMENT FOR SOFTWARE TESTING — NOT A REAL BILL. Synthetic numbers, fictional customer and account. Switchpoint · Hackachusetts 2026</div>
+  </div></body></html>

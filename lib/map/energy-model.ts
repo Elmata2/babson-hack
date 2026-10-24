@@ -132,6 +132,11 @@ export function metricValue(t: EnergyTown, metric: Metric): number | null {
   return t.usage.status === 'reported' ? t.usage.mwh : null
 }
 
+/** Column height as a share of the tallest column. One definition for the map and its legend. */
+export function heightShare(value: number, max: number): number {
+  return max > 0 ? Math.sqrt(value / max) : 0
+}
+
 export function metricMax(towns: readonly EnergyTown[], metric: Metric): number {
   return towns.reduce((m, t) => Math.max(m, metricValue(t, metric) ?? 0), 0)
 }

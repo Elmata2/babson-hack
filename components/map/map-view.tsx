@@ -24,18 +24,18 @@ import maplibregl, { type Map as MlMap, type MapMouseEvent } from 'maplibre-gl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BillPanel } from './bill-panel'
 import { CameraControls, prefersReducedMotion, useCamera } from './camera-controls'
+import { EnergyLegend } from './energy-legend'
 import { HeatControls, HeatHeadline } from './heat-controls'
 import { HeatStatic } from './heat-static'
 import { HeatTable } from './heat-table'
 import { applyLens, HIT_LAYERS, LENS_BG, STYLE_URL, type LensState } from './layers'
 import { loadTowns, loadTracts, townAtPoint, type TownData, type TractData } from './map-data'
-import { PROVIDER_COLOUR } from './palette'
 import { ProfileDrawer } from './profile-drawer'
 import { Search, type SearchResult } from './search'
 import { TownPanel } from './town-panel'
 import type { Lens, Profile } from './types'
 import { useProfile } from './use-profile'
-import { townKey, type SponsorKey } from '@/lib/elec-label'
+import { townKey } from '@/lib/elec-label'
 import { displayTown, townsOfTract } from '@/lib/geo'
 import { SPONSOR_NAME } from '@/lib/utility'
 import { parseNextStepsQuery, type NextStepsQuery } from '@/lib/map/next-steps-query'
@@ -43,6 +43,7 @@ import {
   METRIC_LABEL,
   ZONE_LABEL,
   describeTown,
+  metricMax,
   sourceLine,
   type Metric,
   type Zone,
@@ -564,6 +565,18 @@ export default function MapView() {
 
           {lens === 'energy' ? <MetricControl metric={metric} onMetric={setMetric} /> : null}
 
+          {lens === 'energy' && towns ? (
+            <EnergyLegend
+              metric={metric}
+              max={metricMax(
+                towns.entries.map((e) => e.energy),
+                metric,
+              )}
+              meta={towns.baked._meta}
+              colourBy={colourBy}
+            />
+          ) : null}
+
           {lens === 'energy' ? (
           <details className="group rounded-md border border-rule">
             <summary className="flex h-9 cursor-pointer list-none items-center justify-between px-3 text-small text-ink hover:bg-paper-sunk focus-visible:outline-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden">
@@ -773,7 +786,6 @@ function EnergyOptions(props: {
   onLabels: (b: boolean) => void
   ready: boolean
 }) {
-  const legend = (Object.keys(PROVIDER_COLOUR) as (SponsorKey | 'mixed')[]).filter((k) => k !== 'other' && k !== 'cape_light')
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -812,18 +824,6 @@ function EnergyOptions(props: {
           <input type="checkbox" checked={props.showLabels} onChange={(e) => props.onLabels(e.target.checked)} /> Town labels
         </label>
       </div>
-      {props.colourBy === 'provider' ? (
-        <ul className="flex flex-wrap gap-x-3 gap-y-1 text-micro text-ink-muted" aria-label="Provider colours">
-          {legend.map((k) => (
-            <li key={k} className="inline-flex items-center gap-1.5">
-              <i className="size-2 rounded-full" style={{ background: PROVIDER_COLOUR[k] }} />
-              {k === 'mixed' ? 'Mixed' : SPONSOR_NAME[k]}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-micro text-ink-muted">Brighter columns carry more load. Height is the square root of MW.</p>
-      )}
     </div>
   )
 }

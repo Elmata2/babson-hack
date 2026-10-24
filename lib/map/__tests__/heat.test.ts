@@ -318,8 +318,8 @@ describe('"use this tract"', () => {
     expect(new URLSearchParams(seedQuery(noYear, 'Wellesley', 2027)).has('yb')).toBe(false)
   })
 
-  it('points at the form and stays a query string, never a new route', () => {
-    expect(seedHref(ROW, 'Wellesley', 2026, 'start').startsWith('/start?')).toBe(true)
+  it('points the start view at the wizard and the verdict view at a seeded query', () => {
+    expect(seedHref(ROW, 'Wellesley', 2026, 'start')).toBe('/onboarding')
     expect(seedHref(ROW, 'Wellesley', 2027, 'verdict').startsWith('/verdict?')).toBe(true)
   })
 })

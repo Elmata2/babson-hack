@@ -7,7 +7,7 @@
 
 **Built:** 117 / 117 features · ████████████████████████████ **100%**
 
-**Last event:** 2026-10-24T20:17:07.263Z (16:17 ET) · **commit:** `55a7d68`
+**Last event:** 2026-10-24T20:17:07.263Z (16:17 ET) · **commit:** `1b152d7`
 
 ## Now
 
@@ -41,6 +41,10 @@ _Every feature in the spec is logged._
 - `16:17` ✔ **F-54** — Final `BUILDLOG.md` + `git log` review · `scripts/submission/check.mjs` · `55a7d68`
 - `16:17` ✔ **F-53** — Submission checklist: repo public, `.kiro` present, track selected · `scripts/submission/check.mjs` · `55a7d68`
 - `16:17` ✔ **F-52** — Demo video, < 3 min, uploaded and public · `scripts/demo/record.mjs` · `55a7d68`
+- `16:14` ✔ **F-80** — `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/scenarios-report.mjs` · `dd69943`
+- `16:14` ✔ **F-80** — `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/templates.mjs` · `dd69943`
+- `16:14` ✔ **F-80** — `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/scenarios.mjs` · `dd69943`
+- `16:14` ✔ **F-80** — `scripts/demo-bills/render.mjs` — sample bills (oil tickets, Eversource-layout electric and gas, not-a-bill, phone photo) rendered from the parse fixtures to `public/demo-bills/` · `scripts/demo-bills/chrome.mjs` · `dd69943`
 - `16:12` ✔ **F-134** — Agent contract tests + hostile fixture transcripts, no network · `agents/__tests__/contract.test.ts` · `55a7d68`
 - `16:12` ✔ **F-131** — ✂ Inbound verdict line, `computeVerdict` server tool, 4 languages (R23) · `agents/README.md` · `55a7d68`
 - `16:12` ✔ **F-123** — `agents/quote-caller/` prompts, first message, data-collection schema; create agent + Twilio number on ElevenLabs · `agents/README.md` · `55a7d68`

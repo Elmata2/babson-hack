@@ -12,8 +12,8 @@ import { getPrices } from '@/lib/prices'
 
 /**
  * @built F-02 app shell — token-driven landing page
- * @built F-140 the hero's "Create your profile" is the way in; `/start` remains
- * routable but is no longer linked from the front page
+ * @built F-140 the hero's "Create your profile" is the way in; `/start` now
+ * redirects to `/onboarding`
  * @built F-14 the fuel figure and its badge are read from the price adapter, so
  * the front page cannot drift from the verdict screen's source of truth
  * @built F-49 `?demo=1` reads the baked snapshot and threads the flag into every

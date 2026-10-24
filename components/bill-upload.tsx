@@ -5,6 +5,8 @@ import { useRef, useState } from 'react'
 import {
   UNIT_BY_FUEL,
   buildApplied,
+  canUseNumbers,
+  confirmCopy,
   evaluateBill,
   formatAmount,
   formatPrice,
@@ -244,10 +246,8 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
   const electricityRole = role === 'electricity'
   const unit = electricityRole ? 'kWh' : fuel ? UNIT_BY_FUEL[fuel] : 'units'
   const noun = electricityRole ? 'Electricity' : fuel ? FUEL_NOUN[fuel] : 'Fuel'
-  const canApply =
-    outstanding.length === 0 &&
-    Number(price.replace(/,/g, '')) > 0 &&
-    (electricityRole || (FUEL_VALUES.some((value) => value === fuel) && Number(units.replace(/,/g, '')) > 0))
+  const canApply = canUseNumbers({ role, fuel, units, price })
+  const confirm = confirmCopy(outstanding)
   const question = bill && hasQuestion(bill) ? (bill.flags.find((flag) => flag.code === 'needs_fills' || flag.code === 'summer_month' || flag.code === 'partial_period') ?? null) : null
   const detailFlags = bill?.flags.filter((flag) => flag !== question) ?? []
   const place = [bill?.serviceTown, bill?.serviceZip].filter(Boolean).join(' ')
@@ -397,7 +397,7 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
                   </select>
                 </label>
               )}
-              {outstanding.includes('fuel') ? <CheckChip onConfirm={() => touch('fuel')} /> : null}
+              {outstanding.includes('fuel') ? <CheckChip /> : null}
             </div>
 
             {/* who and where */}
@@ -433,7 +433,7 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
                   cooking).
                 </p>
               ) : null}
-              {outstanding.includes('units') ? <CheckChip onConfirm={() => touch('units')} /> : null}
+              {outstanding.includes('units') ? <CheckChip /> : null}
             </div>
 
             {/* all-in price */}
@@ -454,7 +454,7 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
                 />
               </label>
               <p className="mt-1 text-micro text-ink-muted">Total ÷ usage, so it includes delivery and fees.</p>
-              {outstanding.includes('price') ? <CheckChip onConfirm={() => touch('price')} /> : null}
+              {outstanding.includes('price') ? <CheckChip /> : null}
             </div>
 
             {/* rate class */}
@@ -526,18 +526,17 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
           <div className="flex flex-wrap items-center gap-2" aria-live="polite">
             {applied === 'no' ? (
               <>
+                {confirm.summary ? <p className="w-full text-micro font-medium text-deadline">{confirm.summary}</p> : null}
                 <button
                   type="button"
                   onClick={applyNow}
                   disabled={!canApply}
                   className="rounded-card bg-ink px-3 py-1.5 text-micro font-medium text-paper disabled:opacity-40"
                 >
-                  Use these numbers
+                  {confirm.button}
                 </button>
                 <span className="text-micro text-ink-faint">
-                  {outstanding.length
-                    ? 'Check the dotted fields first — edit them or tap “check?”.'
-                    : 'Every number above is editable first.'}
+                  {outstanding.length ? 'Edit any dotted field that looks wrong first.' : 'Every number above is editable first.'}
                 </span>
               </>
             ) : (
@@ -571,14 +570,6 @@ export function BillUpload({ onApply, onUndo, countyFips, heating, expect = 'hea
   )
 }
 
-function CheckChip({ onConfirm }: { onConfirm: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onConfirm}
-      className="mt-1 rounded-pill border border-dotted border-deadline px-2 py-0.5 text-[11px] font-medium text-deadline"
-    >
-      check? tap if this is right
-    </button>
-  )
+function CheckChip() {
+  return <p className="mt-1 text-[11px] font-medium text-deadline">check this one</p>
 }

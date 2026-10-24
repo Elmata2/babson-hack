@@ -1,0 +1,19 @@
+{
+  "document_type": "propane_delivery",
+  "utility": "propane_dealer",
+  "fuel": "propane",
+  "service_zip": "01603",
+  "service_town": "Worcester",
+  "quantity": 190,
+  "unit": "gal",
+  "total_charge": 742.9,
+  "price_per_unit": 3.91,
+  "billing_period": "delivery",
+  "document_date": "2026-10-20",
+  "rate_class": null,
+  "discount_line_present": false,
+  "usage_history": null,
+  "degree_days": 1050,
+  "tank_size_gal": 500,
+  "confidence": "high"
+}

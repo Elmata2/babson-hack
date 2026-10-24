@@ -665,8 +665,8 @@ query contract to `/verdict`. One substitution, stated on screen: there is no
 database in this build, so the "account" is a profile held in this browser
 (`useSyncExternalStore` over `localStorage`, key `switchpoint.profile.v1`) and the
 copy says no server account exists. The bill step reuses `BillUpload`, including
-its low-confidence gate, so the wizard cannot accept a field the reader is unsure
-of. Synthetic sample bills (`public/demo-bills`, F-80) load through the same
+its low-confidence flags, so the wizard lists every field the reader is unsure of
+and asks for one explicit confirm. Synthetic sample bills (`public/demo-bills`, F-80) load through the same
 `read()` path as a photo. Still proposed: best case (step 5) and switch (step 6),
 which need an account with a home on a server.
 

@@ -11,7 +11,7 @@
 import type { ExpressionSpecification, GeoJSONSource, Map as MlMap } from 'maplibre-gl'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { Lens } from './types'
-import { metricMax, metricValue, type Metric, type Zone } from '@/lib/map/energy-model'
+import { heightShare, metricMax, metricValue, type Metric, type Zone } from '@/lib/map/energy-model'
 import { heatScale, type HeatMetric, type HeatYear } from '@/lib/map/heat'
 import type { TownData, TractData } from './map-data'
 import { EJ_OPACITY, EJ_VIOLET, ENERGY_BG, HEAT_RAMP, LIGHT_BG, NO_DATA, PROVIDER_COLOUR, SOLAR_COLOUR } from './palette'
@@ -137,13 +137,13 @@ function energyData(state: LensState): { towns: FeatureCollection; points: Featu
     const dim = !inRegion && e.key !== state.selectedKey
     const v = metricValue(t, state.metric)
     const props = data.collection.features[i].properties as Record<string, unknown>
-    props.height = dim || v === null ? 0 : Math.sqrt(v / max) * MAX_HEIGHT_M
+    props.height = dim || v === null ? 0 : heightShare(v, max) * MAX_HEIGHT_M
     props.colour =
       dim || v === null
         ? '#222c3d'
         : state.colourBy === 'provider'
           ? PROVIDER_COLOUR[t.provider]
-          : intensityColour(Math.sqrt(v / max))
+          : intensityColour(heightShare(v, max))
     points.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: t.centroid },

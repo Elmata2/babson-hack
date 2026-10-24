@@ -70,7 +70,8 @@ confidence score per field.
   outside 18–50¢/kWh, more than 24 months old).
 - 2.3 Every parsed field is editable. Editing a field recomputes the verdict in
   the same interaction, with no page reload.
-- 2.4 Fields below 0.75 confidence block the verdict until confirmed.
+- 2.4 Fields below 0.75 confidence are flagged and listed by name. One explicit
+  confirm ("Use these numbers") covers all flagged fields; nothing applies until it is clicked.
 - 2.5 The image is discarded after parsing. No disk write, no log line, no
   analytics event.
 - 2.6 Manual entry is always available and equally fast: one fuel select, two
@@ -96,7 +97,7 @@ confidence score per field.
   without a confirm click, with Undo. A second "electric bill" slot is offered
   after a heating document.
 - 2.14 *(F-106)* The annualisation method, its confidence and its note reach
-  `/verdict` and are shown in provenance. "Change the numbers" returns every input.
+  `/verdict` and are shown in provenance. "Update your bills" returns to the profile wizard.
 - 2.15 *(F-110)* A PDF selected in bill upload is rendered to JPEG pages in the
   browser before any request. The three-page limit counts PDF pages and photos
   together; a longer or unreadable PDF gets a clear error. OpenRouter receives

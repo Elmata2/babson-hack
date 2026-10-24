@@ -1,10 +1,9 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
-import { demoFromParams, withDemo } from '@/lib/demo'
+import { demoFromParams } from '@/lib/demo'
 import { TOWNS } from '@/lib/geo'
 import { getPrices } from '@/lib/prices'
 
@@ -13,7 +12,7 @@ import { getPrices } from '@/lib/prices'
  * @built F-49 `?demo=1` reads the baked snapshot and the wizard's geocode and bill
  * requests carry the flag, so the whole four-step flow works with the wifi off
  *
- * The server reads the 351-town table and the prices, as `/start` does, so the
+ * The server reads the 351-town table and the prices, so the
  * browser never downloads the geometry and never sees a key. The wizard itself is
  * a client component because a photo, an OCR read and a confirmation only exist in
  * the browser.
@@ -44,15 +43,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
 
       <main id="main" className="flex-1">
         <div className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
-          <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <p className="text-eyebrow uppercase text-ink-muted">Your profile</p>
-            <Link
-              href={withDemo('/start', demo)}
-              className="text-micro text-ink-muted underline decoration-rule-strong underline-offset-4 hover:text-ink"
-            >
-              Skip the profile and try it anonymously
-            </Link>
-          </div>
+          <p className="text-eyebrow uppercase text-ink-muted">Your profile</p>
 
           <h1 className="mt-4 max-w-[24ch] text-balance text-headline font-medium">
             Two bills to the honest answer.

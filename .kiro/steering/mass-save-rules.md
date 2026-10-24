@@ -112,3 +112,26 @@ error, not a bargain.
 - Always show the source date next to a price.
 - Every verdict screen carries: *Estimate only. Not a quote. A Home Energy
   Assessment determines eligibility and sizing.*
+
+## Who to contact (verdict "What to do next")
+
+Machine-readable copy: `data/rules/contacts-2026.json`, rendered by `lib/verdict/contacts.ts`.
+Every entry was read on **2026-10-24** from the official page named below. A phone appears
+only where the page prints one. No email addresses are listed: these organisations publish web
+forms and pages, not addresses.
+
+| Contact | Phone | Official page |
+| --- | --- | --- |
+| Mass Save, book a no-cost Home Energy Assessment | 866-527-SAVE (7283) | https://www.masssave.com/en/residential/rebates-offers-services/home-energy-assessments |
+| Mass Save Heat Pump Installer Network finder | none listed | https://www.masssave.com/en/residential/find-a-contractor/find-a-heat-pump-installer |
+| Mass Save, heat pump rebate questions | 888-855-0340 | https://www.masssave.com/en/residential/rebates-offers-services/heating-and-cooling/heat-pumps/air-source-heat-pumps |
+| Mass Save HEAT Loan | none for the loan (866-527-7283 is for the required verification only) | https://www.masssave.com/en/saving/residential-rebates/heat-loan-program |
+| Mass Save, income verification for enhanced offers | 888-714-3990 | https://www.masssave.com/en/residential/rebates-offers-services/income-based-offers/save-with-enhanced-incentives |
+| Energy Switch Massachusetts (DPU), compare supply | none listed | https://www.energyswitchma.gov |
+| Eversource | none shown without a town; hours Mon-Fri 8-6 ET | https://www.eversource.com/residential/contact-us |
+| National Grid, electricity billing and general (Mon-Fri 7am-7pm) | 1-800-322-3223 (read in a browser; the page blocks automated fetches) | https://www.nationalgrid.com/us/ma/contact-us |
+| Unitil | 888-301-7700 | https://unitil.com/contact/contact-customer-service |
+| Cape Light Compact, general questions only (delivery and bills stay with Eversource) | 508-375-6644 | https://www.capelightcompact.org/program/overview-rates/ |
+
+Omitted: municipal light plant numbers (41 plants, none sourced; the screen says to use the
+number on the bill) and heating-fuel dealer contacts (named from the bill only, never invented).

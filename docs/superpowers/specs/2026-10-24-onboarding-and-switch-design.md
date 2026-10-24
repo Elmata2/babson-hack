@@ -77,7 +77,7 @@ outreach, not a mock.
 ### 3.1 Home
 - A header button, top-right: **Create profile** (signed out) / **Dashboard** (signed in).
 - A hero CTA in the middle of the page, with the same action.
-- The anonymous `/start` → `/verdict` path stays as "Try it without an account".
+- The anonymous `/start` path is removed; `/start` redirects to `/onboarding`.
 
 ### 3.2 Account (step 1)
 - Fields: name, email, phone. Phone is optional at signup; it's required only for

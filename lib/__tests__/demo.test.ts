@@ -75,7 +75,7 @@ describe('isDemoFlag', () => {
 describe('withDemo', () => {
   it('appends the flag without touching the rest of the query', () => {
     expect(withDemo('/verdict?fuel=oil&units=800', true)).toBe('/verdict?fuel=oil&units=800&demo=1')
-    expect(withDemo('/start', true)).toBe('/start?demo=1')
+    expect(withDemo('/onboarding', true)).toBe('/onboarding?demo=1')
   })
 
   it('preserves the hash', () => {

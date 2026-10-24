@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildApplied,
+  canUseNumbers,
+  confirmCopy,
   evaluateBill,
   formatAmount,
   formatPrice,
@@ -130,5 +132,33 @@ describe('withFills', () => {
     expect(next.flags.map((flag) => flag.code)).not.toContain('needs_fills')
     expect(next.ready).toBe(true)
     expect(evaluateBill(next).checks).toContain('units')
+  })
+})
+
+describe('canUseNumbers', () => {
+  it('accepts a shaky heating parse in one click once the numbers exist', () => {
+    const shaky = bill({ confidence: 'low', units: { value: 812, confidence: 0.5, derived: true, unit: 'therm/yr' } })
+    expect(evaluateBill(shaky).checks).toEqual(['units', 'price'])
+    expect(canUseNumbers({ role: 'heating', fuel: 'gas', units: '812', price: '1.58' })).toBe(true)
+  })
+  it('needs fuel, units and price for heating', () => {
+    expect(canUseNumbers({ role: 'heating', fuel: '', units: '812', price: '1.58' })).toBe(false)
+    expect(canUseNumbers({ role: 'heating', fuel: 'gas', units: '', price: '1.58' })).toBe(false)
+    expect(canUseNumbers({ role: 'heating', fuel: 'gas', units: '812', price: '0' })).toBe(false)
+  })
+  it('needs only a price for electricity', () => {
+    expect(canUseNumbers({ role: 'electricity', fuel: '', units: '', price: '0.3674' })).toBe(true)
+  })
+})
+
+describe('confirmCopy', () => {
+  it('names the flagged fields and counts them on the button', () => {
+    expect(confirmCopy(['units', 'price'])).toEqual({
+      button: 'Use these numbers (2 to check)',
+      summary: 'Check before you use them: units, price',
+    })
+  })
+  it('stays plain when nothing is flagged', () => {
+    expect(confirmCopy([])).toEqual({ button: 'Use these numbers', summary: null })
   })
 })

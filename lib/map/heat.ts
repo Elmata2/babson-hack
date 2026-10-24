@@ -491,7 +491,7 @@ export function isNavKey(key: string): boolean {
 // ----------------------------------------------------------------------- seeding
 
 /**
- * The calculator link for a tract: `/start` seeded with the tract's own numbers.
+ * The calculator link for a tract: the onboarding wizard, or the verdict seeded with the tract's own numbers.
  *
  * Design §3: "use this tract" seeds the calculator with that tract's median year
  * built and typical oil use. Typical oil use is the same 750 gal assumption the map
@@ -519,7 +519,7 @@ export function seedQuery(row: HeatRow, town: string, year: HeatYear): string {
 
 /** The same seed, aimed at the verdict screen instead of the form. */
 export function seedHref(row: HeatRow, town: string, year: HeatYear, view: 'start' | 'verdict' = 'start'): string {
-  return `/${view}?${seedQuery(row, town, year)}`
+  return view === 'start' ? '/onboarding' : `/verdict?${seedQuery(row, town, year)}`
 }
 
 // ---------------------------------------------------------------------- formatting
