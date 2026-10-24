@@ -7,13 +7,13 @@
 
 **Built:** 128 / 128 features · ████████████████████████████ **100%**
 
-**Last event:** 2026-10-24T22:40:31.058Z (18:40 ET) · **commit:** `897d5f4`
+**Last event:** 2026-10-24T22:50:59.505Z (18:50 ET) · **commit:** `4b8d338`
 
 ## Now
 
+- `18:50` ✔ **F-169** import one Twilio number into ElevenLabs and store its id · `scripts/voice/number.mjs`
 - `18:40` ✔ **F-168** prove the voice path, instead of believing it · `scripts/voice/check.mjs`
 - `18:40` ✔ **F-166** the numbered plan, written for whichever path this deployment can take · `components/switch/switch-kit.tsx`
-- `18:40` ✔ **F-167** the voice path's readiness is read on the server and passed down as · `app/dashboard/page.tsx`
 
 ## Next up
 
@@ -39,6 +39,7 @@ _Every feature in the spec is logged._
 
 ## Timeline
 
+- `18:50` ✔ **F-169** — import one Twilio number into ElevenLabs and store its id · `scripts/voice/number.mjs` · `4b8d338`
 - `18:40` ✔ **F-168** — prove the voice path, instead of believing it · `scripts/voice/check.mjs` · `897d5f4`
 - `18:40` ✔ **F-166** — the numbered plan, written for whichever path this deployment can take · `components/switch/switch-kit.tsx` · `897d5f4`
 - `18:40` ✔ **F-167** — the voice path's readiness is read on the server and passed down as · `app/dashboard/page.tsx` · `897d5f4`

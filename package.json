@@ -20,6 +20,7 @@
     "agents:create": "node --env-file-if-exists=.env.local scripts/agents/sync.mjs --create",
     "voice:check": "node --env-file-if-exists=.env.local scripts/voice/check.mjs",
     "voice:call": "node --env-file-if-exists=.env.local scripts/voice/check.mjs",
+    "voice:number": "node --env-file-if-exists=.env.local scripts/voice/number.mjs",
     "agents:simulate": "node scripts/agents/simulate.mjs",
     "bills": "node scripts/demo-bills/render.mjs",
     "bills:eval": "node scripts/demo-bills/eval.mjs",
