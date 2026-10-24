@@ -75,9 +75,11 @@ export default function Home() {
                 >
                   <dt className="text-small font-medium text-ink">{fact.label}</dt>
                   <dd className="order-first">
-                    <span className="num text-title font-medium text-ink">{fact.value}</span>
+                    <span className="text-title font-medium tabular-nums tracking-[-0.01em] text-ink">
+                      {fact.value}
+                    </span>
                     {fact.unit ? (
-                      <span className="num ml-1 text-small text-ink-faint">{fact.unit}</span>
+                      <span className="ml-1.5 text-small text-ink-faint">{fact.unit}</span>
                     ) : null}
                   </dd>
                   <dd className="text-micro text-ink-muted">{fact.source}</dd>
