@@ -7,9 +7,18 @@
   "scripts": {
     "log": "node scripts/buildlog.mjs hook",
     "status": "node scripts/buildlog.mjs status",
-    "watch:log": "node scripts/buildlog.mjs watch"
+    "watch:log": "node scripts/buildlog.mjs watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run lib/calc",
+    "check": "tsc --noEmit && vitest run lib/calc"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "fast-check": "^4.10.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   }
 }

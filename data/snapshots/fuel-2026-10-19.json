@@ -1,0 +1,45 @@
+{
+  "built": "@built F-08 MA DOER fuel price snapshot, week of 2026-10-19",
+  "asOf": "2026-10-19",
+  "mode": "snapshot",
+  "source": "MA DOER weekly heating fuel telephone survey, week of 2026-10-19 (via .kiro/steering/mass-save-rules.md §4)",
+  "oil": {
+    "label": "Heating oil",
+    "unit": "gal",
+    "avg": 6.23,
+    "p10": 5.77,
+    "p90": 6.82,
+    "yearAgo": 3.55,
+    "seasonAverage": 6.17
+  },
+  "propane": {
+    "label": "Propane",
+    "unit": "gal",
+    "avg": 3.91,
+    "p10": 3.19,
+    "p90": 5.37,
+    "yearAgo": 3.6,
+    "seasonAverage": 3.89
+  },
+  "electricity": {
+    "label": "MA residential electricity, all-in",
+    "unit": "kWh",
+    "standardRate": 0.3049,
+    "standardRateAsOf": "2026-07",
+    "standardRateSource": "EIA Electric Power Monthly, July 2026 (30.49¢/kWh all-in)",
+    "stateTableRate": 0.2961,
+    "stateTableAsOf": "2026-10",
+    "stateTableSource": "ElectricChoice Massachusetts state table, Oct 2026 (29.61¢/kWh)",
+    "heatPumpRateNote": "Seasonal Heat Pump Rate, Nov 1 – Apr 30: Eversource/Unitil rate − $0.07, National Grid rate − $0.04",
+    "seasonalDiscountUsdPerKwh": {
+      "eversource": 0.07,
+      "unitil": 0.07,
+      "nationalgrid": 0.04
+    }
+  },
+  "doNotClaim": [
+    "Natural gas $/therm for a specific home: derive from the bill or leave blank.",
+    "Any statewide oil-consumption-per-household statistic; use a labelled assumption.",
+    "Any federal 25C/25D credit: expired for property placed in service after 2025-12-31."
+  ]
+}

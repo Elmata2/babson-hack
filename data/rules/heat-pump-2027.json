@@ -1,0 +1,47 @@
+{
+  "built": "@built F-07 2027 Mass Save residential heat pump rebate table, the step-down",
+  "program": "Mass Save residential air-source heat pump rebates",
+  "year": 2027,
+  "installWindow": { "from": "2027-01-01", "to": null },
+  "documentationDeadline": null,
+  "source": ".kiro/steering/mass-save-rules.md §1 — official source read 2026-10-24",
+  "tiers": {
+    "whole": {
+      "mode": "per_ton",
+      "perTonUsd": 2350,
+      "capUsd": 7500,
+      "capAfterBonusesUsd": 7500,
+      "bonuses": { "weatherizationUsd": 500, "sizingUsd": 500 },
+      "eligibleFuels": ["oil", "propane", "gas", "resistance"]
+    },
+    "partial": {
+      "mode": "per_ton",
+      "perTonUsd": 1000,
+      "capUsd": 7500,
+      "capAfterBonusesUsd": 7500,
+      "bonuses": { "weatherizationUsd": 500, "sizingUsd": 500 },
+      "eligibleFuels": ["oil", "propane", "gas", "resistance"]
+    },
+    "basic": {
+      "mode": "per_ton",
+      "perTonUsd": 250,
+      "capUsd": 2500,
+      "capAfterBonusesUsd": 2500,
+      "bonuses": null,
+      "eligibleFuels": ["oil", "propane", "gas", "resistance"]
+    },
+    "enhanced": {
+      "mode": "cost_cap",
+      "perTonUsd": null,
+      "capUsd": 16000,
+      "capAfterBonusesUsd": 16000,
+      "bonuses": null,
+      "eligibleFuels": ["oil", "propane", "resistance"]
+    }
+  },
+  "copyRules": [
+    "Estimate not quote; likely eligible not you qualify.",
+    "The 2027 table is the step-down published in steering, not a rumour: $2,350/ton, cap $7,500.",
+    "Income thresholds are not published: emit check eligibility and 888-714-3990."
+  ]
+}
