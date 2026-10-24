@@ -1,6 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: ["lib/prices/**", "lib/geocode/**", "lib/parcel/**", "lib/net/**", "lib/parse/**", "lib/utility.ts", "app/api/**", "scripts/bake-*.mjs", "data/snapshots/**", "data/generated/**"]
+---
 # Steering — Data sources and providers
-
-**Inclusion:** always
 
 Rule: **every live provider has a baked fallback and a visible freshness badge.**
 No spinner between us and a demo that works.

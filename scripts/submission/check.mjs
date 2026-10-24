@@ -15,7 +15,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = process.cwd()
@@ -46,6 +46,10 @@ function manual(name, detail) {
 
 function skip(name, detail) {
   record(name, 'SKIP', detail)
+}
+
+function warn(name, detail) {
+  record(name, 'WARN', detail)
 }
 
 // ---- repository --------------------------------------------------------------
@@ -84,6 +88,88 @@ const hooks = existsSync(join(ROOT, '.kiro', 'hooks'))
 if (steering && hooks) pass('Steering and hooks are committed (R12.3)', '.kiro/steering and .kiro/hooks both present')
 else fail('Steering and hooks are committed (R12.3)', 'one of .kiro/steering, .kiro/hooks is missing')
 
+// ---- Kiro depth: what the Implementation criterion reads -------------------
+
+/** Files directly inside `dir` with the given extension, or [] when the folder is missing. */
+function filesIn(dir, extension) {
+  const path = join(ROOT, dir)
+  if (!existsSync(path)) return []
+  return readdirSync(path)
+    .filter((name) => name.endsWith(extension))
+    .map((name) => join(dir, name))
+}
+
+const specDirs = existsSync(join(ROOT, '.kiro', 'specs'))
+  ? readdirSync(join(ROOT, '.kiro', 'specs')).filter((name) => statSync(join(ROOT, '.kiro', 'specs', name)).isDirectory())
+  : []
+const completeSpecs = specDirs.filter((name) =>
+  ['requirements.md', 'design.md', 'tasks.md'].every((file) => existsSync(join(ROOT, '.kiro', 'specs', name, file))),
+)
+if (completeSpecs.length >= 3) pass('Several complete specs, not one (Implementation)', completeSpecs.join(', '))
+else fail('Several complete specs, not one (Implementation)', `complete: ${completeSpecs.join(', ') || 'none'}`)
+
+const steeringFiles = filesIn(join('.kiro', 'steering'), '.md')
+const withoutFrontMatter = steeringFiles.filter((file) => {
+  const text = readFileSync(join(ROOT, file), 'utf8')
+  return !/^---\r?\n[\s\S]*?\binclusion:\s*(always|fileMatch|auto|manual)\b[\s\S]*?\r?\n---/.test(text)
+})
+if (steeringFiles.length > 0 && withoutFrontMatter.length === 0) {
+  pass('Every steering file declares its inclusion mode', `${steeringFiles.length} files with YAML front matter`)
+} else {
+  fail('Every steering file declares its inclusion mode', `missing front matter: ${withoutFrontMatter.join(', ') || 'no steering files'}`)
+}
+
+const hookFiles = filesIn(join('.kiro', 'hooks'), '.json')
+const badHooks = []
+for (const file of hookFiles) {
+  try {
+    const hook = JSON.parse(readFileSync(join(ROOT, file), 'utf8'))
+    const valid =
+      hook.version === 'v1' &&
+      Array.isArray(hook.hooks) &&
+      hook.hooks.length > 0 &&
+      hook.hooks.every((entry) => entry.name && entry.trigger && entry.action && ['command', 'agent'].includes(entry.action.type))
+    if (!valid) badHooks.push(file)
+  } catch {
+    badHooks.push(file)
+  }
+}
+if (hookFiles.length >= 5 && badHooks.length === 0) {
+  pass('Hooks use the current v1 schema', `${hookFiles.length} hooks, all with a trigger and a command or agent action`)
+} else {
+  fail('Hooks use the current v1 schema', `${hookFiles.length} found; not v1: ${badHooks.join(', ') || 'none'}`)
+}
+
+if (existsSync(join(ROOT, 'mcp', 'switchpoint-server.ts')) && existsSync(join(ROOT, 'mcp', 'tools.test.ts'))) {
+  if (existsSync(join(ROOT, '.kiro', 'settings', 'mcp.json'))) {
+    pass('MCP server is built, tested and registered with Kiro', 'mcp/switchpoint-server.ts, .kiro/settings/mcp.json')
+  } else {
+    warn(
+      'MCP server is registered with Kiro',
+      'server and tests exist; copy the entry from mcp/kiro-mcp.json into .kiro/settings/mcp.json',
+    )
+  }
+} else {
+  fail('MCP server is built and tested', 'mcp/switchpoint-server.ts or mcp/tools.test.ts is missing')
+}
+
+const powerManifest = join('power', 'switchpoint-ma-heat-pump', 'POWER.md')
+if (existsSync(join(ROOT, powerManifest)) && /^---\r?\n[\s\S]*?\bname:\s*"?switchpoint/.test(readFileSync(join(ROOT, powerManifest), 'utf8'))) {
+  pass('A Kiro Power is authored', powerManifest)
+} else {
+  fail('A Kiro Power is authored', `${powerManifest} is missing or has no front matter`)
+}
+
+const kiroWriteup = join(ROOT, 'docs', 'KIRO.md')
+if (existsSync(kiroWriteup)) {
+  const text = readFileSync(kiroWriteup, 'utf8')
+  const todos = (text.match(/TODO\(team\):/g) ?? []).length
+  if (todos === 0) pass('Kiro write-up has no open TODO(team) items', 'docs/KIRO.md')
+  else fail('Kiro write-up has no open TODO(team) items', `${todos} open in docs/KIRO.md; the team must answer them`)
+} else {
+  fail('Kiro write-up exists', 'docs/KIRO.md is missing')
+}
+
 // ---- the README answers the brief -------------------------------------------
 
 if (existsSync(join(ROOT, 'README.md'))) {
@@ -95,6 +181,12 @@ if (existsSync(join(ROOT, 'README.md'))) {
   } else {
     fail('README quotes challenge C2 and names the datasets (R16.3)', `quoted=${quoted}, datasets=${datasets.length}`)
   }
+  if (/docs\/KIRO\.md/.test(readme)) pass('README links the Kiro write-up', 'docs/KIRO.md')
+  else fail('README links the Kiro write-up', 'no link to docs/KIRO.md')
+  // The rules require the video to be public on a hosted platform, not just committed.
+  const video = /https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|vimeo\.com|facebook\.com|fb\.watch|youku\.com)\/\S+/i.exec(readme)
+  if (video) pass('README links a public hosted demo video (Submission Requirements)', video[0])
+  else fail('README links a public hosted demo video (Submission Requirements)', 'no YouTube, Vimeo, Facebook or Youku URL in README.md')
 } else {
   fail('README exists', 'no README.md at the root')
 }
@@ -191,7 +283,7 @@ function review() {
 // ---- report -----------------------------------------------------------------
 
 const width = Math.max(...results.map((row) => row.name.length))
-const icon = { PASS: '✔', FAIL: '✖', MANUAL: '→', SKIP: '·' }
+const icon = { PASS: '✔', FAIL: '✖', MANUAL: '→', SKIP: '·', WARN: '!' }
 console.log('Switchpoint submission checklist\n')
 for (const row of results) {
   console.log(`${icon[row.status]} ${row.name.padEnd(width)}  ${row.detail}`)
@@ -199,7 +291,10 @@ for (const row of results) {
 
 const failed = results.filter((row) => row.status === 'FAIL')
 const manualRows = results.filter((row) => row.status === 'MANUAL')
-console.log(`\n${results.length - failed.length - manualRows.length} passed · ${failed.length} failed · ${manualRows.length} manual`)
+const warned = results.filter((row) => row.status === 'WARN')
+console.log(
+  `\n${results.length - failed.length - manualRows.length - warned.length} passed · ${failed.length} failed · ${warned.length} warning(s) · ${manualRows.length} manual`,
+)
 
 if (REVIEW) review()
 

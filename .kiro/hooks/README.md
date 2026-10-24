@@ -1,29 +1,35 @@
 # Kiro hooks
 
-Six hooks, one purpose each:
+Ten hooks in the v1 format (`{ "version": "v1", "hooks": [ ... ] }`, PascalCase triggers,
+`command` or `agent` actions). Hooks load at session start.
 
-| File | Fires on | Does |
-| --- | --- | --- |
-| `buildlog-sync.json` | any source edit | `node scripts/buildlog.mjs hook` |
-| `pbt-guard.json` | edit under `lib/calc/` | asks the agent to run the property suite and fix the engine, not the test |
-| `spec-drift.json` | manual | asks the agent to diff the spec against the code and list gaps |
-| `scenario-check.json` | save under `lib/verdict`, `lib/calc`, `lib/switch`, `data/rules` | asks the agent to run `npx vitest run lib/scenarios` and `scripts/scenarios-report.mjs` and report any scenario that no longer matches |
-| `steering-guard.json` | save under `data/rules`, `.kiro/steering` | asks the agent to check each changed figure has a source URL and read date, and that `data/rules` and steering agree |
-| `pre-commit-guard.json` | manual | asks the agent to run `node scripts/ci-guard.mjs` and `npm run check` |
+| File | Trigger | Action | Does |
+| --- | --- | --- | --- |
+| `buildlog-sync.json` | `PostFileSave` under `lib/`, `app/`, `components/`, `agents/`, `mcp/` | command | `node scripts/buildlog.mjs hook` |
+| `pbt-guard.json` | `PostFileSave` under `lib/calc/` (not tests) | agent | Run the property suite; fix the engine, never weaken the property |
+| `rules-regression.json` | `PostFileSave` of `data/rules/*.json` | command | `npx vitest run lib/calc mcp` |
+| `scenario-check.json` | `PostFileSave` under `lib/verdict`, `lib/calc`, `lib/switch`, `data/rules` | agent | Run `npx vitest run lib/scenarios` and, if a server is up, `scripts/scenarios-report.mjs`; report any scenario that no longer matches |
+| `steering-guard.json` | `PostFileSave` of `data/rules/*.json` or `.kiro/steering/*.md` | agent | Each changed figure needs a source URL and read date; rules and steering must agree |
+| `protect-kiro-dir.json` | `PreToolUse` on write tools and shell | command | `scripts/hooks/protect-kiro.mjs`; exit 2 blocks a write that would gitignore `/.kiro` |
+| `pre-commit-guard.json` | `PreToolUse` on shell | command | `scripts/hooks/pre-commit-guard.mjs`; on `git commit` runs `node scripts/ci-guard.mjs --kiro`, exit 2 blocks |
+| `task-quality-gate.json` | `PostTaskExec` | command | `npm run check` |
+| `spec-drift.json` | `PostTaskExec` | agent | Diff the code against the spec and list gaps, largest first |
+| `session-status.json` | `SessionStart` | command | `node scripts/buildlog.mjs status` |
 
-All six hooks use one format: `name`, `version`, `when` (`fileEdited` with
-`patterns`, or `userTriggered`) and `then` (`askAgent`, or `runCommand` for the
-build log). We have not seen them fire inside Kiro, so none is claimed to have.
-
-If a hook does not fire on your install, the command in it is still correct. Run it
-by hand or from `package.json`:
+The scripts behind the hooks are ordinary commands, so none of them depends on a hook firing:
 
 ```bash
-npm run log      # sync + write
-npm run status   # progress
-npm run guard    # node scripts/ci-guard.mjs
-npm run check    # tsc + eslint + vitest
+npm run log          # sync + write the build log
+npm run status       # progress per phase
+npm run guard        # node scripts/ci-guard.mjs
+npm run check        # tsc + eslint + vitest
+npm run hooks:test   # the .kiro guard's self-test
 npx vitest run lib/scenarios
 ```
 
+CI runs the same checks (`.github/workflows/ci.yml`), including the `/.kiro` guard.
+
+The first six hooks in this folder were written in an older schema (`when` / `then`). They were
+rewritten to v1 on 2026-10-24, and `pre-commit-guard` went from a manual prompt to a command that
+runs. We have not yet observed any hook firing inside Kiro, so none is claimed to have.
 Never claim a hook fired when it did not; judges read repos.

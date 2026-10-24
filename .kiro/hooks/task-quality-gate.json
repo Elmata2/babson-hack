@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Quality gate after each spec task",
+      "trigger": "PostTaskExec",
+      "description": "After a spec task completes, run typecheck, lint and the full test suite.",
+      "action": {
+        "type": "command",
+        "command": "npm run check",
+        "timeout": 300
+      }
+    }
+  ]
+}

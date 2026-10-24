@@ -25,7 +25,10 @@
     "bake:check": "node scripts/bake-utilities.mjs --check && node scripts/bake-hdd.mjs --check && node scripts/bake-map.mjs --check && node scripts/trim-geo.mjs --check && node scripts/bake-heat-svg.mjs --check",
     "submission": "node scripts/submission/check.mjs --review",
     "demo:plan": "node scripts/demo/record.mjs --check",
-    "demo:video": "node scripts/demo/record.mjs"
+    "demo:video": "node scripts/demo/record.mjs",
+    "hooks:test": "node scripts/hooks/protect-kiro.test.mjs",
+    "mcp": "tsx mcp/switchpoint-server.ts",
+    "pbt:mutants": "node scripts/pbt-mutation-check.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -40,6 +43,7 @@
     "topojson-client": "^3.1.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
@@ -50,7 +54,9 @@
     "fast-check": "^4.10.2",
     "postcss": "^8.5.6",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "zod": "4.6.7"
   }
 }

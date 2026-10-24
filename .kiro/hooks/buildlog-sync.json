@@ -1,20 +1,16 @@
 {
-  "name": "buildlog-sync",
-  "version": "1",
-  "description": "Every time source is edited, log newly shipped features (@built F-NN) and regenerate BUILDLOG.md.",
-  "when": {
-    "type": "fileEdited",
-    "patterns": [
-      "src/**/*.ts",
-      "src/**/*.tsx",
-      "lib/**/*.ts",
-      "app/**/*.ts",
-      "app/**/*.tsx",
-      "components/**/*.tsx"
-    ]
-  },
-  "then": {
-    "type": "runCommand",
-    "command": "node scripts/buildlog.mjs hook"
-  }
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Build log sync",
+      "trigger": "PostFileSave",
+      "description": "On every source save, log newly shipped @built F-NN features and regenerate BUILDLOG.md.",
+      "matcher": "(^|/)(lib|app|components|agents|mcp)/.*\\.(ts|tsx)$",
+      "action": {
+        "type": "command",
+        "command": "node scripts/buildlog.mjs hook",
+        "timeout": 30
+      }
+    }
+  ]
 }

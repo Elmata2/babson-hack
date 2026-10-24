@@ -49,6 +49,7 @@
     "components/**/*.tsx",
     "lib/**/*.ts",
     "agents/**/*.ts",
+    "mcp/**/*.ts",
     "data/**/*.json",
     "next.config.ts",
     "vitest.config.ts",

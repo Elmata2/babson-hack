@@ -1,6 +1,9 @@
+---
+inclusion: fileMatch
+fileMatchPattern: ["agents/**", "app/api/calls/**", "app/api/switch/**", "lib/calls/**", "lib/voice/**", "lib/switch/**", "lib/quotes/**"]
+---
 # Steering — Voice agent rules
 
-**Inclusion:** fileMatch `agents/**`, `app/api/calls/**`, `lib/quotes/**`
 **Status:** proposal, pending review · 2026-10-24
 
 These rules bind the quote-calling agent the way `mass-save-rules.md` binds the

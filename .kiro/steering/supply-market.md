@@ -1,6 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: ["lib/supply.ts", "lib/switch/**", "app/switch/**", "components/switch/**", "app/map/**", "components/map/**", "data/rules/supply-*.json"]
+---
 # Steering — Massachusetts electricity supply market (source of truth)
-
-**Inclusion:** always
 
 The only legal source for electricity *supply* figures on `/map` ("Your bill").
 Program and rebate numbers stay in `mass-save-rules.md`. Machine-readable copy:
@@ -61,3 +63,9 @@ exists: Eversource, National Grid and Unitil.
 - That competitive supply is banned. The AG's ban bill (H 3534 / S 2255) and the
   House's April 2026 local-option language were **pending** when this was read.
 - Any rate after the January 2027 reset. Say "this comparison will change at the next reset".
+
+---
+
+## Machine-readable copy (loaded with this file)
+
+#[[file:data/rules/supply-2026.json]]

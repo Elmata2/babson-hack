@@ -1,18 +1,15 @@
 {
-  "name": "scenario-check",
-  "version": "1",
-  "description": "After an edit to the verdict, calc, switch or rules code, re-run the 16-scenario pack and report any scenario that no longer matches its expected outcome.",
-  "when": {
-    "type": "fileEdited",
-    "patterns": [
-      "lib/verdict/**/*.ts",
-      "lib/calc/**/*.ts",
-      "lib/switch/**/*.ts",
-      "data/rules/**/*.json"
-    ]
-  },
-  "then": {
-    "type": "askAgent",
-    "prompt": "A file under lib/verdict, lib/calc, lib/switch or data/rules changed. Run `npx vitest run lib/scenarios`. If a build or server is already available, also run `node scripts/scenarios-report.mjs <port>` against it (see the usage block at the top of that script). The script regenerates docs/scenarios/README.md; read it for DIFF markers. Report every scenario whose shown outcome no longer matches the matrix in lib/scenarios/scenarios.ts: the scenario name, what it expected, what it shows now. If the change was meant to move an outcome, say so and name the scenario to update. Fix the engine or rule, not the expected value, unless the spec changed. If no server is running, say the report was skipped."
-  }
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "scenario-check",
+      "trigger": "PostFileSave",
+      "description": "After an edit to the verdict, calc, switch or rules code, re-run the 16-scenario pack and report any scenario that no longer matches its expected outcome.",
+      "action": {
+        "type": "agent",
+        "prompt": "A file under lib/verdict, lib/calc, lib/switch or data/rules changed. Run `npx vitest run lib/scenarios`. If a build or server is already available, also run `node scripts/scenarios-report.mjs <port>` against it (see the usage block at the top of that script). The script regenerates docs/scenarios/README.md; read it for DIFF markers. Report every scenario whose shown outcome no longer matches the matrix in lib/scenarios/scenarios.ts: the scenario name, what it expected, what it shows now. If the change was meant to move an outcome, say so and name the scenario to update. Fix the engine or rule, not the expected value, unless the spec changed. If no server is running, say the report was skipped."
+      },
+      "matcher": "(^|/)(lib/(verdict|calc|switch)/.*\\.ts|data/rules/.*\\.json)$"
+    }
+  ]
 }

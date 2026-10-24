@@ -1,6 +1,7 @@
+---
+inclusion: always
+---
 # Steering — Massachusetts program rules (source of truth)
-
-**Inclusion:** always
 
 This file is the only place program numbers are allowed to come from. If a
 number is not in this file, the agent must not emit it. Implementation lives in
@@ -135,3 +136,16 @@ forms and pages, not addresses.
 
 Omitted: municipal light plant numbers (41 plants, none sourced; the screen says to use the
 number on the bill) and heating-fuel dealer contacts (named from the bill only, never invented).
+
+---
+
+## Machine-readable copy (loaded with this file)
+
+The tables above and the JSON below must say the same thing. Kiro reads both; if
+they disagree, this document wins and the JSON is the bug. `lib/calc/rules.ts`
+parses these files at import and throws on a malformed row, and the
+`rules-regression` hook re-runs the anchor tests whenever one is saved.
+
+#[[file:data/rules/heat-pump-2026.json]]
+
+#[[file:data/rules/heat-pump-2027.json]]

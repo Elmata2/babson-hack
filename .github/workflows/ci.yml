@@ -78,6 +78,8 @@ jobs:
 
       - name: Submission guard — /.kiro committed and not gitignored (R12.1)
         run: node scripts/ci-guard.mjs --kiro
+      - name: Hook guard self-test — a write that gitignores /.kiro is blocked
+        run: npm run hooks:test
 
   secrets:
     name: secrets (gitleaks)
