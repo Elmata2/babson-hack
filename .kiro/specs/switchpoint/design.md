@@ -412,7 +412,239 @@ household cannot receive. Rehearse it until it lands in under 15 seconds.
 
 ## 11. What we will not do today
 
-Accounts. Saved reports. Installer leads. Emails. Multi-state. Income
+Accounts. Saved reports. Installer leads (Addendum A gathers quotes; it sells no leads). Emails. Multi-state. Income
 verification. Any animation that costs more than 20 minutes.
 
 The demo path is sacred. Everything else is a slide.
+
+---
+
+# Addendum A — design (proposal, pending review · 2026-10-24)
+
+Implements requirements R17–R25. Nothing here changes §1–§11: the verdict still
+computes in the browser with every server route deleted. The agent is one more
+enrichment, and the demo survives without it.
+
+## 12. Decide → consent → call → compare
+
+```
+verdict screen
+   │  R17 choice (pure: choicesFor(verdict, fuel, utility))
+   ▼
+STAY ─────────────► what would change the answer (no network)
+SHOP_SUPPLY ──────► supply panel, Energy Switch MA link (no calls)
+SHOP_FUEL / SWITCH_HEAT_PUMP
+   │  R18 consent screen: facts to be said + provider checkboxes
+   ▼
+POST /api/calls ─────────► for each provider:
+   { sessionId, vertical,      POST ElevenLabs Twilio outbound-call
+     facts, providerIds }      { agent_id, agent_phone_number_id, to_number,
+                                 conversation_initiation_client_data:
+                                   { dynamic_variables: facts } }
+   ◄── { calls: [{ providerId, conversationId, status }] }
+   │
+GET /api/calls/:sessionId  (client polls every 3s)
+   │  server: GET ElevenLabs conversation by id → status + data-collection results
+   │  parse at the boundary → ProviderQuote (lib/quotes/parse.ts)
+   ▼
+lib/quotes/rank.ts (pure) → ranked table + switch kit
+   │  "Use this price"
+   ▼
+computeVerdict(heating with new unitPrice) → verdict recomputes
+```
+
+### 12.1 Types
+
+```ts
+// lib/quotes/types.ts
+export type Vertical = 'fuel' | 'installer'
+export type CallStatus =
+  | 'queued' | 'ringing' | 'in_progress' | 'done'
+  | 'no_answer' | 'voicemail' | 'declined' | 'failed'
+
+/** evidence = the data-collection rationale; the drawer also shows the provider's transcript turns */
+export interface Cited<T> { value: T | null; evidence: string | null }
+
+export interface FuelQuote {
+  vertical: 'fuel'
+  providerId: string
+  status: CallStatus
+  pricePerGal: Cited<number>        // cash / COD
+  cardSurchargePerGal: Cited<number>
+  minGallons: Cited<number>
+  deliveryFee: Cited<number>
+  priceCapPerGal: Cited<number>     // prebuy or cap, shown separately (R20.4)
+  priceCapFee: Cited<number>
+  earliestDelivery: Cited<string>   // ISO date
+  servesTown: Cited<boolean>
+  needsCallback: boolean
+}
+
+export interface InstallerQuote {
+  vertical: 'installer'
+  providerId: string
+  status: CallStatus
+  massSaveParticipating: Cited<boolean>
+  acceptsHeatLoan: Cited<boolean>
+  earliestSiteVisit: Cited<string>
+  canInstallByDec31: Cited<boolean>
+  ballparkPerTon: Cited<number>     // always labelled "ballpark"
+  needsCallback: boolean
+}
+
+export type ProviderQuote = FuelQuote | InstallerQuote
+
+export interface Ranked<Q> { quote: Q; rank: number | null; reason: string; flags: string[] }
+```
+
+Pure functions:
+
+```
+choicesFor(verdict, fuel, utility) → Choice[]            // R17.2
+effectivePerGal(q, deliveryGallons, paysByCard) → number | null
+annualFuelCost(q, annualGallons, paysByCard) → number | null
+plausible(q) → { ok: boolean; flags: string[] }          // R20.3
+rankFuel(quotes, ctx) → Ranked<FuelQuote>[]              // cheapest effective, tie → earliest delivery
+rankInstallers(quotes) → Ranked<InstallerQuote>[]        // can finish by Dec 31 > Mass Save > earliest visit > $/ton
+negotiationTarget(ranked) → { price, forProviderIds[] } | null   // R21: only a ranked price
+```
+
+### 12.2 Server routes (additions to §2.3)
+
+| Route | Method | In | Out | Never |
+| --- | --- | --- | --- | --- |
+| `/api/calls` | POST | `{ sessionId, vertical, facts, providerIds }` | `{ calls[] }` | call a number outside the allowlist unless `PROVIDER_CALLS_ENABLED`; accept facts outside R18.1 |
+| `/api/calls/[sessionId]` | GET | — | `{ calls[], quotes[] }` | return a transcript beyond the cited excerpts |
+| `/api/calls/[sessionId]` | DELETE | — | `{ ok }` | leave a conversation undeleted on ElevenLabs |
+
+`facts` is validated against a closed schema at the boundary; unknown keys are a
+400, not ignored. These routes run on the Node runtime, an explicit exception to
+the edge default in §2.3, and need
+`ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_PHONE_NUMBER_ID`.
+No key → the choice screen shows "calling is off here" and the switch kit still works.
+
+### 12.3 The agent, as code
+
+```
+agents/quote-caller/
+  first-message.txt        verbatim disclosure (steering)
+  prompt.fuel.md           system prompt, fuel dealers
+  prompt.installer.md      system prompt, installers
+  data-collection.json     extraction fields = ProviderQuote, every field nullable
+  agent.json               voice, language, max_duration_seconds 240,
+                           system tools only: end_call, voicemail detection;
+                           no server tools
+```
+
+One ElevenLabs agent, the vertical prompt chosen per call through a dynamic
+variable. Extraction uses the platform's post-call **data collection** fields so
+the numbers come back typed, and our parser still treats them as untrusted input.
+*Verify before build:* the exact payload path of data-collection results on
+`GET /v1/convai/conversations/{id}`, the dynamic-variable field name on the
+Twilio outbound-call endpoint, and the agent retention setting. Twilio trial
+numbers play an announcement before the call connects, ahead of our disclosure;
+the demo needs an upgraded Twilio account.
+
+### 12.4 Provider directory
+
+`data/providers/fuel.json`, `data/providers/installers.json`:
+`{ id, name, phone, towns[], vertical, source, asOf, allowlisted }`. Seeded by hand
+for the demo region (Framingham / MetroWest) from dealer and installer websites,
+plus the team's own phones marked `allowlisted: true`. Twilio trial accounts can
+only call verified numbers, which enforces the allowlist by itself during the
+hackathon.
+
+### 12.5 ADR-010 — Poll, don't take webhooks; the browser holds the ids
+
+A post-call webhook needs a public URL and somewhere to put the result until the
+browser asks for it, which means a database. Polling the ElevenLabs conversation
+endpoint with the conversation ids held in server memory keeps ADR-004 intact.
+At six calls per session and a 3-second interval this is well inside any rate
+limit. Serverless instances share no memory, so the server keeps none: the browser
+holds the conversation ids and sends them on every poll.
+
+### 12.6 Demo modes
+
+| Mode | Calls | Use |
+| --- | --- | --- |
+| `?demo=1` | none; three fixture conversations replayed with staged timing | wifi dies, video recording |
+| default | team allowlist only | live on stage: a teammate's phone rings and plays the dealer |
+| `PROVIDER_CALLS_ENABLED=true` | real businesses, business hours only | after the hackathon |
+
+Demo beat (fits between 1:10 and 1:25 of §10, cut the gas-house beat to 10s):
+pick **Shop my oil** → consent → a phone on stage rings, 15 seconds of the call on
+the speaker → three rows land, best **$5.79** vs state **$6.23** → *Use this price*
+→ verdict recomputes; payback lengthens and the screen says why.
+
+## 13. Comparison screen
+
+One table, one number per row (annual cost at your volume), sorted by code.
+Columns: provider · annual cost · $/gal effective · earliest delivery · notes
+(price cap, card surcharge, callback). Unverified rows sit below a rule with the
+reason. Each number opens the transcript excerpt it came from, the same drawer
+as R9 provenance. The independence line (R20.9) sits under the table, not in a
+footer.
+
+## 14. Continuous integration
+
+`.github/workflows/ci.yml`
+
+```
+on: [push, pull_request] (branches: master)
+jobs:
+  check:        node 22 · npm ci · npm run check
+  buildlog:     node scripts/buildlog.mjs hook · git diff --exit-code BUILDLOG.md
+  kiro-guard:   test -f .kiro/specs/switchpoint/requirements.md
+                ! git check-ignore -q .kiro
+  secrets:      gitleaks/gitleaks-action
+  agent-sim:    if: PR touches agents/** && secrets.ELEVENLABS_API_KEY != ''   ✂
+                run ElevenLabs agent tests (simulation type)
+```
+
+`agent-sync` (✂) runs on push to `master` when `agents/**` changed and pushes the
+config to ElevenLabs. Contract tests (R25.5) are ordinary vitest files under
+`lib/quotes/__tests__/` and `agents/__tests__/`, so `npm run check` covers them
+with no network.
+
+New properties for `lib/quotes`:
+
+| # | Property |
+| --- | --- |
+| P13 | Ranking is order-independent: any permutation of the input gives the same ranking |
+| P14 | A quote that fails `plausible()` never gets a rank |
+| P15 | `effectivePerGal ≥ pricePerGal` (fees and surcharges are never negative) |
+| P16 | `negotiationTarget().price` is always the price of a ranked quote from the same input |
+
+### ADR-011 — The agent gathers, the user decides
+
+The agent asks questions and reports answers. It never commits the household to
+anything, never names one dealer to another, and never says a number code did not
+hand it. Booking, paying and signing stay with the person. This is also what keeps
+the calls on the right side of TCPA and the MA all-party consent statute, and what
+lets us say "the AI made six phone calls" without anyone wincing.
+
+## 15. Addendum B — profile onboarding, best-case switch, dashboard (draft, pending team review)
+
+**Status:** proposal · 2026-10-24 · nothing built. Full design:
+[`docs/superpowers/specs/2026-10-24-onboarding-and-switch-design.md`](../../../docs/superpowers/specs/2026-10-24-onboarding-and-switch-design.md).
+Builds on Addendum A (§12–§14 above, R17–R25).
+
+**What it proposes:** home CTA (header + hero) → `/onboarding` (account: name,
+email, phone, email one-time code → bill photo/PDF via `/api/parse-bill` or manual →
+verify the electricity profile → best case per category: supply, heating fuel, heat
+pump, programs, with "you're already on the best option" as a first-class answer →
+switch: agent-assisted with consent, published prices first, then email/phone quotes,
+user decides; or manual with a switch kit) → `/dashboard`, `/settings`
+(notifications on by default, opt-out), `/map` preselected on the user's town.
+
+**What it would change if approved:** §11 above ("Accounts… Emails" out today),
+product non-negotiable #4 ("no accounts, no PII") and ADR-003 ("no database") for
+signed-in users only. The anonymous `/start` → `/verdict` path keeps today's
+guarantees. Bill images remain never stored. Proposed stack: Supabase (auth + Postgres
++ RLS), Resend (email out/in), ElevenLabs + Twilio (calls, per `voice-agent-rules.md`).
+
+**Open questions for the team** (design doc §9): which accounts and keys exist and who
+holds them; the cut line and which outreach channel (phone or email) is the demo
+centrepiece; whether Addendum A is approved and who supplies real dealer and
+installer lists; whether a dated Energy Switch MA snapshot is an acceptable source
+for competitive offers.
