@@ -13,14 +13,14 @@ export const metadata: Metadata = {
     template: '%s · Switchpoint',
   },
   description:
-    'Point Switchpoint at a Massachusetts address and a heating bill. It answers one question: switch to a heat pump, switch before 31 December, or leave it alone — with the arithmetic, the sources and the dates.',
+    'Two bills, two minutes, one answer for your house: switch now, switch before 31 December, or leave it alone. Heat pump, heating fuel and electricity supply maths for Massachusetts, with the source and the date on every figure.',
   applicationName: 'Switchpoint',
   openGraph: {
     type: 'website',
     siteName: 'Switchpoint',
-    title: 'The honest heat pump verdict for Massachusetts',
+    title: 'Should you switch? Two bills will tell you',
     description:
-      '624,510 Massachusetts households heat with oil. Switchpoint says whether a heat pump pays for this house — and says no when it does not.',
+      '624,510 Massachusetts households heat with oil, and the whole-home rebate drops on 1 January. Switchpoint says what your house should do — and says no when a heat pump does not pay.',
   },
   robots: { index: true, follow: true },
 }

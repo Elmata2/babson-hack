@@ -39,7 +39,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader demo={demo} />
+      <SiteHeader demo={demo} cta={false} />
 
       <main id="main" className="flex-1">
         <div className="mx-auto max-w-[1180px] px-5 py-12 sm:px-8 sm:py-16">
