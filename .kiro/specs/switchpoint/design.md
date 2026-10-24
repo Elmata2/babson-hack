@@ -189,9 +189,22 @@ legible. Never estimate, never infer a value from another value, never
 "correct" a number that looks unusual. If the document is not an energy
 bill, return {"error":"not_a_bill"}.
 
+Massachusetts bills often print a bar chart of the last 12-13 months of
+usage. If one is visible, read the bars into "usage_history", oldest first.
+Do not read a bar you cannot see.
+
+"price_per_unit" is the all-in rate the household actually pays: when the
+document shows a total charge and a quantity, divide the total by the
+quantity. Report a supply-only rate only when no total is printed.
+
 Do not include the street address in your output. Do not include any
 account number, customer name, or payment information.
 ```
+
+*Amended 2026-10-24:* the first version of this prompt asked for the printed
+price, which on an Eversource bill is the **supply** rate (17.3¢) and not the
+30.5¢ the household actually pays. Every saving figure downstream inherits that
+error, so the prompt now asks for total ÷ quantity.*
 
 Then a deterministic validator (`lib/parse/plausibility.ts`) rejects impossible
 values and returns `flags[]` instead of silently trusting the model. LLM reads;

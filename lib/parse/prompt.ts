@@ -19,7 +19,9 @@
 export const BILL_PROMPT = `You read a Massachusetts energy bill or heating-oil delivery receipt.
 Return JSON only, matching the schema. Use null for anything not clearly legible. Never estimate, never infer a value from another value, never "correct" a number that looks unusual. If the document is not an energy bill, return {"error":"not_a_bill"}.
 
-Massachusetts bills often print a bar chart of the last 12–13 months of usage. If one is visible, read the bars into "usage_history", oldest first. Do not read a bar you cannot see; a short array is better than an invented one.
+Read the printed monthly usage chart first if there is one. Massachusetts bills usually print 12 or 13 monthly bars. Read every bar you can see into "usage_history", oldest first. This chart is the most valuable thing on the page: it is the household's actual year, and it saves us from estimating. Do not read a bar you cannot see; a short array is better than an invented one.
+
+"price_per_unit" is the all-in rate the household actually pays: when the document shows a total charge and a quantity, divide the total by the quantity. Report a supply-only rate only when no total is printed. A supply rate understates an electric bill by about a third, and the verdict is only as honest as this number.
 
 Do not include the street address in your output. Do not include any account number, customer name, or payment information.
 

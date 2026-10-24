@@ -396,6 +396,11 @@ export function readBill(json: unknown, now = Date.now(), options: ReadBillOptio
 
   const NON_BLOCKING: readonly BillFlag['code'][] = ['low_confidence', 'annualised', 'stale_price']
   const blocking = flags.some((flag) => !NON_BLOCKING.includes(flag.code))
+  // Two independent checks can raise the same caution (a low-confidence document
+  // also having an annualised number, for instance). Show each caution once.
+  const uniqueFlags = flags.filter(
+    (flag, index) => flags.findIndex((other) => other.field === flag.field && other.code === flag.code) === index,
+  )
   const bill: BillParse = {
     fuel,
     units: unitsField,
@@ -404,7 +409,7 @@ export function readBill(json: unknown, now = Date.now(), options: ReadBillOptio
     documentDate,
     confidence,
     ready: !blocking && unitsField.value !== null && priceField.value !== null,
-    flags,
+    flags: uniqueFlags,
     documentType,
     rateClass,
     annualisation,

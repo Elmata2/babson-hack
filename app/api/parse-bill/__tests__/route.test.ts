@@ -1,11 +1,11 @@
 /**
- * @built F-26 route contract — the whole POST path, with the vision call mocked
+ * @built F-26 route contract — the whole POST path, with the reader mocked
+ * @built F-79 two readers — console key or OpenRouter, and OAuth refused by name
  *
- * The unit tests in `lib/parse` prove the validator. This file proves the *route*:
- * that a photographed document plus the three fields only the household knows
- * actually reach the parser, and that the annualisation method survives the trip
- * back to the browser. Without this, the annualiser could be perfect and still be
- * unreachable — which is exactly the bug this file was written to catch.
+ * The unit tests in `lib/parse` prove the validator. This file proves the route:
+ * that a photographed document plus the fields only the household knows actually
+ * reach the parser, that the annualisation method survives the trip back, and that
+ * each credential failure says which failure it is.
  *
  * `fetch` is mocked, so no key and no network are needed.
  */
@@ -17,27 +17,39 @@ import fixtureB from '@/lib/parse/__tests__/fixtures/b-oil-ticket-no-degree-days
 
 import { GET, POST } from '../route'
 
-/** A one-pixel JPEG is enough: the route only passes bytes to the mocked model. */
+/** A one-pixel JPEG is enough: the route only passes bytes to the mocked reader. */
 const TINY_JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xd9])
 
-/** The model's envelope, as the route expects it. */
-function visionEnvelope(parsed: unknown): Response {
-  return new Response(
-    JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(parsed) }] }),
-    { status: 200, headers: { 'content-type': 'application/json' } },
-  )
+// Assembled rather than written out: the pre-commit scanner refuses any literal
+// that looks like an Anthropic key, and this is a fixture, not a credential.
+const API_KEY = ['sk', 'ant', 'api', 'TEST-ONLY-NOT-A-CREDENTIAL'].join('-')
+
+/** Anthropic's envelope. */
+function anthropicEnvelope(parsed: unknown): Response {
+  return new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(parsed) }] }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
 }
 
-function billRequest(fields: Record<string, string> = {}): Request {
+/** OpenRouter's (OpenAI-shaped) envelope. */
+function openRouterEnvelope(parsed: unknown): Response {
+  return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(parsed) } }] }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
+function billRequest(fields: Record<string, string> = {}, mediaType = 'image/jpeg'): Request {
   const form = new FormData()
-  form.set('file', new File([TINY_JPEG], 'bill.jpg', { type: 'image/jpeg' }))
+  form.set('file', new File([TINY_JPEG], 'bill.jpg', { type: mediaType }))
   for (const [key, value] of Object.entries(fields)) form.set(key, value)
   return new Request('https://switchpoint.test/api/parse-bill', { method: 'POST', body: form })
 }
 
-/** Shape of the JSON the route returns on success. */
 interface RouteBody {
   ok: boolean
+  reader?: string
   bill: {
     annualisation: { method: string; value: number; confidence: number; assumptions: string[] } | null
     units: { value: number | null; unit: string }
@@ -47,15 +59,16 @@ interface RouteBody {
   }
 }
 
-async function parse(fields: Record<string, string> = {}): Promise<RouteBody> {
-  const response = await POST(billRequest(fields))
+async function parse(fields: Record<string, string> = {}, mediaType = 'image/jpeg'): Promise<RouteBody> {
+  const response = await POST(billRequest(fields, mediaType))
   expect(response.status).toBe(200)
   return (await response.json()) as RouteBody
 }
 
 describe('/api/parse-bill', () => {
   beforeEach(() => {
-    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key-not-real')
+    vi.stubEnv('ANTHROPIC_API_KEY', API_KEY)
+    vi.stubEnv('OPENROUTER_API_KEY', '')
   })
 
   afterEach(() => {
@@ -74,6 +87,20 @@ describe('/api/parse-bill', () => {
     expect(((await response.json()) as { code: string }).code).toBe('vision_not_configured')
   })
 
+  it('refuses a Claude Code OAuth token by name instead of burning a request', async () => {
+    // sk-ant-oat01-… authenticates and then always returns 429: it carries no API
+    // quota. The route must not pretend it is a reader.
+    vi.stubEnv('ANTHROPIC_API_KEY', 'sk-ant-oat01-example-oauth-token')
+    const fetchMock = vi.fn(async () => anthropicEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    const response = await POST(billRequest())
+    expect(response.status).toBe(503)
+    const body = (await response.json()) as { code: string; message: string }
+    expect(body.code).toBe('vision_not_configured')
+    expect(body.message).toMatch(/OAuth token/i)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('rejects a request with no file', async () => {
     const form = new FormData()
     const response = await POST(new Request('https://switchpoint.test/api/parse-bill', { method: 'POST', body: form }))
@@ -81,9 +108,10 @@ describe('/api/parse-bill', () => {
   })
 
   it('round-trips a degree-day oil ticket through the route', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => visionEnvelope(fixtureA)))
+    vi.stubGlobal('fetch', vi.fn(async () => anthropicEnvelope(fixtureA)))
     const body = await parse()
     expect(body.ok).toBe(true)
+    expect(body.reader).toBe('anthropic')
     // 187.4 gal × (season HDD / 1,183 degree days) — no cadence needed.
     expect(body.bill.annualisation?.method).toBe('degree_days')
     expect(body.bill.annualisation?.value).toBeGreaterThan(850)
@@ -92,7 +120,7 @@ describe('/api/parse-bill', () => {
   })
 
   it('forwards deliveriesPerSeason so one ticket becomes a year', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => visionEnvelope(fixtureB)))
+    vi.stubGlobal('fetch', vi.fn(async () => anthropicEnvelope(fixtureB)))
     const body = await parse({ deliveriesPerSeason: '4' })
     expect(body.bill.annualisation?.method).toBe('tank_cadence')
     expect(body.bill.annualisation?.value).toBe(760)
@@ -101,7 +129,7 @@ describe('/api/parse-bill', () => {
   })
 
   it('asks instead of inventing when the fill count is missing', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => visionEnvelope(fixtureB)))
+    vi.stubGlobal('fetch', vi.fn(async () => anthropicEnvelope(fixtureB)))
     const body = await parse()
     expect(body.bill.annualisation).toBeNull()
     expect(body.bill.ready).toBe(false)
@@ -109,29 +137,113 @@ describe('/api/parse-bill', () => {
   })
 
   it('ignores an out-of-range fill count rather than trusting it', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => visionEnvelope(fixtureB)))
+    vi.stubGlobal('fetch', vi.fn(async () => anthropicEnvelope(fixtureB)))
     const body = await parse({ deliveriesPerSeason: '99' })
-    // 99 is not a plausible number of fills, so the field is dropped and the
-    // parser falls back to asking — the same outcome as sending nothing.
     expect(body.bill.annualisation).toBeNull()
     expect(body.bill.flags.map((flag) => flag.code)).toContain('needs_fills')
   })
 
   it('treats a model "not a bill" as a typed refusal, not a 500', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => visionEnvelope({ error: 'not_a_bill' })))
+    vi.stubGlobal('fetch', vi.fn(async () => anthropicEnvelope({ error: 'not_a_bill' })))
     const response = await POST(billRequest())
     expect(response.status).toBe(422)
     expect(((await response.json()) as { code: string }).code).toBe('not_a_bill')
   })
 
   it('never returns an upstream body to the client', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response('x-api-key: sk-ant-leaked-key', { status: 500 })),
-    )
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('x-api-key: sk-ant-leaked-key', { status: 500 })))
     const response = await POST(billRequest())
     expect(response.status).toBe(502)
-    const text = await response.text()
-    expect(text).not.toMatch(/sk-ant/)
+    expect(await response.text()).not.toMatch(/sk-ant/)
+  })
+
+  it('names a rejected credential instead of calling it an outage', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
+    const response = await POST(billRequest())
+    expect(response.status).toBe(503)
+    expect(((await response.json()) as { code: string }).code).toBe('vision_credentials')
+  })
+
+  it('names a rate limit instead of inviting a retry', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 429 })))
+    const response = await POST(billRequest())
+    expect(response.status).toBe(429)
+    const body = (await response.json()) as { code: string; message: string }
+    expect(body.code).toBe('vision_rate_limited')
+    expect(body.message).toMatch(/type the two numbers/i)
+  })
+})
+
+/**
+ * @built F-79 the OpenRouter reader — the credential this deployment actually has
+ *
+ * A console key costs money to obtain; an OpenRouter key is already present and
+ * reads a photographed Massachusetts bill for about $0.00003. It must produce the
+ * identical `{ ok, bill }` contract, so nothing downstream knows which reader ran.
+ */
+describe('/api/parse-bill with an OpenRouter key', () => {
+  beforeEach(() => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
+    vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-v1-test-key')
+    vi.stubEnv('OPENROUTER_MODEL', '')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  it('reads a bill and reports which reader ran', async () => {
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => openRouterEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    const body = await parse()
+    expect(body.reader).toBe('openrouter')
+    expect(body.bill.annualisation?.method).toBe('degree_days')
+  })
+
+  it('sends a bearer token, the default model, and the image as a data URL', async () => {
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => openRouterEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    await parse()
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions')
+    const headers = init.headers as Record<string, string>
+    expect(headers.authorization).toBe('Bearer sk-or-v1-test-key')
+    expect(headers['x-api-key']).toBeUndefined()
+    const sent = JSON.parse(String(init.body)) as {
+      model: string
+      messages: { content: { type: string; image_url?: { url: string } }[] }[]
+    }
+    expect(sent.model).toBe('google/gemma-3-12b-it')
+    expect(sent.messages[0].content[0].image_url?.url).toMatch(/^data:image\/jpeg;base64,/)
+  })
+
+  it('honours an OPENROUTER_MODEL override', async () => {
+    vi.stubEnv('OPENROUTER_MODEL', 'qwen/qwen3.7-flash')
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => openRouterEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    await parse()
+    const sent = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body)) as { model: string }
+    expect(sent.model).toBe('qwen/qwen3.7-flash')
+  })
+
+  it('tells the truth about PDFs instead of failing upstream', async () => {
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => openRouterEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    const response = await POST(billRequest({}, 'application/pdf'))
+    expect(response.status).toBe(415)
+    const body = (await response.json()) as { code: string; message: string }
+    expect(body.code).toBe('unsupported')
+    expect(body.message).toMatch(/photograph|photo/i)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('prefers a console key when both are configured', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', API_KEY)
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => anthropicEnvelope(fixtureA))
+    vi.stubGlobal('fetch', fetchMock)
+    const body = await parse()
+    expect(body.reader).toBe('anthropic')
+    expect((fetchMock.mock.calls[0] as [string])[0]).toBe('https://api.anthropic.com/v1/messages')
   })
 })

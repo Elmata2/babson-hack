@@ -70,6 +70,7 @@ marked ✂ until P4 is green.
 | F-65 | P3 | Bill upload side panel — the photo path with no dead end, fills the numbers only on request | A | 45m | F-26 |
 | F-76 | P3 | `lib/parse/annualise.ts` — five named methods (printed history, degree days, tank cadence, HDD-scaled, ×12) + a summer refusal; `hdd-monthly-weights.json` from the ERA5 bake | B | 60m | F-28 |
 | F-77 | P3 | Route plumbing: forward `deliveriesPerSeason` / `heating` / `forceMonthlyX12` / `countyFips`; 9 route tests with the vision call mocked | C | 30m | F-76 |
+| F-79 | P3 | Two readers: Anthropic console key or OpenRouter (`google/gemma-3-12b-it`, ~$0.00003/bill); OAuth tokens refused by name; all-in price rule in the prompt | B | 45m | F-77 |
 | F-29 | P3 | Bill confirm UI — editable chips, confidence colours | A | 45m | F-28 |
 | F-30 | P3 | Manual entry — fuel select + two numbers, same speed as OCR | A | 25m | F-02 |
 | F-31 | P3 | Address intake, merge bill + assessor + manual with per-field source | A | 40m | F-11 |
