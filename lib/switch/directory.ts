@@ -26,7 +26,12 @@ export function seedProviders(): SwitchProvider[] {
  * a row with a list is a real business narrowed to where it drives.
  */
 export function directoryFor(town: string, env: NodeJS.ProcessEnv = process.env): SwitchProvider[] {
-  const merged = [...seedProviders(), ...parseProviders(env.PROVIDER_ALLOWLIST_JSON)]
+  // A deployment that names its own rows for a vertical means them: the fiction-range
+  // seed would otherwise be preselected beside a real team line and dial a number that
+  // cannot ring. A vertical it names nothing for keeps the seed.
+  const own = parseProviders(env.PROVIDER_ALLOWLIST_JSON)
+  const ownKinds = new Set(own.map((provider) => provider.kind))
+  const merged = [...own, ...seedProviders().filter((provider) => !ownKinds.has(provider.kind))]
   const seen = new Set<string>()
   const rows: SwitchProvider[] = []
   for (const provider of merged) {

@@ -44,8 +44,8 @@ function loadEnv() {
 loadEnv()
 
 const checks = []
-function check(name, ok, detail, fix) {
-  checks.push({ name, ok, detail, fix: ok ? null : fix })
+function check(name, ok, detail, fix, warn = false) {
+  checks.push({ name, ok, warn: ok && warn, detail, fix: ok && !warn ? null : fix })
 }
 
 function env(name) {
@@ -83,14 +83,16 @@ async function main() {
     return
   }
 
-  const user = await call('/user')
+  // An Agents-only key is the least-privilege setup and cannot read `/user`, so the
+  // key is proved against the API the calls actually use.
+  const agents = await call('/convai/agents')
   check(
     'the key is accepted by the platform',
-    user.ok,
-    user.ok ? `workspace ${user.body?.workspace_id ?? 'unknown'}` : `HTTP ${user.status}`,
-    'Re-issue the key in the ElevenLabs dashboard; an unaccepted key cannot create calls.',
+    agents.ok,
+    agents.ok ? 'reads ElevenLabs Agents' : `HTTP ${agents.status} ${agents.body?.detail?.message ?? ''}`.trim(),
+    'Re-issue the key in the ElevenLabs dashboard with ElevenLabs Agents set to Write; an unaccepted key cannot create calls.',
   )
-  if (!user.ok) {
+  if (!agents.ok) {
     report()
     return
   }
@@ -99,14 +101,21 @@ async function main() {
   const used = Number(subscription.body?.character_count ?? 0)
   const limit = Number(subscription.body?.character_limit ?? 0)
   const remaining = Math.max(0, limit - used)
+  const unreadable = subscription.status === 401 || subscription.status === 403
   check(
     'the workspace has voice credits left',
-    subscription.ok && remaining >= CREDIT_FLOOR,
-    subscription.ok ? `${remaining.toLocaleString('en-US')} of ${limit.toLocaleString('en-US')} left` : `HTTP ${subscription.status}`,
-    `Only ${remaining.toLocaleString('en-US')} characters left. A call of a few minutes needs thousands, so top the workspace up before a live demo (ElevenLabs → Usage).`,
+    unreadable || (subscription.ok && remaining >= CREDIT_FLOOR),
+    unreadable
+      ? 'unverified: this key has no User read permission'
+      : subscription.ok
+        ? `${remaining.toLocaleString('en-US')} of ${limit.toLocaleString('en-US')} left`
+        : `HTTP ${subscription.status}`,
+    unreadable
+      ? 'Open ElevenLabs → Usage and confirm credits before a live demo; a call with no credits connects silent.'
+      : `Only ${remaining.toLocaleString('en-US')} characters left. A call of a few minutes needs thousands, so top the workspace up before a live demo (ElevenLabs → Usage).`,
+    unreadable,
   )
 
-  const agents = await call('/convai/agents')
   const agentList = Array.isArray(agents.body?.agents) ? agents.body.agents : []
   const configuredAgent = agentId ? agentList.find((agent) => (agent.agent_id ?? agent.id) === agentId) : null
   check(
@@ -140,11 +149,12 @@ async function main() {
         numberList.map((row) => `${row.phone_number_id} (${row.phone_number})`).join(', '),
   )
 
+  // Off is the demo setup, not a fault: team lines (allowlist rows) still dial.
   check(
-    'PROVIDER_OUTREACH_ENABLED is true',
-    outreachEnabled,
-    outreachEnabled ? 'on' : 'off',
-    'Set PROVIDER_OUTREACH_ENABLED=true in .env.local, or only team test lines may be dialled.',
+    'real businesses may be dialled',
+    true,
+    outreachEnabled ? 'yes (PROVIDER_OUTREACH_ENABLED=true)' : 'no, team test lines only (PROVIDER_OUTREACH_ENABLED is off)',
+    null,
   )
 
   const ready = checks.every((entry) => entry.ok)
@@ -174,7 +184,7 @@ async function placeCall({ to, agentId, phoneNumberId }) {
       agent_phone_number_id: phoneNumberId,
       to_number: to,
       conversation_initiation_client_data: {
-        dynamic_variables: { town: 'Arlington', vertical: 'installer', tons: '3.5', sqft: '1800' },
+        dynamic_variables: { town: 'Arlington', vertical: 'installer', fuel: 'heat pump', current_fuel: 'oil', tons: '3.5', sqft: '1800' },
       },
     }),
   })
@@ -225,17 +235,18 @@ async function placeCall({ to, agentId, phoneNumberId }) {
 }
 
 function report() {
-  const lines = checks.map((entry) => `${entry.ok ? 'PASS' : 'FAIL'}  ${entry.name} — ${entry.detail}`)
+  const lines = checks.map((entry) => `${entry.warn ? 'WARN' : entry.ok ? 'PASS' : 'FAIL'}  ${entry.name} — ${entry.detail}`)
   if (json) {
     console.log(JSON.stringify(checks, null, 2))
   } else {
     console.log(lines.join('\n'))
-    const fixes = checks.filter((entry) => !entry.ok)
+    const fixes = checks.filter((entry) => entry.fix)
     if (fixes.length > 0) {
       console.log('\nWhat to do:')
       for (const entry of fixes) console.log(`  - ${entry.name}: ${entry.fix}`)
-    } else {
-      console.log('\nAll green: a confirmed request can be dialled from the app.')
+    }
+    if (checks.every((entry) => entry.ok)) {
+      console.log(`\n${fixes.length > 0 ? 'Ready, with the warning above' : 'All green'}: a confirmed request can be dialled from the app.`)
     }
   }
 }

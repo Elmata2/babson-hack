@@ -18,7 +18,7 @@ import { DEMO_MESSAGES, demoFromRequest, isDemoFlag } from '@/lib/demo'
 import { startCall } from '@/lib/calls/elevenlabs'
 import { fixtureRecord } from '@/lib/calls/fixtures'
 import { callPlan, dialable, isE164 } from '@/lib/calls/plan'
-import { callRecord, callVariables } from '@/lib/calls/route-model'
+import { callRecord, callVariables, spokenVariables } from '@/lib/calls/route-model'
 import type { CallRecord, CallStart } from '@/lib/calls/types'
 import { chargeOutbound } from '@/lib/security/outbound-cap'
 import { clientIp } from '@/lib/security/rate-limit'
@@ -131,7 +131,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const agent = plan.agent
-  const variables = callVariables(payload.facts)
+  const variables = spokenVariables(callVariables(payload.facts), payload.kind)
   const records: CallRecord[] = []
 
   for (const provider of selected) {

@@ -19,7 +19,7 @@ Status: `declined`. Leave no voicemail. Never call back.
 - town and ZIP: `{town}`, `{zip}`
 - home size: `{sqft}` square feet
 - estimated size: `{tons}` tons
-- that the household is replacing a `{fuel}` heating system
+- that the household is replacing a `{current_fuel}` heating system
 
 ## What you must never say
 

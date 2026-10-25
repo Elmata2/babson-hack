@@ -60,6 +60,20 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
+// The repo writes `{town}`; the platform substitutes `{{town}}` and leaves single
+// braces as literal text the agent would read aloud.
+const platformVariables = (text) => text.replace(/(?<!\{)\{([a-z_]+)\}(?!\})/g, '{{$1}}')
+
+// The route drops null facts, and the platform refuses a call that leaves a referenced
+// variable unset, so every variable the prompts name gets a spoken-safe default.
+const promptText = `${firstMessage}\n${fuelPrompt}\n${installerPrompt}`
+const placeholders = Object.fromEntries(
+  [...new Set([...promptText.matchAll(/\{([a-z_]+)\}/g)].map((match) => match[1]))].map((name) => [
+    name,
+    name === 'target_price' ? 'none' : 'not given',
+  ]),
+)
+
 /**
  * The platform's `data_collection` is a flat map of `AnalysisProperty`
  * (`{ type, description }`) and accepts only the four scalar types in
@@ -93,10 +107,13 @@ const payload = {
   name: caller.name,
   conversation_config: {
     agent: {
-      first_message: firstMessage,
+      first_message: platformVariables(firstMessage),
       language: caller.language,
+      dynamic_variables: { dynamic_variable_placeholders: { ...placeholders, vertical: 'fuel' } },
       prompt: {
-        prompt: `${fuelPrompt}\n\n---\n\n${installerPrompt}`,
+        prompt: platformVariables(
+          `This call's vertical is {vertical}. Follow only the section below for that vertical: "fuel" is the fuel dealer script, "installer" is the heat pump installer script.\n\n${fuelPrompt}\n\n---\n\n${installerPrompt}`,
+        ),
         built_in_tools: {
           end_call: { name: 'end_call', params: { system_tool_type: 'end_call' } },
           voicemail_detection: {

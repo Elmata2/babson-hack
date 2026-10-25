@@ -170,6 +170,24 @@ describe('POST /api/calls', () => {
     expect(Object.keys(dynamic)).not.toContain('name')
   })
 
+  it('asks an installer about heat pump prices, so the disclosure never has an empty hole', async () => {
+    vi.stubEnv('ELEVENLABS_API_KEY', 'test-key')
+    vi.stubEnv('ELEVENLABS_AGENT_ID', 'agent-1')
+    vi.stubEnv('ELEVENLABS_PHONE_NUMBER_ID', 'phone-1')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ conversation_id: 'conv_live_2' }), { status: 200 }),
+    )
+
+    const response = await POST(
+      request(body({ kind: 'installer', choice: 'SWITCH_HEAT_PUMP', providers: [{ id: 'test-installer-a', channel: 'phone' }] }), ''),
+    )
+    expect(response.status).toBe(200)
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+    const dynamic = (JSON.parse(String(init.body)) as { conversation_initiation_client_data: { dynamic_variables: Record<string, string> } })
+      .conversation_initiation_client_data.dynamic_variables
+    expect(dynamic).toMatchObject({ vertical: 'installer', fuel: 'heat pump', current_fuel: 'oil' })
+  })
+
   it('reports a vendor failure per provider instead of failing the request', async () => {
     vi.stubEnv('ELEVENLABS_API_KEY', 'test-key')
     vi.stubEnv('ELEVENLABS_AGENT_ID', 'agent-1')

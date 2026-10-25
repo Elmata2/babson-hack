@@ -94,3 +94,21 @@ export function callVariables(facts: {
   for (const [key, value] of entries) if (value !== null && value !== '') out[key] = value
   return out
 }
+
+/**
+ * The variables for one call. The platform's first message is the shared disclosure,
+ * "questions about your {fuel} prices", and refuses to start when a hole is unset.
+ * An installer is asked about heat pump prices, as its own script says, so `fuel`
+ * is the price topic and the household's current fuel travels as `current_fuel`.
+ * Guarantee: `town` and `fuel` are always present.
+ */
+export function spokenVariables(
+  variables: Record<string, string>,
+  vertical: 'fuel' | 'installer',
+): Record<string, string> {
+  const { fuel, ...rest } = variables
+  if (vertical === 'installer') {
+    return { ...rest, ...(fuel ? { current_fuel: fuel } : {}), fuel: 'heat pump' }
+  }
+  return { ...rest, fuel: fuel ?? 'heating fuel' }
+}
