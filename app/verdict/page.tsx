@@ -290,6 +290,11 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
         supplyShoppable: switchModel.choices.includes('SHOP_SUPPLY'),
       })
     : null
+  // The one button a presenter presses: it only exists when this deployment can really dial.
+  const liveCallHref =
+    !demo && recommendation?.kind === 'quotes' && optionInput?.call && optionInput.call.mode !== 'off'
+      ? recommendation.agentHref
+      : null
   const figure = (id: FigureId): ProvenanceEntry | null => entryFor(entries, id)
   const utilityName =
     utility.sponsors.length === 1 ? SPONSOR_NAME[utility.sponsors[0] as keyof typeof SPONSOR_NAME] : null
@@ -361,6 +366,22 @@ export default async function VerdictPage({ searchParams }: VerdictPageProps) {
                     </p>
                   ) : null}
                   <p className="mt-4 text-title font-medium text-(--tone)">{headline.action}</p>
+                  {liveCallHref ? (
+                    <Link
+                      href={liveCallHref}
+                      className="mt-5 inline-flex items-center gap-3 rounded-pill bg-ink px-6 py-3.5 text-body font-medium text-paper transition-transform duration-150 ease-out active:scale-[0.97]"
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5 fill-current">
+                        <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z" />
+                      </svg>
+                      Call an installer now
+                    </Link>
+                  ) : null}
+                  {liveCallHref ? (
+                    <p className="mt-2 max-w-[48ch] text-micro text-ink-muted">
+                      Rings our test installer line right away. The agent says it is an AI and that the call is recorded.
+                    </p>
+                  ) : null}
                 </div>
                 <VerdictDial verdict={result.verdict} className="w-full" />
               </div>

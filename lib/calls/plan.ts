@@ -105,7 +105,7 @@ export function callPlan(providers: readonly SwitchProvider[], env: NodeJS.Proce
       mode: 'allowlist',
       reason: null,
       notice:
-        'Team test lines only — no real business is dialled. PROVIDER_OUTREACH_ENABLED is not set on this deployment.',
+        'Team test lines only — no real business is dialled.',
       agent,
     }
   }
@@ -131,7 +131,7 @@ export function dialable(
   if (plan.mode === 'allowlist' && !provider.allowlist) {
     return {
       ok: false,
-      note: `${provider.name} is a real business. Calls to real businesses need PROVIDER_OUTREACH_ENABLED=true, which this deployment has not set.`,
+      note: `${provider.name} is a real business. This build only calls team test lines, so it was not dialled.`,
     }
   }
   return { ok: true }
